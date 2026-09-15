@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.1.1
+
+### 修复
+
+- **接入方不再需要 `@preconcurrency import ReaderKit`。** 库内 10 处可变全局存储
+  （`ReaderEnvironment` 的 6 个注入点，以及 `ReaderBatterySize`、`READER_COLOR_MAIN`、
+  `READER_COLOR_MENU_COLOR`、`READER_RECORD_CURRENT_CHAPTER_LOCATION`）此前未做并发
+  标注，在 `SWIFT_VERSION = 6.0` + `SWIFT_STRICT_CONCURRENCY = complete` 的工程里
+  会报 `reference to static property 'strings' is not concurrency-safe`。
+  现统一标注 `nonisolated(unsafe)`，由库承担责任，运行时行为不变。
+
+  使用契约：**在展示阅读器之前配置一次注入点，之后视为只读**，库内不对其做同步。
+
+  未采用 `@MainActor`：本地 txt 解析（`ReaderFastTextFileParser.parser(url:completion:)`）
+  运行在后台队列，其中会读取 `ReaderEnvironment.fonts`，主线程隔离与该既有路径冲突。
+
+- `ReaderDefaultHostConfiguration` 补 `public init()`。此前它是 `public class` 但
+  初始化器为隐式 `internal`，接入方无法实例化，导致「只覆盖其中一项、其余委托默认实现」
+  这种用法无法实现。现与 `ReaderDefaultThemeProvider` 保持一致。
+
 ## 1.1.0
 
 ### 破坏性变更

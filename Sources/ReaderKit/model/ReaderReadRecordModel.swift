@@ -8,7 +8,7 @@
 import UIKit
 
 /// 记录当前章节阅读到的坐标
-public var READER_RECORD_CURRENT_CHAPTER_LOCATION: NSNumber!
+nonisolated(unsafe) public var READER_RECORD_CURRENT_CHAPTER_LOCATION: NSNumber!
 
 /// 归档用的固定 ObjC 类名。Swift 类归档时写入「模块名.类名」，
 /// 一旦模块名或 Swift 类名变化，旧归档就反序列化不出来（老用户进度与书签丢失）。

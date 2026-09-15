@@ -32,7 +32,13 @@ public protocol ReaderHostConfiguring: AnyObject {
 }
 
 /// 库内默认实现：不接 CDN、书签上限给保守默认值。宿主未注入时使用。
+///
+/// 声明 `public init()` 与 `ReaderDefaultThemeProvider` 保持一致：该类型出现在公开
+/// API 里（`ReaderEnvironment.hostConfiguration` 的默认值），接入方需要能实例化它，
+/// 例如只想覆盖其中一项、其余沿用默认时把它作为兜底委托。
 final public class ReaderDefaultHostConfiguration: ReaderHostConfiguring {
+
+    public init() {}
 
     public var bookmarkMaxCount: Int { 99 }
 

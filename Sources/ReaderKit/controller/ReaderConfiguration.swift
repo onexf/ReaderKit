@@ -9,10 +9,10 @@ import UIKit
 
 
 /// 主题颜色
-public var READER_COLOR_MAIN: UIColor = READER_COLOR_253_85_103
+nonisolated(unsafe) public var READER_COLOR_MAIN: UIColor = READER_COLOR_253_85_103
 
 /// 菜单默认颜色
-public var READER_COLOR_MENU_COLOR: UIColor = READER_COLOR_230_230_230
+nonisolated(unsafe) public var READER_COLOR_MENU_COLOR: UIColor = READER_COLOR_230_230_230
 
 /// 阅读背景颜色列表
 public let READER_BG_COLORS: [UIColor] = [readerColor(246, 246, 246), READER_COLOR_238_224_202, READER_COLOR_205_239_205, READER_COLOR_206_233_241, READER_COLOR_58_52_54]

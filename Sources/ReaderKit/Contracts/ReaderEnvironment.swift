@@ -11,7 +11,18 @@
 //  使用约束：
 //  - 只放**无状态配置**（文案、外观常量这类），不要放阅读会话数据
 //    （当前书籍、章节、进度等），那些必须走 dataSource / 实例属性
-//  - 宿主在创建阅读器前配置一次即可
+//  - **在展示阅读器之前配置一次**，之后视为只读。库内不对这些属性做同步。
+//
+//  并发标注说明：各属性标了 `nonisolated(unsafe)`。
+//
+//  这样接入方在 Swift 6 严格并发（`SWIFT_STRICT_CONCURRENCY = complete`）下可以
+//  直接 `import ReaderKit`，无需退化为 `@preconcurrency import`——由库自己承担
+//  这些全局的责任，而不是把告警推给使用方。
+//
+//  为什么不用 `@MainActor`：阅读器绝大多数访问确实在主线程，但本地 txt 解析
+//  （`ReaderFastTextFileParser.parser(url:completion:)`）跑在 `DispatchQueue.global()` 上，
+//  其中 `reviseFont()` 会读 `fonts`。标 `@MainActor` 会与这条既有路径冲突。
+//  故如实标为 unsafe：契约靠上面那条「先配置、后只读」保证，而非类型系统。
 //
 
 import Foundation
@@ -26,10 +37,10 @@ public enum ReaderEnvironment {
     /// ```swift
     /// ReaderEnvironment.strings = MyReaderStringsFactory.make()
     /// ```
-    public static var strings: ReaderStrings = .default
+    nonisolated(unsafe) public static var strings: ReaderStrings = .default
 
     /// 引擎使用的图片资源。宿主未配置时为库内默认资源。
-    public static var images: ReaderImages = .default
+    nonisolated(unsafe) public static var images: ReaderImages = .default
 
     /// 引擎使用的字体。宿主未配置时为库内自带字型。
     ///
@@ -39,18 +50,18 @@ public enum ReaderEnvironment {
     /// fonts.bodyText = { UIFont.myBrandSerif($0) }
     /// ReaderEnvironment.fonts = fonts
     /// ```
-    public static var fonts: ReaderFonts = ReaderFonts()
+    nonisolated(unsafe) public static var fonts: ReaderFonts = ReaderFonts()
 
     /// 宿主环境配置（CDN 图片处理、书签上限等）。宿主未配置时为库内默认实现。
     ///
     /// 与文案同理放环境而非注入点：这些配置的使用处在 String / Model 扩展里，
     /// 拿不到阅读器控制器实例。
-    public static var hostConfiguration: ReaderHostConfiguring = ReaderDefaultHostConfiguration()
+    nonisolated(unsafe) public static var hostConfiguration: ReaderHostConfiguring = ReaderDefaultHostConfiguration()
 
     /// 阅读主题配色来源。库自带中性默认配色，接入方应注入自己的设计配色。
     ///
     /// 库只定义主题槽位（`ReaderThemeType`），每个槽位的色值由接入方决定。
-    public static var themeProvider: ReaderThemeProviding = ReaderDefaultThemeProvider()
+    nonisolated(unsafe) public static var themeProvider: ReaderThemeProviding = ReaderDefaultThemeProvider()
 
     /// 展示错误提示（Toast / Snackbar）。
     ///
@@ -62,7 +73,7 @@ public enum ReaderEnvironment {
     /// - Parameters:
     ///   - container: 触发提示的视图，接入方可据此决定挂载位置
     ///   - message: 已本地化的提示文案
-    public static var presentErrorNotice: (_ container: UIView, _ message: String) -> Void = { _, _ in }
+    nonisolated(unsafe) public static var presentErrorNotice: (_ container: UIView, _ message: String) -> Void = { _, _ in }
 }
 
 /// 阅读器引擎所需的图片资源。

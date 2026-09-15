@@ -6,7 +6,7 @@
 //
 
 /// 电池宽推荐使用宽高
-public var ReaderBatterySize: CGSize = CGSize(width: 20, height: 10)
+nonisolated(unsafe) public var ReaderBatterySize: CGSize = CGSize(width: 20, height: 10)
 
 /// 电池量宽度 跟图片的比例
 ///
