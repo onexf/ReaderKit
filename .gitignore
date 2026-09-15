@@ -1,0 +1,16 @@
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+
+# CocoaPods（本库自身不含 Pods，接入方工程的产物不应进来）
+Pods/
+
+# macOS
+.DS_Store

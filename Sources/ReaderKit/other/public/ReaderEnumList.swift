@@ -1,0 +1,69 @@
+//
+//  ReaderEnumList.swift
+//  ReaderKit
+//
+//  Created by Asuna on 2025/11/22.
+//
+
+import UIKit
+
+/// 书籍来源类型
+public enum ReaderBookSourceType: NSInteger {
+    /// 网络小说
+    case network
+    /// 本地小说
+    case local
+}
+
+/// 阅读翻页类型
+///
+/// rawValue 必须保持稳定，不可改动、不可复用：
+/// 0（仿真）、1（覆盖）、4（无效果）是历史上支持过的模式，已随死代码清理移除。
+/// 老用户归档里仍可能存着这三个值，由 `ReaderConfiguration.initData` 统一归一为 `.scroll`。
+/// 若把 translation/scroll 改成隐式 rawValue（0/1），老用户的翻页偏好会被静默改写。
+public enum ReaderEffectType: NSInteger {
+    /// 平移（左右翻页）
+    case translation = 2
+    /// 滚动（上下滚动）
+    case scroll = 3
+}
+
+/// 阅读字体类型
+public enum ReaderFontType: NSInteger {
+    /// 系统
+    case system
+    /// 黑体
+    case one
+    /// 楷体
+    case two
+    /// 宋体
+    case three
+}
+
+/// 阅读内容间距类型
+public enum ReaderSpacingType: NSInteger {
+    /// 大间距
+    case big
+    /// 适中间距
+    case middle
+    /// 小间距
+    case small
+}
+
+/// 阅读进度类型
+public enum ReaderProgressType: NSInteger {
+    /// 总进度
+    case total
+    /// 分页进度
+    case page
+}
+
+/// 分页内容是以什么开头
+public enum ReaderSheetHeaderType: NSInteger {
+    /// 章节名
+    case chapterName
+    /// 段落
+    case paragraph
+    /// 行内容
+    case line
+}
