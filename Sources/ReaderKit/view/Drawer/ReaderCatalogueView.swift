@@ -16,7 +16,7 @@ import UIKit
     @objc optional func catalogViewDidReachBottomEdge(catalogView: ReaderCatalogueView)
 }
 
-open class ReaderCatalogueView: UIView,UITableViewDelegate,UITableViewDataSource {
+open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSource {
 
     // MARK: - 设计稿尺寸
 

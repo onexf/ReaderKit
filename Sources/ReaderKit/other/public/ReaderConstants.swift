@@ -182,7 +182,7 @@ public static func text(progress: Float) ->String {
 }
 
 /// 计算全书进度（0.0–1.0）
-public static func ratio(readModel: ReaderBookModel!,recordModel: ReaderReadRecordModel!) ->Float {
+public static func ratio(readModel: ReaderBookModel!, recordModel: ReaderReadRecordModel!) ->Float {
     
     // 当前阅读进度
     var progress: Float = 0.0

@@ -32,7 +32,7 @@ import UIKit
     @objc optional func markViewRequestClearAll(_ markView: ReaderBookmarkListView, completion:@escaping (Bool) -> Void)
 }
 
-open class ReaderBookmarkListView: UIView,UITableViewDelegate,UITableViewDataSource {
+open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataSource {
     
     /// 代理
     open weak var delegate: ReaderBookmarkListDelegate!

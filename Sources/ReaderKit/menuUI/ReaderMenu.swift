@@ -74,7 +74,7 @@ import UIKit
   
 }
 
-open class ReaderMenu: NSObject,UIGestureRecognizerDelegate {
+open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
 
     /// 控制器
     /// 阅读器控制器。

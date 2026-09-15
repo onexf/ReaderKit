@@ -9,13 +9,12 @@
 # 本地引入方式（Podfile）：
 #   pod 'ReaderKit', :path => 'Modules/ReaderKit'
 #
-# 与 SPM 的一处差异：CocoaPods 原生支持单 target 混编 Swift 与 Objective-C，
-# 故这里不必像 SPM 那样把 OC 拆成独立 target，source_files 直接全收。
-# 引擎内的 canImport shim 在 pod 下条件不成立、自动为空段，不影响编译。
+# 纯 Swift 单 target。原先进度条使用的 Objective-C 三方组件已用 Swift 重写，
+# 故不再需要 OC 源码、伞形头文件与 public_header_files 配置。
 #
 Pod::Spec.new do |s|
   s.name             = 'ReaderKit'
-  s.version          = '1.0.0'
+  s.version          = '1.1.0'
   s.summary          = '小说阅读器引擎：排版分页、翻页与滚动、阅读菜单、目录书签、主题换肤'
   s.description      = <<-DESC
                        小说阅读器内核，库内零业务代码。
@@ -30,8 +29,7 @@ Pod::Spec.new do |s|
   s.ios.deployment_target = '15.1'
   s.swift_version    = '5.9'
 
-  s.source_files     = 'Sources/ReaderKit/**/*.{swift,h,m}', 'Sources/ReaderKitOC/**/*.{h,m}'
-  s.public_header_files = 'Sources/ReaderKitOC/**/*.h'
+  s.source_files     = 'Sources/ReaderKit/**/*.swift'
 
   s.frameworks       = 'UIKit', 'CryptoKit'
 end

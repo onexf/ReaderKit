@@ -185,7 +185,7 @@ extension String {
         
         let string: NSString = self as NSString
         
-        return string.boundingRect(with: size, options: [.usesLineFragmentOrigin,.usesFontLeading], attributes: [.font:font], context: nil).size
+        return string.boundingRect(with: size, options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font:font], context: nil).size
     }
 }
 
@@ -194,7 +194,7 @@ extension NSAttributedString {
     /// 计算size
     public func size(_ size: CGSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)) ->CGSize{
         
-        return self.boundingRect(with: size, options: [NSStringDrawingOptions.usesLineFragmentOrigin,NSStringDrawingOptions.usesFontLeading], context: nil).size
+        return self.boundingRect(with: size, options: [NSStringDrawingOptions.usesLineFragmentOrigin, NSStringDrawingOptions.usesFontLeading], context: nil).size
     }
     
     /// 扩展拼接

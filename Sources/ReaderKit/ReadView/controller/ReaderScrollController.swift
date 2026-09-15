@@ -7,7 +7,7 @@
 
 import UIKit
 
-open class ReaderScrollController: ReaderScreenController,UITableViewDelegate,UITableViewDataSource {
+open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, UITableViewDataSource {
 
     /// 当前主控制器
     /// 阅读器控制器。
@@ -223,6 +223,11 @@ open class ReaderScrollController: ReaderScreenController,UITableViewDelegate,UI
     /// 与安卓的一处**有意不同**：安卓分页是异步流式的，总页数没算完时分母显示 `~N` / `-`；
     /// iOS 侧 `ReaderTypesetter.pageing` 是同步分页，cell 能渲染就意味着页数已确定，
     /// 所以不需要这两种占位态。
+    ///
+    /// 另一处**有意不同**：滚到内容末尾时改取「可见的最后一行」。取顶端像素所属页有个
+    /// 到不了的边界——末页通常不足一屏，滚到底时它虽已完整呈现，其上方仍留着前一页的尾巴，
+    /// 顶端像素落在前一页，于是页码永远停在倒数第二页（正文已显示到 END、页码却是 14/15）。
+    /// 中途章节不受影响：继续下滚时该页自然会成为顶端页。
     private func revisePageNumber() {
         
         guard let bottomView else { return }
@@ -230,7 +235,22 @@ open class ReaderScrollController: ReaderScreenController,UITableViewDelegate,UI
         // 顶端那一点命中的 cell 即当前页
         let topPoint = CGPoint(x: 0, y: tableView.contentOffset.y + 0.5)
         
-        guard let indexPath = tableView.indexPathForRow(at: topPoint) else {
+        // 是否已滚到内容末尾（含内容不足一屏的情况）
+        let maxOffsetY = max(0, tableView.contentSize.height - tableView.bounds.height)
+        let isAtContentEnd = tableView.contentOffset.y >= maxOffsetY - 1
+        
+        let indexPath: IndexPath
+        
+        if isAtContentEnd, let lastVisible = tableView.indexPathsForVisibleRows?.last {
+            
+            // 滚到底：用户看到的是最后一页，页码跟上
+            indexPath = lastVisible
+            
+        } else if let topIndexPath = tableView.indexPathForRow(at: topPoint) {
+            
+            indexPath = topIndexPath
+            
+        } else {
             
             // 命中不到 cell 只剩过冲回弹一种情况（下拉刷新、滚到底回弹，contentOffset 越界）→
             // 保持上一次的值，否则页码会在回弹的几帧里闪一下消失。安卓那边是把 pageOffset

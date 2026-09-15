@@ -12,7 +12,7 @@ import UIKit
 /// 用 @objc 固定为无模块前缀的名字后，归档格式与模块名、Swift 名解耦。
 /// **该名字一经发布不可再改。**
 @objc(ReaderBookmarkModel)
-open class ReaderBookmarkModel: NSObject,NSCoding {
+open class ReaderBookmarkModel: NSObject, NSCoding {
 
     // 以下字段原为隐式解包可选（`String!`），是从 Objective-C 移植时留下的写法：
     // 解档缺 key 时字段为 nil，之后任何访问都会崩溃，且编译器不提醒。

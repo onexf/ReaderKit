@@ -14,7 +14,7 @@
 ### SPM
 
 ```swift
-.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.0.0")
+.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.1.0")
 // 本地开发也可用路径引用：.package(path: "../ReaderKit")
 ```
 
@@ -119,18 +119,13 @@ ReaderEnvironment.fonts = fonts
   里重新引入 `setClass(_:forClassName:)` 映射。
 - 埋点处于整体下线状态（代码注释保留）。恢复时应经协议由接入方实现，
   引擎不直连任何埋点 SDK。
-- `Sources/ReaderKitOC` 下仍有一个第三方 Objective-C 组件
-  （ASValueTrackingSlider，MIT，见 `THIRD-PARTY-NOTICES.md`），
-  它是库内唯一的 OC target。仅为阅读进度条提供「拖动时显示数值气泡」这一能力，
-  其余全部继承自系统 `UISlider`。计划用 Swift 自实现替换，届时可去掉 OC target、
-  `ReaderEngineOCShim.swift` 与伞形头文件，库将成为纯 Swift 单 target。
 
 ## 许可与来源
 
 本库的阅读器内核衍生自 [DZMeBookRead](https://github.com/dengzemiao/DZMeBookRead)
 （MIT，Copyright (c) 2018 dengzemiao），在其基础上做了重构、模块化、边界解耦与功能调整。
 
-- 上游作品与所含第三方组件按其**原始许可证**授权，见 `THIRD-PARTY-NOTICES.md`
+- 上游作品按其**原始许可证**授权，见 `THIRD-PARTY-NOTICES.md`
 - 本库在此之上的修改与新增部分采用专有许可（保留所有权利），见 `LICENSE`
 
 接入方分发 App 时，需在应用内（如「关于 / 开源许可」页面）一并展示

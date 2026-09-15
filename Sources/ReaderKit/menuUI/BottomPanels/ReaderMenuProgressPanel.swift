@@ -7,13 +7,13 @@
 
 import UIKit
 
-open class ReaderMenuProgressPanel: ReaderMenuPanel,ASValueTrackingSliderDelegate,ASValueTrackingSliderDataSource {
+open class ReaderMenuProgressPanel: ReaderMenuPanel {
     
     /// 上一章
     private var previousChapter: UIButton!
     
     /// 进度
-    private var slider: ASValueTrackingSlider!
+    private var slider: ReaderProgressSlider!
     
     /// 下一章
     private var nextChapter: UIButton!
@@ -43,25 +43,30 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel,ASValueTrackingSliderDelegat
         addSubview(nextChapter)
         
         // 进度条
-        slider = ASValueTrackingSlider()
-        slider.delegate = self
-        slider.dataSource = self
+        slider = ReaderProgressSlider()
         slider.setThumbImage(ReaderEnvironment.images.progressThumb(), for: .normal)
-        // 设置显示进度保留几位小数 (由于重写了 dataSource 则不用不到该属性了)
-        // slider.setMaxFractionDigitsDisplayed(0)
-        // 设置气泡背景颜色
-        slider.popUpViewColor = READER_COLOR_MAIN
-        // 设置气泡字体颜色
-        slider.textColor = READER_COLOR_MENU_COLOR
-        // 设置气泡字体以及字体大小
-        slider.font = UIFont(name: "Futura-CondensedExtraBold", size: 22)
-        // 设置气泡箭头高度
-        slider.popUpViewArrowLength = READER_SPACE_SA_5
-        // 设置当前进度颜色
+        // 气泡文案：总进度显示百分比，分页进度显示页码
+        slider.bubbleTextProvider = { [weak self] value in
+            return self?.bubbleText(for: value) ?? ""
+        }
+        // 拖动结束后跳转（原 sliderWillHidePopUpView 的时机）
+        slider.onDragFinished = { [weak self] value in
+            self?.commitProgress(value)
+        }
+        // 气泡背景颜色
+        slider.bubbleColor = READER_COLOR_MAIN
+        // 气泡字体颜色
+        slider.bubbleTextColor = READER_COLOR_MENU_COLOR
+        // 气泡字体以及字体大小。该字型系统自带，缺失时回落到系统粗体
+        slider.bubbleFont = UIFont(name: "Futura-CondensedExtraBold", size: 22)
+            ?? .systemFont(ofSize: 22, weight: .bold)
+        // 气泡箭头高度
+        slider.bubbleArrowLength = READER_SPACE_SA_5
+        // 当前进度颜色
         slider.minimumTrackTintColor = READER_COLOR_MAIN
-        // 设置总进度颜色
+        // 总进度颜色
         slider.maximumTrackTintColor = READER_COLOR_MENU_COLOR
-        // 设置当前拖拽圆圈颜色
+        // 当前拖拽圆圈颜色
         slider.tintColor = READER_COLOR_MENU_COLOR
         addSubview(slider)
         reloadProgress()
@@ -109,9 +114,10 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel,ASValueTrackingSliderDelegat
         readMenu?.delegate?.readMenuClickNextChapter?(readMenu: readMenu)
     }
     
-    // MARK: ASValueTrackingSliderDataSource
+    // MARK: 气泡文案
     
-    open func slider(_ slider: ASValueTrackingSlider!, stringForValue value: Float) -> String! {
+    /// 气泡上显示的文案
+    private func bubbleText(for value: Float) -> String {
         
         if ReaderConfiguration.shared().progressType == .total { // 总进度
             
@@ -124,13 +130,10 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel,ASValueTrackingSliderDelegat
         }
     }
     
-    // MARK: -- ASValueTrackingSliderDelegate
+    // MARK: 拖动提交
     
-    /// 进度显示将要显示
-    open func sliderWillDisplayPopUpView(_ slider: ASValueTrackingSlider!) { }
-
-    /// 进度显示将要隐藏
-    open func sliderWillHidePopUpView(_ slider: ASValueTrackingSlider!) {
+    /// 拖动结束后按当前值跳转
+    private func commitProgress(_ sliderValue: Float) {
   
         if ReaderConfiguration.shared().progressType == .total { // 总进度
             
@@ -144,7 +147,7 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel,ASValueTrackingSliderDelegat
                 let count = (readModel!.chapterListModels.count - 1)
                 
                 // 获得当前进度的章节索引
-                let index = NSInteger(Float(count) * slider.value)
+                let index = NSInteger(Float(count) * sliderValue)
                 
                 // 获得章节列表模型
                 let chapterListModel = readModel!.chapterListModels[index]
@@ -158,7 +161,7 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel,ASValueTrackingSliderDelegat
             
         }else{ // 分页进度
             
-            readMenu?.delegate?.readMenuDraggingProgress?(readMenu: readMenu, toPage: NSInteger(slider.value - 1))
+            readMenu?.delegate?.readMenuDraggingProgress?(readMenu: readMenu, toPage: NSInteger(sliderValue - 1))
         }
     }
     

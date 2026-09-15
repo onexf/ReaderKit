@@ -12,7 +12,7 @@ import UIKit
 /// 用 @objc 固定为无模块前缀的名字后，归档格式与模块名、Swift 名解耦。
 /// **该名字一经发布不可再改。**
 @objc(ReaderChapterListItemModel)
-open class ReaderChapterListItemModel: NSObject,NSCoding {
+open class ReaderChapterListItemModel: NSObject, NSCoding {
     
     /// 章节ID
     @objc open var id: NSNumber!

@@ -10,10 +10,8 @@
 //  - SPM：本文件（新项目走这条）
 //  - CocoaPods：ReaderKit.podspec（自研 Tuist DSL 不支持 SPM 依赖的工程走这条）
 //
-//  为什么拆两个 target：SPM 不支持单 target 内混编 Swift 与 Objective-C，
-//  而阅读菜单的进度条用了 OC 三方组件 ASValueTrackingSlider，故 OC 独立成
-//  ReaderKitOC，由 Sources/ReaderKit/other/public/ReaderEngineOCShim.swift
-//  用 `#if canImport` 条件转出，Swift 侧引用无需改动。
+//  纯 Swift 单 target。原先因进度条使用 Objective-C 三方组件而拆出的 ReaderKitOC
+//  target、`@_exported` 转出 shim 与伞形头文件均已随该组件的 Swift 重写一并移除。
 //
 
 import PackageDescription
@@ -27,13 +25,7 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "ReaderKitOC",
-            path: "Sources/ReaderKitOC",
-            publicHeadersPath: "."
-        ),
-        .target(
             name: "ReaderKit",
-            dependencies: ["ReaderKitOC"],
             path: "Sources/ReaderKit",
             exclude: [
                 "Contracts/README.md"
