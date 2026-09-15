@@ -153,7 +153,24 @@ public struct ReaderImages {
     public var battery: () -> UIImage? = { symbol("battery.100") }
 
     /// 书封占位图。系统无对应图形，默认不显示，接入方按需提供。
-    public var bookCoverPlaceholder: () -> UIImage? = { nil }
+    public var coverPlaceholder: () -> UIImage? = { nil }
+
+    /// 展开箭头（目录面板头部「当前章节」右侧的指示箭头，按主题染色）
+    public var disclosureArrow: () -> UIImage? = { symbol("chevron.right") }
+
+    // MARK: - 书签与锁定
+
+    /// 书签徽标图标（书签 cell 左侧圆形徽标内的小图，按主题染色）
+    public var bookmarkBadge: () -> UIImage? = { symbol("bookmark.fill") }
+
+    /// 章节锁定图标（目录 cell 与书签分组头，按主题染色）
+    public var chapterLocked: () -> UIImage? = { symbol("lock") }
+
+    /// 书签列表中锁定章节提示区的插图。
+    ///
+    /// 参数为当前阅读主题，接入方可据此返回不同切图（该图通常是彩色插图、不做染色，
+    /// 故需按主题分别提供）。库内默认不区分主题。
+    public var bookmarkLockSeal: (ReaderThemeType) -> UIImage? = { _ in symbol("lock.fill") }
 
     // MARK: - 远程图片
 

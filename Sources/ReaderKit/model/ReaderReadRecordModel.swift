@@ -18,7 +18,7 @@ nonisolated(unsafe) public var READER_RECORD_CURRENT_CHAPTER_LOCATION: NSNumber!
 open class ReaderReadRecordModel: NSObject, NSCoding {
 
     /// 小说ID
-    open var bookID: String!
+    open var storyID: String!
     
     /// 当前记录的阅读章节
     open var chapterModel: ReaderChapterModel!
@@ -118,9 +118,9 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     /// 修改阅读记录为指定章节位置
     open func modify(chapterID: NSNumber!, location: NSInteger, isSave: Bool = true) {
         
-        if ReaderChapterModel.isExist(bookID: bookID, chapterID: chapterID) {
+        if ReaderChapterModel.isExist(storyID: storyID, chapterID: chapterID) {
             
-            chapterModel = ReaderChapterModel.model(bookID: bookID, chapterID: chapterID)
+            chapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID)
             
             // 书签精确定位:翻页模式下对该章临时分页,使书签所在段成为页首
             // 滚动模式保持常规分页,用页内偏移复用滚动控制器的定位恢复机制
@@ -140,9 +140,9 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     /// 修改阅读记录为指定章节页码 (toPage == READER_LAST_PAGE 为当前章节最后一页)
     open func modify(chapterID: NSNumber!, toPage: NSInteger, isSave: Bool = true) {
         
-        if ReaderChapterModel.isExist(bookID: bookID, chapterID: chapterID) {
+        if ReaderChapterModel.isExist(storyID: storyID, chapterID: chapterID) {
             
-            chapterModel = ReaderChapterModel.model(bookID: bookID, chapterID: chapterID)
+            chapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID)
             
             if (toPage == READER_LAST_PAGE) { finalPage()
                 
@@ -173,7 +173,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         
         let recordModel = ReaderReadRecordModel()
         
-        recordModel.bookID = bookID
+        recordModel.storyID = storyID
         
         recordModel.chapterModel = chapterModel
         
@@ -187,26 +187,26 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     /// 保存记录
     open func save() {
         
-        ReaderArchiver.archiver(folderName: bookID, fileName: READER_KEY_RECORD, object: self)
+        ReaderArchiver.archiver(folderName: storyID, fileName: READER_KEY_RECORD, object: self)
     }
     
     /// 是否存在阅读记录
-    public class func isExist(_ bookID: String!) ->Bool {
+    public class func isExist(_ storyID: String!) ->Bool {
         
-        return ReaderArchiver.isExist(folderName: bookID, fileName: READER_KEY_RECORD)
+        return ReaderArchiver.isExist(folderName: storyID, fileName: READER_KEY_RECORD)
     }
     
     
     // MARK: 构造
     
     /// 获取阅读记录对象,如果则创建对象返回
-    @objc public class func model(bookID: String!) ->ReaderReadRecordModel {
+    @objc public class func model(storyID: String!) ->ReaderReadRecordModel {
         
         var recordModel: ReaderReadRecordModel!
         
-        if ReaderReadRecordModel.isExist(bookID) {
+        if ReaderReadRecordModel.isExist(storyID) {
             
-            recordModel = ReaderArchiver.unarchiver(folderName: bookID, fileName: READER_KEY_RECORD) as? ReaderReadRecordModel
+            recordModel = ReaderArchiver.unarchiver(folderName: storyID, fileName: READER_KEY_RECORD) as? ReaderReadRecordModel
             
             // 不在此处调用 reviseFont()，避免不必要的重新分页导致 page 偏移
             // reviseFont() 会在 GetChapterModel / ReaderChapterModel.model() 中按需调用
@@ -215,7 +215,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
             
             recordModel = ReaderReadRecordModel()
             
-            recordModel.bookID = bookID
+            recordModel.storyID = storyID
         }
         
         return recordModel
@@ -225,7 +225,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         
         super.init()
         
-        bookID = aDecoder.decodeObject(forKey: "bookID") as? String
+        storyID = aDecoder.decodeObject(forKey: "storyID") as? String
         
         chapterModel = aDecoder.decodeObject(forKey: "chapterModel") as? ReaderChapterModel
         
@@ -236,7 +236,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     
     open func encode(with aCoder: NSCoder) {
         
-        aCoder.encode(bookID, forKey: "bookID")
+        aCoder.encode(storyID, forKey: "storyID")
         
         aCoder.encode(chapterModel, forKey: "chapterModel")
         

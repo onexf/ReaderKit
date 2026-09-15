@@ -27,6 +27,14 @@ public struct ReaderStrings {
     public var directory: String = "Directory"
     /// 正文读完后，页眉显示的章节名
     public var readEndChapterName: String = "The End"
+    /// 上一章按钮标题（进度面板）
+    public var previousChapter: String = "Previous"
+    /// 下一章按钮标题（进度面板）
+    public var nextChapter: String = "Next"
+    /// 章节名缺失时的占位（书签命名等场景）
+    public var unnamedChapter: String = "Untitled chapter"
+    /// 本地 txt 解析出的卷首/前言分节名
+    public var localBookPreface: String = "Preface"
 
     // MARK: - 阅读菜单
 
@@ -68,6 +76,8 @@ public struct ReaderStrings {
     public var bookmarkDeleteAll: String = "Clear All"
     /// 取消
     public var cancel: String = "Cancel"
+    /// 长按选中文字后的「复制」菜单项
+    public var copy: String = "Copy"
     /// 删除确认弹窗标题
     public var bookmarkDeleteAlertTitle: String = "Remove this bookmark?"
     /// 删除确认弹窗的确认按钮

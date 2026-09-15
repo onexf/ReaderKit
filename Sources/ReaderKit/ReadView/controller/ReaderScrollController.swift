@@ -169,7 +169,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         
         // 顶部状态栏
         topView = ReaderStatusTopView()
-        topView.bookName.text = vc.readModel.bookName
+        topView.storyName.text = vc.readModel.storyName
         topView.chapterName.text = vc.readModel.recordModel.chapterModel.name
         view.addSubview(topView)
         topView.frame = CGRect(x: readRect.minX, y: readRect.minY, width: readRect.width, height: READER_STATUS_TOP_VIEW_HEIGHT)
@@ -705,16 +705,16 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         }
         
         // 内存中不存在，尝试从磁盘/解析加载
-        let isExist = ReaderChapterModel.isExist(bookID: vc.readModel.bookID, chapterID: chapterID)
+        let isExist = ReaderChapterModel.isExist(storyID: vc.readModel.storyID, chapterID: chapterID)
         
-        if isExist || vc.readModel.bookSourceType == .local {
+        if isExist || vc.readModel.storySourceType == .local {
             
             var chapterModel: ReaderChapterModel?
             
             if !isExist {
                 chapterModel = ReaderFastTextFileParser.parser(readModel: vc.readModel, chapterID: chapterID)
             }else{
-                chapterModel = ReaderChapterModel.model(bookID: vc.readModel.bookID, chapterID: chapterID)
+                chapterModel = ReaderChapterModel.model(storyID: vc.readModel.storyID, chapterID: chapterID)
                 
                 // 更新章节链接关系（防止使用旧的缓存数据）
                 if let model = chapterModel,
@@ -787,10 +787,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         // 加入加载列表（主线程）
         loadChapterIDs.append(chapterID!)
         
-        let bookID = chapterModel.bookID
+        let storyID = chapterModel.storyID
         let readModel = vc.readModel!
         let chapterListModels = readModel.chapterListModels!
-        let isLocal = readModel.bookSourceType == .local
+        let isLocal = readModel.storySourceType == .local
         let currentChapterModelId = chapterModel.id!
         
         // 磁盘I/O放后台线程
@@ -798,7 +798,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         // 这里用 isUpdateFont: false 避免在后台触碰 UI API，主线程回调里再补 reviseFont()。
         DispatchQueue.global().async { [weak self] () in
             
-            let isExist = ReaderChapterModel.isExist(bookID: bookID, chapterID: chapterID)
+            let isExist = ReaderChapterModel.isExist(storyID: storyID, chapterID: chapterID)
             
             if isExist || isLocal {
                 
@@ -807,7 +807,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                 if !isExist {
                     tempChapterModel = ReaderFastTextFileParser.parser(readModel: readModel, chapterID: chapterID, isUpdateFont: false)
                 }else{
-                    tempChapterModel = ReaderChapterModel.model(bookID: bookID, chapterID: chapterID!, isUpdateFont: false)
+                    tempChapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID!, isUpdateFont: false)
                     
                     if let model = tempChapterModel,
                        let chapterIndex = chapterListModels.firstIndex(where: { $0.id == chapterID }) {
@@ -932,10 +932,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         // 加入加载列表（主线程）
         loadChapterIDs.append(chapterID!)
         
-        let bookID = chapterModel.bookID
+        let storyID = chapterModel.storyID
         let readModel = vc.readModel!
         let chapterListModels = readModel.chapterListModels!
-        let isLocal = readModel.bookSourceType == .local
+        let isLocal = readModel.storySourceType == .local
         let currentChapterModelId = chapterModel.id!
         
         // 磁盘I/O放后台线程
@@ -943,7 +943,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         // 这里用 isUpdateFont: false 避免在后台触碰 UI API，主线程回调里再补 reviseFont()。
         DispatchQueue.global().async { [weak self] () in
             
-            let isExist = ReaderChapterModel.isExist(bookID: bookID, chapterID: chapterID)
+            let isExist = ReaderChapterModel.isExist(storyID: storyID, chapterID: chapterID)
             
             if isExist || isLocal {
                 
@@ -952,7 +952,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                 if !isExist {
                     tempChapterModel = ReaderFastTextFileParser.parser(readModel: readModel, chapterID: chapterID, isUpdateFont: false)
                 }else{
-                    tempChapterModel = ReaderChapterModel.model(bookID: bookID, chapterID: chapterID!, isUpdateFont: false)
+                    tempChapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID!, isUpdateFont: false)
                     
                     if let model = tempChapterModel,
                        let chapterIndex = chapterListModels.firstIndex(where: { $0.id == chapterID }) {

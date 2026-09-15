@@ -53,7 +53,7 @@ open class ReaderBookmarkSectionHeader: UITableViewHeaderFooterView {
 
         // 锁图标(锁定章节展示,着色用主题强调色 textT0,与目录页锁定章节一致)
         lockIcon = UIImageView()
-        lockIcon.image = UIImage(named: "novel_directory_lock_outline")?.withRenderingMode(.alwaysTemplate)
+        lockIcon.image = ReaderEnvironment.images.chapterLocked()?.withRenderingMode(.alwaysTemplate)
         lockIcon.tintColor = themeColors.textT0
         lockIcon.contentMode = .scaleAspectFit
         lockIcon.isHidden = true

@@ -20,7 +20,7 @@ open class ReaderBookmarkModel: NSObject, NSCoding {
     // （IUO 在使用时本就当非可选用）。
 
     /// 小说ID
-    open var bookID: String = ""
+    open var storyID: String = ""
 
     /// 章节ID
     open var chapterID: NSNumber = NSNumber(value: 0)
@@ -52,7 +52,7 @@ open class ReaderBookmarkModel: NSObject, NSCoding {
         super.init()
         
         // 解档缺字段时退化为默认值，不再留下 nil 触发后续崩溃
-        bookID = aDecoder.decodeObject(forKey: "bookID") as? String ?? ""
+        storyID = aDecoder.decodeObject(forKey: "storyID") as? String ?? ""
 
         chapterID = aDecoder.decodeObject(forKey: "chapterID") as? NSNumber ?? NSNumber(value: 0)
 
@@ -69,7 +69,7 @@ open class ReaderBookmarkModel: NSObject, NSCoding {
     
     open func encode(with aCoder: NSCoder) {
         
-        aCoder.encode(bookID, forKey: "bookID")
+        aCoder.encode(storyID, forKey: "storyID")
         
         aCoder.encode(chapterID, forKey: "chapterID")
         

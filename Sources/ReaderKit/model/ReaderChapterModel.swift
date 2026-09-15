@@ -15,7 +15,7 @@ import UIKit
 open class ReaderChapterModel: NSObject, NSCoding {
     
     /// 小说ID
-    open var bookID: String!
+    open var storyID: String!
     
     /// 章节ID
     open var id: NSNumber!
@@ -197,23 +197,23 @@ open class ReaderChapterModel: NSObject, NSCoding {
     }
     
     /// 保存
-    open func save() { ReaderArchiver.archiver(folderName: bookID, fileName: id.stringValue, object: self) }
+    open func save() { ReaderArchiver.archiver(folderName: storyID, fileName: id.stringValue, object: self) }
     
     /// 是否存在章节内容
-    public class func isExist(bookID: String!, chapterID: NSNumber!) ->Bool {
-        return ReaderArchiver.isExist(folderName: bookID, fileName: chapterID.stringValue)
+    public class func isExist(storyID: String!, chapterID: NSNumber!) ->Bool {
+        return ReaderArchiver.isExist(folderName: storyID, fileName: chapterID.stringValue)
     }
     
     // MARK: 构造
     
     /// 获取章节对象,如果则创建对象返回
-    @objc public class func model(bookID: String!, chapterID: NSNumber!, isUpdateFont: Bool = true) ->ReaderChapterModel {
+    @objc public class func model(storyID: String!, chapterID: NSNumber!, isUpdateFont: Bool = true) ->ReaderChapterModel {
         
         var chapterModel: ReaderChapterModel!
         
-        if ReaderChapterModel.isExist(bookID: bookID, chapterID: chapterID) {
+        if ReaderChapterModel.isExist(storyID: storyID, chapterID: chapterID) {
             
-            chapterModel = ReaderArchiver.unarchiver(folderName: bookID, fileName: chapterID.stringValue) as? ReaderChapterModel
+            chapterModel = ReaderArchiver.unarchiver(folderName: storyID, fileName: chapterID.stringValue) as? ReaderChapterModel
             
             if isUpdateFont { chapterModel?.reviseFont() }
             
@@ -221,7 +221,7 @@ open class ReaderChapterModel: NSObject, NSCoding {
             
             chapterModel = ReaderChapterModel()
             
-            chapterModel.bookID = bookID
+            chapterModel.storyID = storyID
             
             chapterModel.id = chapterID
         }
@@ -234,7 +234,7 @@ open class ReaderChapterModel: NSObject, NSCoding {
         
         super.init()
         
-        bookID = aDecoder.decodeObject(forKey: "bookID") as? String
+        storyID = aDecoder.decodeObject(forKey: "storyID") as? String
         
         id = aDecoder.decodeObject(forKey: "id") as? NSNumber
         
@@ -259,7 +259,7 @@ open class ReaderChapterModel: NSObject, NSCoding {
     
     open func encode(with aCoder: NSCoder) {
         
-        aCoder.encode(bookID, forKey: "bookID")
+        aCoder.encode(storyID, forKey: "storyID")
         
         aCoder.encode(id, forKey: "id")
         

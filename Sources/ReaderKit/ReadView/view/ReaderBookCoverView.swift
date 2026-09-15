@@ -17,7 +17,7 @@ open class ReaderBookCoverView: UIView {
         
         didSet{
             
-            name.text = readModel.bookName
+            name.text = readModel.storyName
         }
     }
 

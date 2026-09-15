@@ -36,16 +36,16 @@ open class ReaderTextFileParser: NSObject {
         // 链接不为空且是本地文件路径
         if url == nil || url.absoluteString.isEmpty || !url.isFileURL { return nil }
         
-        // 获取文件后缀名作为 bookName
-        let bookName = url.absoluteString.removingPercentEncoding?.lastPathComponent.deletingPathExtension ?? ""
+        // 获取文件后缀名作为 storyName
+        let storyName = url.absoluteString.removingPercentEncoding?.lastPathComponent.deletingPathExtension ?? ""
         
-        // bookName 作为 bookID
-        let bookID = bookName
+        // storyName 作为 storyID
+        let storyID = storyName
         
-        // bookID 为空
-        if bookID.isEmpty { return nil }
+        // storyID 为空
+        if storyID.isEmpty { return nil }
         
-        if !ReaderBookModel.isExist(bookID: bookID) { // 不存在
+        if !ReaderBookModel.isExist(storyID: storyID) { // 不存在
             
             // 解析数据
             let content = ReaderTypesetter.encode(url: url)
@@ -54,19 +54,19 @@ open class ReaderTextFileParser: NSObject {
             if content.isEmpty { return nil }
             
             // 解析内容并获得章节列表
-            let chapterListModels = parser(bookID: bookID, content: content)
+            let chapterListModels = parser(storyID: storyID, content: content)
             
             // 解析内容失败
             if chapterListModels.isEmpty { return nil }
             
             // 阅读模型
-            let readModel = ReaderBookModel.model(bookID: bookID)
+            let readModel = ReaderBookModel.model(storyID: storyID)
             
             // 书籍类型
-            readModel.bookSourceType = .local
+            readModel.storySourceType = .local
             
             // 小说名称
-            readModel.bookName = bookName
+            readModel.storyName = storyName
             
             // 记录章节列表
             readModel.chapterListModels = chapterListModels
@@ -83,23 +83,23 @@ open class ReaderTextFileParser: NSObject {
         }else{ // 存在
             
             // 返回
-            return ReaderBookModel.model(bookID: bookID)
+            return ReaderBookModel.model(storyID: storyID)
         }
     }
     
     /// 解析整本小说
     ///
     /// - Parameters:
-    ///   - bookID: 小说ID
+    ///   - storyID: 小说ID
     ///   - content: 小说内容
     /// - Returns: 章节列表
-    private class func parser(bookID: String!, content: String!) ->[ReaderChapterListItemModel] {
+    private class func parser(storyID: String!, content: String!) ->[ReaderChapterListItemModel] {
         
         // 章节列表
         var chapterListModels: [ReaderChapterListItemModel] = []
         
         // 正则
-        let parten = "第[0-9一二三四五六七八九十百千]*[章回].*"
+        let parten = ReaderEnvironment.hostConfiguration.localChapterTitlePattern
         
         // 排版
         let content = ReaderTypesetter.contentTypesetting(content: content)
@@ -156,7 +156,7 @@ open class ReaderTextFileParser: NSObject {
                 let chapterModel = ReaderChapterModel()
                 
                 // 书ID
-                chapterModel.bookID = bookID
+                chapterModel.storyID = storyID
                 
                 // 章节ID
                 chapterModel.id = NSNumber(value: (i + NSNumber(value: isHavePreface).intValue))
@@ -167,7 +167,7 @@ open class ReaderTextFileParser: NSObject {
                 if i == 0 { // 前言
                     
                     // 章节名
-                    chapterModel.name = "开始"
+                    chapterModel.name = ReaderEnvironment.strings.localBookPreface
                     
                     // 内容
                     chapterModel.content = content.substring(NSMakeRange(0, location))
@@ -231,13 +231,13 @@ open class ReaderTextFileParser: NSObject {
             let chapterModel = ReaderChapterModel()
             
             // 书ID
-            chapterModel.bookID = bookID
+            chapterModel.storyID = storyID
             
             // 章节ID
             chapterModel.id = NSNumber(value: 1)
             
             // 章节名
-            chapterModel.name = "开始"
+            chapterModel.name = ReaderEnvironment.strings.localBookPreface
             
             // 优先级
             chapterModel.priority = NSNumber(value: 0)
@@ -264,7 +264,7 @@ open class ReaderTextFileParser: NSObject {
         
         let chapterListModel = ReaderChapterListItemModel()
         
-        chapterListModel.bookID = chapterModel.bookID
+        chapterListModel.storyID = chapterModel.storyID
         
         chapterListModel.id = chapterModel.id
         

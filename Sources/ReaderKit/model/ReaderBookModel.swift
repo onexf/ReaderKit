@@ -15,25 +15,28 @@ import UIKit
 open class ReaderBookModel: NSObject, NSCoding {
 
     /// 小说ID
-    open var bookID: String!
+    open var storyID: String!
     
     /// 小说名称
-    open var bookName: String!
+    open var storyName: String!
     
     /// 小说封面
-    open var bookCover: String?
+    open var cover: String?
     
     /// 作者
-    open var author: String?
+    open var writer: String?
     
-    /// 短剧代码（用于埋点）
-    open var shortPlayCode: Int = 0
+    /// 接入方业务系统里的书籍编码。
+    ///
+    /// 引擎自身不使用该字段，仅负责随 `ReaderBookModel` 一同归档，供接入方在埋点、
+    /// 跳转等场景取用（引擎内部标识书籍一律用 `storyID`）。
+    open var externalBookCode: Int = 0
     
-    /// 章节总数
-    open var totalEpisodes: Int = 0
+    /// 全书章节总数（由接入方从书籍详情写入）
+    open var totalChapterCount: Int = 0
     
     /// 小说来源类型
-    open var bookSourceType: ReaderBookSourceType! = .network
+    open var storySourceType: ReaderBookSourceType! = .network
     
     /// 当前阅读记录
     open var recordModel: ReaderReadRecordModel!
@@ -64,13 +67,13 @@ open class ReaderBookModel: NSObject, NSCoding {
     /// 章节目录是否已包含全书所有章节。满足任一即视为完整：
     ///   1. 本地书（一次性全量解析，无分页）
     ///   2. loader 明确置位 isDirectoryFullyLoaded（加载到末页 / 后台补全成功）
-    ///   3. 已加载章节数达到全书总集数（二次进入缓存已满、标志尚未置位时的兜底）
+    ///   3. 已加载章节数达到全书章节总数（二次进入缓存已满、标志尚未置位时的兜底）
     /// 仅当目录完整时，已加载列表的最后一条才允许被判为「全书末章」。
     open var isChapterListComplete: Bool {
-        if bookSourceType == .local { return true }
+        if storySourceType == .local { return true }
         if isDirectoryFullyLoaded { return true }
         let loaded = chapterListModels?.count ?? 0
-        return totalEpisodes > 0 && loaded >= totalEpisodes
+        return totalChapterCount > 0 && loaded >= totalChapterCount
     }
     
     /// 基于当前 chapterListModels 权威解析指定章节的下一章 ID
@@ -109,36 +112,36 @@ open class ReaderBookModel: NSObject, NSCoding {
         
         recordModel.save()
         
-        ReaderArchiver.archiver(folderName: bookID, fileName: READER_KEY_OBJECT, object: self)
+        ReaderArchiver.archiver(folderName: storyID, fileName: READER_KEY_OBJECT, object: self)
     }
     
     /// 是否存在阅读对象
-    public class func isExist(bookID: String!) ->Bool {
+    public class func isExist(storyID: String!) ->Bool {
         
-        return ReaderArchiver.isExist(folderName: bookID, fileName: READER_KEY_OBJECT)
+        return ReaderArchiver.isExist(folderName: storyID, fileName: READER_KEY_OBJECT)
     }
     
     
     // MARK: 构造
     
     /// 获取阅读对象,如果则创建对象返回
-    @objc public class func model(bookID: String!) ->ReaderBookModel {
+    @objc public class func model(storyID: String!) ->ReaderBookModel {
         
         var readModel: ReaderBookModel!
         
-        if ReaderBookModel.isExist(bookID: bookID) {
+        if ReaderBookModel.isExist(storyID: storyID) {
             
-            readModel = ReaderArchiver.unarchiver(folderName: bookID, fileName: READER_KEY_OBJECT) as? ReaderBookModel
+            readModel = ReaderArchiver.unarchiver(folderName: storyID, fileName: READER_KEY_OBJECT) as? ReaderBookModel
             
         }else{
             
             readModel = ReaderBookModel()
             
-            readModel.bookID = bookID
+            readModel.storyID = storyID
         }
         
         // 获取阅读记录
-        readModel.recordModel = ReaderReadRecordModel.model(bookID: bookID)
+        readModel.recordModel = ReaderReadRecordModel.model(storyID: storyID)
         
         return readModel
     }
@@ -147,19 +150,19 @@ open class ReaderBookModel: NSObject, NSCoding {
         
         super.init()
         
-        bookID = aDecoder.decodeObject(forKey: "bookID") as? String
+        storyID = aDecoder.decodeObject(forKey: "storyID") as? String
         
-        bookName = aDecoder.decodeObject(forKey: "bookName") as? String
+        storyName = aDecoder.decodeObject(forKey: "storyName") as? String
         
-        bookCover = aDecoder.decodeObject(forKey: "bookCover") as? String
+        cover = aDecoder.decodeObject(forKey: "cover") as? String
         
-        author = aDecoder.decodeObject(forKey: "author") as? String
+        writer = aDecoder.decodeObject(forKey: "writer") as? String
         
-        shortPlayCode = (aDecoder.decodeObject(forKey: "shortPlayCode") as? NSNumber)?.intValue ?? 0
+        externalBookCode = (aDecoder.decodeObject(forKey: "externalBookCode") as? NSNumber)?.intValue ?? 0
         
-        totalEpisodes = (aDecoder.decodeObject(forKey: "totalEpisodes") as? NSNumber)?.intValue ?? 0
+        totalChapterCount = (aDecoder.decodeObject(forKey: "totalChapterCount") as? NSNumber)?.intValue ?? 0
         
-        bookSourceType = ReaderBookSourceType(rawValue: (aDecoder.decodeObject(forKey: "bookSourceType") as! NSNumber).intValue)
+        storySourceType = ReaderBookSourceType(rawValue: (aDecoder.decodeObject(forKey: "storySourceType") as! NSNumber).intValue)
         
         chapterListModels = aDecoder.decodeObject(forKey: "chapterListModels") as? [ReaderChapterListItemModel]
         
@@ -172,19 +175,19 @@ open class ReaderBookModel: NSObject, NSCoding {
     
     open func encode(with aCoder: NSCoder) {
         
-        aCoder.encode(bookID, forKey: "bookID")
+        aCoder.encode(storyID, forKey: "storyID")
         
-        aCoder.encode(bookName, forKey: "bookName")
+        aCoder.encode(storyName, forKey: "storyName")
         
-        aCoder.encode(bookCover, forKey: "bookCover")
+        aCoder.encode(cover, forKey: "cover")
         
-        aCoder.encode(author, forKey: "author")
+        aCoder.encode(writer, forKey: "writer")
         
-        aCoder.encode(NSNumber(value: shortPlayCode), forKey: "shortPlayCode")
+        aCoder.encode(NSNumber(value: externalBookCode), forKey: "externalBookCode")
         
-        aCoder.encode(NSNumber(value: totalEpisodes), forKey: "totalEpisodes")
+        aCoder.encode(NSNumber(value: totalChapterCount), forKey: "totalChapterCount")
         
-        aCoder.encode(NSNumber(value: bookSourceType.rawValue), forKey: "bookSourceType")
+        aCoder.encode(NSNumber(value: storySourceType.rawValue), forKey: "storySourceType")
         
         aCoder.encode(chapterListModels, forKey: "chapterListModels")
         

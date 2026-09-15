@@ -474,7 +474,7 @@ open class ReaderLongPressView: ReaderPageView {
                 
                 let menuController = UIMenuController.shared
                 
-                let copy = UIMenuItem(title: "复制", action: #selector(clickCopy))
+                let copy = UIMenuItem(title: ReaderEnvironment.strings.copy, action: #selector(clickCopy))
                 
                 menuController.menuItems = [copy]
                 

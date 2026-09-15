@@ -42,23 +42,23 @@ open class ReaderFastTextFileParser: NSObject {
             return nil 
         }
         
-        // 获取文件后缀名作为 bookName
-        let bookName = url.absoluteString.removingPercentEncoding?.lastPathComponent.deletingPathExtension ?? ""
-        // log("   - 书名: \(bookName)")
+        // 获取文件后缀名作为 storyName
+        let storyName = url.absoluteString.removingPercentEncoding?.lastPathComponent.deletingPathExtension ?? ""
+        // log("   - 书名: \(storyName)")
         
-        // bookName 作为 bookID
-        let bookID = bookName
+        // storyName 作为 storyID
+        let storyID = storyName
         
-        // bookID 为空
-        if bookID.isEmpty { 
-            // log("   - ❌ bookID 为空")
+        // storyID 为空
+        if storyID.isEmpty { 
+            // log("   - ❌ storyID 为空")
             return nil 
         }
         
-        // log("   - bookID: \(bookID)")
-        // log("   - 检查是否已存在: \(ReaderBookModel.isExist(bookID: bookID))")
+        // log("   - storyID: \(storyID)")
+        // log("   - 检查是否已存在: \(ReaderBookModel.isExist(storyID: storyID))")
         
-        if !ReaderBookModel.isExist(bookID: bookID) { // 不存在
+        if !ReaderBookModel.isExist(storyID: storyID) { // 不存在
             
             // log("   - 开始解析新文件...")
             
@@ -74,13 +74,13 @@ open class ReaderFastTextFileParser: NSObject {
             }
             
             // 阅读模型
-            let readModel = ReaderBookModel.model(bookID: bookID)
+            let readModel = ReaderBookModel.model(storyID: storyID)
             
             // 书籍类型
-            readModel.bookSourceType = .local
+            readModel.storySourceType = .local
             
             // 小说名称
-            readModel.bookName = bookName
+            readModel.storyName = storyName
             
             // 解析内容并获得章节列表
             parser(readModel: readModel, content: content)
@@ -117,7 +117,7 @@ open class ReaderFastTextFileParser: NSObject {
             // log("   - 从缓存加载 readModel")
             
             // 返回
-            return ReaderBookModel.model(bookID: bookID)
+            return ReaderBookModel.model(storyID: storyID)
         }
     }
     
@@ -138,7 +138,7 @@ open class ReaderFastTextFileParser: NSObject {
         var ranges: [String: [String: NSRange]] = [:]
         
         // 正则
-        let parten = "第[0-9一二三四五六七八九十百千]*[章回].*"
+        let parten = ReaderEnvironment.hostConfiguration.localChapterTitlePattern
         
         // 排版
         let content = ReaderTypesetter.contentTypesetting(content: content)
@@ -198,7 +198,7 @@ open class ReaderFastTextFileParser: NSObject {
                 let chapterListModel = ReaderChapterListItemModel()
                 
                 // 书ID
-                chapterListModel.bookID = readModel.bookID
+                chapterListModel.storyID = readModel.storyID
                 
                 // 章节ID
                 chapterListModel.id = NSNumber(value: (i + NSNumber(value: isHavePreface).intValue))
@@ -209,7 +209,7 @@ open class ReaderFastTextFileParser: NSObject {
                 if i == 0 { // 前言
                     
                     // 章节名
-                    chapterListModel.name = "开始"
+                    chapterListModel.name = ReaderEnvironment.strings.localBookPreface
                     
                     // 内容Range
                     ranges[chapterListModel.id.stringValue] = [priority.stringValue: NSMakeRange(0, location)]
@@ -262,10 +262,10 @@ open class ReaderFastTextFileParser: NSObject {
             let chapterListModel = ReaderChapterListItemModel()
             
             // 章节名
-            chapterListModel.name = "开始"
+            chapterListModel.name = ReaderEnvironment.strings.localBookPreface
             
             // 书ID
-            chapterListModel.bookID = readModel.bookID
+            chapterListModel.storyID = readModel.storyID
             
             // 章节ID
             chapterListModel.id = NSNumber(value: 1)
@@ -328,7 +328,7 @@ open class ReaderFastTextFileParser: NSObject {
             let chapterModel = ReaderChapterModel()
             
             // 书ID
-            chapterModel.bookID = chapterListModel.bookID
+            chapterModel.storyID = chapterListModel.storyID
             
             // 章节ID
             chapterModel.id = chapterListModel.id

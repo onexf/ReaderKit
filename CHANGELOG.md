@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.2.0
+
+### 破坏性变更
+
+- **`ReaderBookModel` 属性改名，去掉宿主端与业务术语。** 旧名里 `shortPlayCode`
+  是某短剧宿主的字段名，`totalEpisodes`（总集数）是短剧概念，都不该出现在小说阅读器里；
+  `book*` 前缀则与库内其他 `book` 语义混杂。映射如下：
+
+  | 旧名 | 新名 |
+  |---|---|
+  | `bookID` | `storyID` |
+  | `bookName` | `storyName` |
+  | `bookCover` | `cover` |
+  | `author` | `writer` |
+  | `bookSourceType` | `storySourceType` |
+  | `shortPlayCode` | `externalBookCode` |
+  | `totalEpisodes` | `totalChapterCount` |
+
+  `ReaderChapterModel`、`ReaderReadRecordModel`、`ReaderBookmarkModel`、
+  `ReaderChapterListItemModel` 上的同名属性与工厂方法参数一并改名
+  （如 `ReaderChapterModel.model(bookID:chapterID:)` → `model(storyID:chapterID:)`）。
+
+- **`NSKeyedArchiver` 归档键随属性名一起改。** 上表每一项的归档键与属性同名，
+  故旧归档无法被新版本读出，阅读进度、书签、章节缓存会被视为不存在并重新拉取。
+  库内**不含**兼容旧键的读取逻辑，也不做迁移：本库尚未有已上线的接入方，
+  为此保留双键读取属于纯负债。若你的工程已有线上用户，请勿直接升级到本版本。
+
+- **`ReaderBookmarkDraft.bookId` → `storyId`**，`ReaderBookmarkSyncing` 的
+  `syncBookmarks`、`removeBookmark`、`removeBookmarks`、`removeAllBookmarks`
+  四个方法的 `bookId:` 参数标签同步改为 `storyId:`。
+  注意这是**库侧契约名**，与接入方自己的服务端字段无关：若你的接口字段叫 `bookId`，
+  请在实现里保留该字段名，只把取值改成 `draft.storyId`。
+
+`@objc` 类名（`ReaderBookModel` 等 6 个）未改动，不受影响。
+
+### 修复
+
+- **书签徽标、章节锁、抽屉封条、目录箭头四处图标不显示。** 这些位置绕过资源注入点
+  直接 `UIImage(named:)` 取图，而对应 asset 已随库剥离业务资源时移除，实际取到 `nil`。
+  现改走注入点，`ReaderImages` 新增 `bookmarkBadge`、`chapterLocked`、
+  `bookmarkLockSeal`、`disclosureArrow`，`ReaderFonts` 新增 `progressBubble`；
+  未注入时回落 SF Symbols，不再空白。
+
+- **清除库内 10 处硬编码文案与地区假设。** 进度面板的「上一章 / 下一章」、
+  长按菜单的「复制」、无章节名占位、本地书籍序章标题此前是写死的中文字面量，
+  多语言工程无法覆盖。现由 `ReaderStrings` 提供 `previousChapter`、`nextChapter`、
+  `copy`、`unnamedChapter`、`localBookPreface` 五项。
+  本地 txt 的章节标题正则原先写死中文「第N章」，现由
+  `ReaderHostConfiguring.localChapterTitlePattern` 提供，默认值保持原正则。
+
 ## 1.1.2
 
 仅文档修正，无代码改动。

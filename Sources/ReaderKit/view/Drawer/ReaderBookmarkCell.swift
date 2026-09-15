@@ -70,7 +70,7 @@ open class ReaderBookmarkCell: UITableViewCell {
 
         // 书签徽标图标
         badgeIcon = UIImageView()
-        badgeIcon.image = UIImage(named: "read_bookmark_badge")?.withRenderingMode(.alwaysTemplate)
+        badgeIcon.image = ReaderEnvironment.images.bookmarkBadge()?.withRenderingMode(.alwaysTemplate)
         badgeIcon.tintColor = themeColors.textT0
         badgeIcon.contentMode = .scaleAspectFit
         badgeView.addSubview(badgeIcon)

@@ -72,23 +72,13 @@ open class ReaderBookmarkLockedCell: UITableViewCell {
     /// 刷新配色与锁切图(随主题)
     open func refresh() {
         let colors = ReaderConfiguration.shared().currentThemeColors
-        lockIcon.image = UIImage(named: ReaderBookmarkLockedCell.sealImageName())
+        lockIcon.image = ReaderEnvironment.images.bookmarkLockSeal(ReaderConfiguration.shared().themeType)
         titleLabel.textColor = colors.textT1
         subtitleLabel.textColor = colors.textT3
         let lineColor = colors.dividerLine
         leftLineGradient.colors = [lineColor.withAlphaComponent(0).cgColor, lineColor.cgColor]
         rightLineGradient.colors = [lineColor.cgColor, lineColor.withAlphaComponent(0).cgColor]
         setNeedsLayout()
-    }
-
-    /// 按当前阅读主题选择对应的锁切图(0 默认/4 夜间=紫,1 黄,2 绿,3 蓝)
-    private static func sealImageName() -> String {
-        switch ReaderConfiguration.shared().bgColorIndex.intValue {
-        case 1: return "read_bookmark_lock_yellow"
-        case 2: return "read_bookmark_lock_green"
-        case 3: return "read_bookmark_lock_blue"
-        default: return "read_bookmark_lock"
-        }
     }
 
     open override func layoutSubviews() {

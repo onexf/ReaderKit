@@ -12,7 +12,7 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
     /// 数据源
     open var readModel: ReaderBookModel! {
         didSet {
-            reviseBookInfo()
+            reviseStoryInfo()
             tableView.reloadData()
             scrollToActiveChapter()
         }
@@ -23,9 +23,9 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
     
     /// 顶部信息视图
     private var headerView: UIView!
-    private var bookCoverImageView: UIImageView!
-    private var bookTitleLabel: UILabel!
-    private var authorLabel: UILabel!
+    private var coverImageView: UIImageView!
+    private var storyTitleLabel: UILabel!
+    private var writerLabel: UILabel!
     private var currentChapterLabel: UILabel!
     private var arrowButton: UIButton!
     
@@ -69,26 +69,26 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
         addSubview(headerView)
         
         // 书籍封面
-        bookCoverImageView = UIImageView()
-        bookCoverImageView.contentMode = .scaleAspectFill
-        bookCoverImageView.clipsToBounds = true
-        bookCoverImageView.image = ReaderEnvironment.images.bookCoverPlaceholder()
-        bookCoverImageView.layer.cornerRadius = 8
-        headerView.addSubview(bookCoverImageView)
+        coverImageView = UIImageView()
+        coverImageView.contentMode = .scaleAspectFill
+        coverImageView.clipsToBounds = true
+        coverImageView.image = ReaderEnvironment.images.coverPlaceholder()
+        coverImageView.layer.cornerRadius = 8
+        headerView.addSubview(coverImageView)
         
         // 书名
-        bookTitleLabel = UILabel()
-        bookTitleLabel.font = ReaderEnvironment.fonts.uiMedium(16)
-        bookTitleLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textT1
-        bookTitleLabel.numberOfLines = 1
-        headerView.addSubview(bookTitleLabel)
+        storyTitleLabel = UILabel()
+        storyTitleLabel.font = ReaderEnvironment.fonts.uiMedium(16)
+        storyTitleLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textT1
+        storyTitleLabel.numberOfLines = 1
+        headerView.addSubview(storyTitleLabel)
         
         // 作者
-        authorLabel = UILabel()
-        authorLabel.font = ReaderEnvironment.fonts.uiRegular(14)
-        authorLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textT3
-        authorLabel.numberOfLines = 1
-        headerView.addSubview(authorLabel)
+        writerLabel = UILabel()
+        writerLabel.font = ReaderEnvironment.fonts.uiRegular(14)
+        writerLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textT3
+        writerLabel.numberOfLines = 1
+        headerView.addSubview(writerLabel)
         
         // 当前章节
         currentChapterLabel = UILabel()
@@ -97,10 +97,9 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
         currentChapterLabel.numberOfLines = 1
         headerView.addSubview(currentChapterLabel)
         
-        // 箭头按钮（使用 SF Symbol）
+        // 箭头按钮
         arrowButton = UIButton(type: .custom)
-        let chevronConfig = UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
-        arrowButton.setImage(UIImage(systemName: "chevron.right", withConfiguration: chevronConfig), for: .normal)
+        arrowButton.setImage(ReaderEnvironment.images.disclosureArrow()?.withRenderingMode(.alwaysTemplate), for: .normal)
         arrowButton.tintColor = ReaderConfiguration.shared().currentThemeColors.textT1
         arrowButton.isUserInteractionEnabled = false
         headerView.addSubview(arrowButton)
@@ -116,12 +115,12 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
     }
     
     /// 更新书籍信息
-    open func reviseBookInfo() {
+    open func reviseStoryInfo() {
         guard let readModel = readModel else { return }
         
         // 设置书名
-        bookTitleLabel.text = readModel.bookName
-        authorLabel.text = readModel.author
+        storyTitleLabel.text = readModel.storyName
+        writerLabel.text = readModel.writer
         
         // 设置当前章节信息（安全访问）
         if let recordModel = readModel.recordModel,
@@ -132,7 +131,7 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
         }
         
         // 如果有封面图片URL，可以加载
-        // bookCoverImageView.kf.setImage(with: URL(string: readModel.coverURL))
+        // coverImageView.kf.setImage(with: URL(string: readModel.coverURL))
     }
     
     /// 滚动到当前章节
@@ -159,14 +158,14 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
         let margin: CGFloat = 20
         let coverSize: CGFloat = 48
         
-        bookCoverImageView.frame = CGRect(x: margin, y: (headerHeight - coverSize) / 2, width: coverSize, height: coverSize)
+        coverImageView.frame = CGRect(x: margin, y: (headerHeight - coverSize) / 2, width: coverSize, height: coverSize)
         
-        let textX = bookCoverImageView.frame.maxX + 12
+        let textX = coverImageView.frame.maxX + 12
         let textWidth = w - textX - margin - 24
         
-        bookTitleLabel.frame = CGRect(x: textX, y: 20, width: textWidth, height: 20)
-        authorLabel.frame = CGRect(x: textX, y: bookTitleLabel.frame.maxY + 2, width: textWidth, height: 16)
-        currentChapterLabel.frame = CGRect(x: textX, y: authorLabel.frame.maxY + 2, width: textWidth, height: 16)
+        storyTitleLabel.frame = CGRect(x: textX, y: 20, width: textWidth, height: 20)
+        writerLabel.frame = CGRect(x: textX, y: storyTitleLabel.frame.maxY + 2, width: textWidth, height: 16)
+        currentChapterLabel.frame = CGRect(x: textX, y: writerLabel.frame.maxY + 2, width: textWidth, height: 16)
         
         arrowButton.frame = CGRect(x: w - margin - 16, y: (headerHeight - 16) / 2, width: 16, height: 16)
         
@@ -227,8 +226,8 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
     /// 应用主题颜色
     open func adoptThemeColors(_ colors: ReaderThemeColors) {
         backgroundColor = colors.fillPopup
-        bookTitleLabel.textColor = colors.textT1
-        authorLabel.textColor = colors.textT3
+        storyTitleLabel.textColor = colors.textT1
+        writerLabel.textColor = colors.textT3
         currentChapterLabel.textColor = colors.textT3
         arrowButton.tintColor = colors.textT1
         tableView.reloadData()

@@ -81,7 +81,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     /// 用真实数字会让不同行差几个点；字重取 Regular（当前章那档，比 Light 宽）保证都装得下。
     private func reviseNumberColumnWidth() {
 
-        let maxNumber = max(readModel?.totalEpisodes ?? 0, readModel?.chapterListModels?.count ?? 0)
+        let maxNumber = max(readModel?.totalChapterCount ?? 0, readModel?.chapterListModels?.count ?? 0)
         let digits = max(2, String(max(1, maxNumber)).count)
         let sample = String(repeating: "0", count: digits) as NSString
         let measured = ceil(sample.size(withAttributes: [.font: ReaderEnvironment.fonts.uiRegular(14)]).width)

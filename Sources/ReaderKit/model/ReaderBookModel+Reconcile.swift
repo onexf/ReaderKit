@@ -42,7 +42,7 @@ extension ReaderBookModel {
 
         // 1. 清理被删章节的内容缓存文件(归档文件名 = chapterID 字符串)
         for id in removed {
-            ReaderArchiver.remove(folderName: bookID, fileName: "\(id)")
+            ReaderArchiver.remove(folderName: storyID, fileName: "\(id)")
         }
 
         // 2. 清理落在被删章节上的书签

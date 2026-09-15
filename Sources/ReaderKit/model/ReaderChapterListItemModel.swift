@@ -18,7 +18,7 @@ open class ReaderChapterListItemModel: NSObject, NSCoding {
     @objc open var id: NSNumber!
 
     /// 小说ID
-    open var bookID: String!
+    open var storyID: String!
     
     /// 章节名称
     open var name: String!
@@ -48,12 +48,12 @@ open class ReaderChapterListItemModel: NSObject, NSCoding {
     }
     
     // MARK: -- NSCoding
-    
+    //
     public required init?(coder aDecoder: NSCoder) {
         
         super.init()
         
-        bookID = aDecoder.decodeObject(forKey: "bookID") as? String
+        storyID = aDecoder.decodeObject(forKey: "storyID") as? String
         
         id = aDecoder.decodeObject(forKey: "id") as? NSNumber
         
@@ -72,7 +72,7 @@ open class ReaderChapterListItemModel: NSObject, NSCoding {
     
     open func encode(with aCoder: NSCoder) {
         
-        aCoder.encode(bookID, forKey: "bookID")
+        aCoder.encode(storyID, forKey: "storyID")
         
         aCoder.encode(id, forKey: "id")
         

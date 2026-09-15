@@ -17,7 +17,7 @@ import Foundation
 /// 不复用接入方的业务网络模型，否则库会带着业务模型走。
 public struct ReaderBookmarkDraft {
     /// 书籍 ID
-    public let bookId: Int
+    public let storyId: Int
     /// 章节 ID
     public let chapterId: Int
     /// 书签起点：章节内字符偏移（`fullContent` 坐标系，含标题与排版后正文，UTF-16）。定位主键。
@@ -25,8 +25,8 @@ public struct ReaderBookmarkDraft {
     /// 文字摘要：章节内容变更导致 offset 失配时的兜底锚点，非定位主键。
     public let contentSnippet: String?
 
-    public init(bookId: Int, chapterId: Int, characterOffset: Int, contentSnippet: String?) {
-        self.bookId = bookId
+    public init(storyId: Int, chapterId: Int, characterOffset: Int, contentSnippet: String?) {
+        self.storyId = storyId
         self.chapterId = chapterId
         self.characterOffset = characterOffset
         self.contentSnippet = contentSnippet
@@ -51,8 +51,8 @@ public protocol ReaderBookmarkSyncing: AnyObject {
 
     /// 进入阅读器后台同步：先拉服务端书签与本地合并，再上报本地独有的书签。
     ///
-    /// - Parameter bookId: 书籍 ID
-    func syncBookmarks(bookId: Int)
+    /// - Parameter storyId: 书籍 ID
+    func syncBookmarks(storyId: Int)
 
     /// 新增书签。
     ///
@@ -63,11 +63,11 @@ public protocol ReaderBookmarkSyncing: AnyObject {
     /// 删除单条书签。
     ///
     /// 实现方应把「服务端返回书签不存在」也视为成功，避免本地残留删不掉。
-    func removeBookmark(bookId: Int, bookmarkId: Int, completion: @escaping (Bool) -> Void)
+    func removeBookmark(storyId: Int, bookmarkId: Int, completion: @escaping (Bool) -> Void)
 
     /// 批量删除书签。空列表应直接回 `true`。
-    func removeBookmarks(bookId: Int, bookmarkIds: [Int], completion: @escaping (Bool) -> Void)
+    func removeBookmarks(storyId: Int, bookmarkIds: [Int], completion: @escaping (Bool) -> Void)
 
     /// 按书清空全部书签。
-    func removeAllBookmarks(bookId: Int, completion: @escaping (Bool) -> Void)
+    func removeAllBookmarks(storyId: Int, completion: @escaping (Bool) -> Void)
 }

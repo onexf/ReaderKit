@@ -131,7 +131,7 @@ open class ReaderCatalogueCell: UITableViewCell {
 
         // 锁定图标：染色跟随行文字色
         lockIcon = UIImageView()
-        lockIcon.image = UIImage(named: "novel_directory_lock_outline")?.withRenderingMode(.alwaysTemplate)
+        lockIcon.image = ReaderEnvironment.images.chapterLocked()?.withRenderingMode(.alwaysTemplate)
         lockIcon.isHidden = true
         contentView.addSubview(lockIcon)
 

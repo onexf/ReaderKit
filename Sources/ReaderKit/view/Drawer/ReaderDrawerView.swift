@@ -85,9 +85,9 @@ open class ReaderDrawerView: UIView {
 
     /// 顶部书籍信息区域（整块可点，跳详情）
     private var headerView: UIControl!
-    private var bookCoverImageView: UIImageView!
-    private var bookTitleLabel: UILabel!
-    private var authorLabel: UILabel!
+    private var coverImageView: UIImageView!
+    private var storyTitleLabel: UILabel!
+    private var writerLabel: UILabel!
 
     /// 章节总数
     private var chapterCountLabel: UILabel!
@@ -133,26 +133,26 @@ open class ReaderDrawerView: UIView {
         addSubview(headerView)
 
         // 书籍封面
-        bookCoverImageView = UIImageView()
-        bookCoverImageView.contentMode = .scaleAspectFill
-        bookCoverImageView.clipsToBounds = true
-        bookCoverImageView.image = ReaderEnvironment.images.bookCoverPlaceholder()
-        bookCoverImageView.layer.cornerRadius = coverCornerRadius
-        headerView.addSubview(bookCoverImageView)
+        coverImageView = UIImageView()
+        coverImageView.contentMode = .scaleAspectFill
+        coverImageView.clipsToBounds = true
+        coverImageView.image = ReaderEnvironment.images.coverPlaceholder()
+        coverImageView.layer.cornerRadius = coverCornerRadius
+        headerView.addSubview(coverImageView)
 
         // 书名
-        bookTitleLabel = UILabel()
-        bookTitleLabel.font = ReaderEnvironment.fonts.uiMedium(16)
-        bookTitleLabel.textColor = themeColors.textT1
-        bookTitleLabel.numberOfLines = 1
-        headerView.addSubview(bookTitleLabel)
+        storyTitleLabel = UILabel()
+        storyTitleLabel.font = ReaderEnvironment.fonts.uiMedium(16)
+        storyTitleLabel.textColor = themeColors.textT1
+        storyTitleLabel.numberOfLines = 1
+        headerView.addSubview(storyTitleLabel)
 
         // 作者
-        authorLabel = UILabel()
-        authorLabel.font = ReaderEnvironment.fonts.uiLight(14)
-        authorLabel.textColor = themeColors.textT3
-        authorLabel.numberOfLines = 1
-        headerView.addSubview(authorLabel)
+        writerLabel = UILabel()
+        writerLabel.font = ReaderEnvironment.fonts.uiLight(14)
+        writerLabel.textColor = themeColors.textT3
+        writerLabel.numberOfLines = 1
+        headerView.addSubview(writerLabel)
 
         // 章节总数
         chapterCountLabel = UILabel()
@@ -204,16 +204,16 @@ open class ReaderDrawerView: UIView {
                                   width: w - horizontalMargin * 2,
                                   height: coverSize.height)
 
-        bookCoverImageView.frame = CGRect(origin: .zero, size: coverSize)
+        coverImageView.frame = CGRect(origin: .zero, size: coverSize)
 
-        let textX = bookCoverImageView.frame.maxX + coverTextSpacing
+        let textX = coverImageView.frame.maxX + coverTextSpacing
         let textWidth = headerView.frame.width - textX
         let textBlockHeight = titleHeight + titleAuthorSpacing + authorHeight
         let textY = (coverSize.height - textBlockHeight) / 2
 
-        bookTitleLabel.frame = CGRect(x: textX, y: textY, width: textWidth, height: titleHeight)
-        authorLabel.frame = CGRect(x: textX,
-                                   y: bookTitleLabel.frame.maxY + titleAuthorSpacing,
+        storyTitleLabel.frame = CGRect(x: textX, y: textY, width: textWidth, height: titleHeight)
+        writerLabel.frame = CGRect(x: textX,
+                                   y: storyTitleLabel.frame.maxY + titleAuthorSpacing,
                                    width: textWidth,
                                    height: authorHeight)
 
@@ -239,11 +239,11 @@ open class ReaderDrawerView: UIView {
     // MARK: - 数据填充
 
     /// 更新书籍信息
-    open func reviseBookInfo(bookName: String?, author: String?, totalEpisodes: Int) {
-        bookTitleLabel.text = bookName
-        authorLabel.text = author
+    open func reviseStoryInfo(storyName: String?, writer: String?, totalChapterCount: Int) {
+        storyTitleLabel.text = storyName
+        writerLabel.text = writer
         // 设计稿：「Chapter」+ 总章节数
-        chapterCountLabel.text = "\(ReaderEnvironment.strings.chapter) \(totalEpisodes)"
+        chapterCountLabel.text = "\(ReaderEnvironment.strings.chapter) \(totalChapterCount)"
     }
 
     /// 更新书封图片
@@ -252,9 +252,9 @@ open class ReaderDrawerView: UIView {
             return
         }
         let compressedURL = urlString.getImageCompressURL(width: Int(coverSize.width), heigth: Int(coverSize.height))
-        ReaderEnvironment.images.loadRemoteImage(bookCoverImageView,
+        ReaderEnvironment.images.loadRemoteImage(coverImageView,
                                                 compressedURL,
-                                                ReaderEnvironment.images.bookCoverPlaceholder())
+                                                ReaderEnvironment.images.coverPlaceholder())
     }
 
     // MARK: - 主题换肤
@@ -269,8 +269,8 @@ open class ReaderDrawerView: UIView {
         backgroundColor = colors.fillPopup
 
         // 书籍信息区域
-        bookTitleLabel.textColor = colors.textT1
-        authorLabel.textColor = colors.textT3
+        storyTitleLabel.textColor = colors.textT1
+        writerLabel.textColor = colors.textT3
         chapterCountLabel.textColor = colors.textT3
 
         // 分割线

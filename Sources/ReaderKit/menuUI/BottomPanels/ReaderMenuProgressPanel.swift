@@ -29,7 +29,7 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
         // 上一章
         previousChapter = UIButton(type:.custom)
         previousChapter.titleLabel?.font = READER_FONT_SA_14
-        previousChapter.setTitle("上一章", for: .normal)
+        previousChapter.setTitle(ReaderEnvironment.strings.previousChapter, for: .normal)
         previousChapter.setTitleColor(READER_COLOR_MENU_COLOR, for: .normal)
         previousChapter.addTarget(self, action: #selector(clickPreviousChapter), for: .touchUpInside)
         addSubview(previousChapter)
@@ -37,7 +37,7 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
         // 下一章
         nextChapter = UIButton(type:.custom)
         nextChapter.titleLabel?.font = READER_FONT_SA_14
-        nextChapter.setTitle("下一章", for: .normal)
+        nextChapter.setTitle(ReaderEnvironment.strings.nextChapter, for: .normal)
         nextChapter.setTitleColor(READER_COLOR_MENU_COLOR, for: .normal)
         nextChapter.addTarget(self, action: #selector(clickNextChapter), for: .touchUpInside)
         addSubview(nextChapter)
@@ -57,9 +57,8 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
         slider.bubbleColor = READER_COLOR_MAIN
         // 气泡字体颜色
         slider.bubbleTextColor = READER_COLOR_MENU_COLOR
-        // 气泡字体以及字体大小。该字型系统自带，缺失时回落到系统粗体
-        slider.bubbleFont = UIFont(name: "Futura-CondensedExtraBold", size: 22)
-            ?? .systemFont(ofSize: 22, weight: .bold)
+        // 气泡字体走注入点，库内默认系统粗体
+        slider.bubbleFont = ReaderEnvironment.fonts.progressBubble(22)
         // 气泡箭头高度
         slider.bubbleArrowLength = READER_SPACE_SA_5
         // 当前进度颜色

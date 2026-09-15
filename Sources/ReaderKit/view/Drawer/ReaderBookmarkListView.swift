@@ -42,8 +42,8 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         
         didSet{
             // 按本书加载排序状态(存"是否降序",未设置默认 false → 升序)
-            if let bookID = readModel?.bookID {
-                chapterAscending = !ReaderDefaults.bool(ReaderBookmarkListView.sortDescendingKey(bookID: bookID))
+            if let storyID = readModel?.storyID {
+                chapterAscending = !ReaderDefaults.bool(ReaderBookmarkListView.sortDescendingKey(storyID: storyID))
             }
             reloadMarks()
         }
@@ -52,8 +52,8 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     /// 组间排序:true = 章节从小到大(默认);false = 章节从大到小
     /// 组内书签固定按时间由近到远,不随此开关变化
     /// 排序状态按书持久化(存"是否降序",未设置默认 false 即升序)
-    private static func sortDescendingKey(bookID: String) -> String {
-        return "ReaderKit.bookmarkSortDescending.\(bookID)"
+    private static func sortDescendingKey(storyID: String) -> String {
+        return "ReaderKit.bookmarkSortDescending.\(storyID)"
     }
     public private(set) var chapterAscending: Bool = true
     
@@ -105,9 +105,9 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         reloadMarks()
     }
     
-    /// 服务端书签合并完成后刷新当前书的书签列表(object 为 bookID,只刷新匹配的书)
+    /// 服务端书签合并完成后刷新当前书的书签列表(object 为 storyID,只刷新匹配的书)
     @objc private func onBookmarksMerged(_ note: Notification) {
-        guard let bookID = note.object as? String, bookID == readModel?.bookID else { return }
+        guard let storyID = note.object as? String, storyID == readModel?.storyID else { return }
         reloadMarks()
     }
     
@@ -231,8 +231,8 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         chapterAscending.toggle()
         
         // 按本书持久化排序状态(存是否降序)
-        if let bookID = readModel?.bookID {
-            ReaderDefaults.setBool(!chapterAscending, ReaderBookmarkListView.sortDescendingKey(bookID: bookID))
+        if let storyID = readModel?.storyID {
+            ReaderDefaults.setBool(!chapterAscending, ReaderBookmarkListView.sortDescendingKey(storyID: storyID))
         }
         
         reloadMarks()

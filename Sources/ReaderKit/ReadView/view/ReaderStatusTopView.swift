@@ -32,7 +32,7 @@ open class ReaderStatusTopView: UIView {
     private var backButton: UIButton!
 
     /// 书名
-    public private(set) var bookName: UILabel!
+    public private(set) var storyName: UILabel!
     
     /// 章节名
     public private(set) var chapterName: UILabel!
@@ -64,12 +64,12 @@ open class ReaderStatusTopView: UIView {
         addSubview(backButton)
         
         // 书名
-        bookName = UILabel()
-        bookName.font = READER_FONT_SA_10
-        bookName.textColor = ReaderConfiguration.shared().statusTextColor
-        bookName.textAlignment = .left
-        bookName.isHidden = true
-        addSubview(bookName)
+        storyName = UILabel()
+        storyName.font = READER_FONT_SA_10
+        storyName.textColor = ReaderConfiguration.shared().statusTextColor
+        storyName.textAlignment = .left
+        storyName.isHidden = true
+        addSubview(storyName)
         
         // 章节名
         chapterName = UILabel()
@@ -96,7 +96,7 @@ open class ReaderStatusTopView: UIView {
         let leftMargin = max(0, READER_SPACE_SA_20 - offsetX)
         
         // 书名（已隐藏）
-        bookName.frame = CGRect(x: 0, y: 0, width: 0, height: h)
+        storyName.frame = CGRect(x: 0, y: 0, width: 0, height: h)
         
         // 章节名所在文本行：设计稿 padding 10px 0，顶部对齐
         let chapterNameHeight = ceil(chapterName.font.lineHeight)
@@ -146,7 +146,7 @@ open class ReaderStatusTopView: UIView {
     /// 更新主题颜色
     open func reviseColors() {
         let themeColors = ReaderConfiguration.shared().currentThemeColors
-        bookName.textColor = ReaderConfiguration.shared().statusTextColor
+        storyName.textColor = ReaderConfiguration.shared().statusTextColor
         chapterName.textColor = themeColors.textT2
         backButton.tintColor = themeColors.textT2
     }

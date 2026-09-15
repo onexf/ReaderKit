@@ -54,6 +54,9 @@ public struct ReaderFonts {
     /// 界面弱化文字：作者名、底部标签栏、时间等。
     public var uiLight: (CGFloat) -> UIFont = { .systemFont(ofSize: $0, weight: .light) }
 
+    /// 进度条气泡上的数值。通常用窄体数字字型以容纳更多字符。
+    public var progressBubble: (CGFloat) -> UIFont = { .systemFont(ofSize: $0, weight: .bold) }
+
     public init() {}
 
     // MARK: - 系统字体

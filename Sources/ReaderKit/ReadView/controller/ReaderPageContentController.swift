@@ -54,7 +54,7 @@ open class ReaderPageContentController: ReaderScreenController {
         
         // 顶部状态栏
         topView = ReaderStatusTopView()
-        topView.bookName.text = readModel.bookName
+        topView.storyName.text = readModel.storyName
         topView.chapterName.text = recordModel.chapterModel.name
         view.addSubview(topView)
         topView.frame = CGRect(x: readRect.minX, y: readRect.minY, width: readRect.width, height: READER_STATUS_TOP_VIEW_HEIGHT)

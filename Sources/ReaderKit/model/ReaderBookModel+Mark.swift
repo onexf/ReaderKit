@@ -36,15 +36,15 @@ extension ReaderBookModel {
         
         let markModel = ReaderBookmarkModel()
         
-        markModel.bookID = recordModel.bookID
+        markModel.storyID = recordModel.storyID
         
         markModel.chapterID = recordModel.chapterModel.id
         
         if recordModel.pageModel.isHomePage {
             
-            markModel.name = "(无章节名)"
+            markModel.name = ReaderEnvironment.strings.unnamedChapter
             
-            markModel.content = bookName
+            markModel.content = storyName
             
             markModel.location = recordModel.locationFirst
             
@@ -244,9 +244,9 @@ extension ReaderBookModel {
     /// = 书签 location / 该章富文本总长度;章节内容未加载或长度为 0 时返回 0
     public func markProgress(_ mark: ReaderBookmarkModel) -> Float {
 
-        guard ReaderChapterModel.isExist(bookID: bookID, chapterID: mark.chapterID) else { return 0 }
+        guard ReaderChapterModel.isExist(storyID: storyID, chapterID: mark.chapterID) else { return 0 }
 
-        let chapterModel = ReaderChapterModel.model(bookID: bookID, chapterID: mark.chapterID, isUpdateFont: false)
+        let chapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: mark.chapterID, isUpdateFont: false)
         let fullLength = Float(chapterModel.fullContent?.length ?? 0)
 
         guard fullLength > 0 else { return 0 }

@@ -124,6 +124,14 @@ open class ReaderConfiguration: NSObject {
     /// 间距类型
     open var spacingType: ReaderSpacingType! { return ReaderSpacingType(rawValue: spacingIndex.intValue) }
     
+    /// 当前主题槽位。
+    ///
+    /// `initData()` 已保证 `bgColorIndex` 落在合法范围（越界会回落浅色基准主题），
+    /// 这里的 `?? .lightDefault` 只是不做强解包的兜底。
+    open var themeType: ReaderThemeType {
+        return ReaderThemeType(rawValue: bgColorIndex.intValue) ?? .lightDefault
+    }
+    
     /// 当前主题颜色集（根据 bgColorIndex 从 ReaderPalette 获取）
     open var currentThemeColors: ReaderThemeColors {
         return ReaderPalette.shared.activeColors()
