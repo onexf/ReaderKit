@@ -5,7 +5,7 @@
 等全部经注入点交由接入方提供。
 
 - 最低系统：iOS 15.1
-- 源码：`Sources/ReaderKit`（Swift）+ `Sources/ReaderKitOC`（进度条 OC 组件）
+- 源码：`Sources/ReaderKit`，**纯 Swift 单 target**，无 Objective-C
 - **零资源依赖**：库只有源码，不携带任何图片与字体；默认用系统 SF Symbols 与系统字体，
   接入方按需注入自己的设计资产
 
@@ -14,7 +14,7 @@
 ### SPM
 
 ```swift
-.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.1.1")
+.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.1.2")
 // 本地开发也可用路径引用：.package(path: "../ReaderKit")
 ```
 
@@ -24,9 +24,11 @@
 pod 'ReaderKit', :path => 'Modules/ReaderKit'
 ```
 
-两种方式指向同一份源码。CocoaPods 原生支持单 target 混编，故 podspec 不拆 OC；
-SPM 不支持，所以 OC 独立成 `ReaderKitOC` target，由
-`other/public/ReaderEngineOCShim.swift` 用 `#if canImport` 透明转出，引擎内引用无需改动。
+两种方式指向同一份源码。
+
+Swift 6 严格并发（`SWIFT_STRICT_CONCURRENCY = complete`）下可直接
+`import ReaderKit`，无需 `@preconcurrency`——库内可变全局已标注
+`nonisolated(unsafe)`，契约是「展示阅读器前配置一次注入点，之后只读」。
 
 ## 最小接入
 
@@ -37,7 +39,7 @@ SPM 不支持，所以 OC 独立成 `ReaderKitOC` target，由
 ReaderEnvironment.strings = myStrings              // ReaderStrings
 ReaderEnvironment.fonts = myFonts                  // ReaderFonts
 ReaderEnvironment.images = myImages                // ReaderImages
-ReaderEnvironment.hostConfiguration = myConfig     // ReaderHostConfiguration
+ReaderEnvironment.hostConfiguration = myConfig     // ReaderHostConfiguring
 ReaderEnvironment.presentErrorNotice = { container, message in /* 自己的 Toast */ }
 
 // 2) 实例级注入点：挂在阅读器控制器上
@@ -50,26 +52,49 @@ reader.hostActionHandler = myHostActions           // 反馈入口 / 详情页�
 reader.placeholderProvider = myPlaceholderProvider // 加载失败空态
 ```
 
-只有 `chapterLoader` 是必需的（引擎要靠它取正文）；其余不注入即对应能力静默关闭，
-接入方应同时隐藏相关入口。
-
 ## 注入点一览
 
 `Sources/ReaderKit/Contracts/` 下每个文件顶部都写了设计取舍与使用约束。
 
-| 注入点 | 作用 |
-|---|---|
-| `ReaderChapterLoading` | 取章节正文。接口、CDN、解密、缓存全归接入方 |
-| `ReaderTerminalPageProviding` | 提供书末页控制器 |
-| `ReaderBookmarkSyncing` | 书签远端同步（引擎自带本地书签模型） |
-| `ReaderBookshelfPolicy` | 收藏状态查询/设置、阅读达标自动加书架 |
-| `ReaderCatalogueSupplying` | 分页目录续加载 |
-| `ReaderHostActionHandling` | 跳宿主页面（反馈、详情），导航栈清理 |
-| `ReaderPlaceholderProviding` | 加载失败空态视图 |
-| `ReaderChapterAccessDelegate` | 章节未解锁 / 目录未加载完的回调 |
-| `ReaderStrings` / `ReaderFonts` / `ReaderImages` | 文案、字体、图标（均有库内默认） |
-| `ReaderHostConfiguration` | 图片压缩 URL、书签数量上限等配置 |
-| `ReaderNotifications` | 引擎监听的通知名，由接入方在相应时机发送 |
+**除必须项外，其余不注入都不会崩溃、也不会报错，而是对应能力静默关闭**，
+所以要先看清「不注入会怎样」这一列，再决定是否隐藏相关入口。
+
+### 必须
+
+不注入则阅读器不可用。
+
+| 注入点 | 挂载位置 | 不注入会怎样 |
+|---|---|---|
+| `readModel` | `reader.readModel` | 阅读对象为空，无法启动 |
+| `ReaderChapterLoading` | `reader.chapterLoader` | **拿不到正文**。引擎只能读已缓存章节，网络书源等于白屏 |
+
+### 强烈建议
+
+不注入能跑，但外观与体验会明显不像成品。
+
+| 注入点 | 挂载位置 | 不注入会怎样 |
+|---|---|---|
+| `ReaderImages` | `ReaderEnvironment.images` | 图标退化为系统 SF Symbols（细线条符号，不是空白） |
+| `ReaderFonts` | `ReaderEnvironment.fonts` | 正文用系统衬线体、界面用系统字体 |
+| `ReaderThemeProviding` | `ReaderEnvironment.themeProvider` | 六套主题用库内中性配色，非设计稿色值 |
+| `ReaderStrings` | `ReaderEnvironment.strings` | 文案为英文默认值（非英文 App 视同必须） |
+| `presentErrorNotice` | `ReaderEnvironment.presentErrorNotice` | 章节加载失败时静默无提示 |
+
+### 按需
+
+对应业务能力若产品上不需要，可以不注入。
+
+| 注入点 | 挂载位置 | 不注入会怎样 |
+|---|---|---|
+| `ReaderTerminalPageProviding` | `reader.terminalPageProvider` | 无书末页 |
+| `ReaderBookmarkSyncing` | `reader.bookmarkSync` | 书签只存本地，不与服务端同步 |
+| `ReaderBookshelfManaging` | `reader.bookshelfPolicy` | 无收藏能力，应同时隐藏收藏入口 |
+| `ReaderCatalogueSupplying` | `reader.catalogueSupplier` | 引擎按「目录已完整」处理，不再续拉分页目录 |
+| `ReaderHostActionHandling` | `reader.hostActionHandler` | 反馈、详情页跳转等入口无响应，应同时隐藏 |
+| `ReaderPlaceholderProviding` | `reader.placeholderProvider` | 加载失败不显示占位视图 |
+| `ReaderChapterAccessDelegate` | `reader.chapterUnlockDelegate` | 章节未解锁 / 目录未加载完时无回调 |
+| `ReaderHostConfiguring` | `ReaderEnvironment.hostConfiguration` | 图片 URL 原样返回（不拼 CDN 压缩参数），书签上限取默认 99 |
+| `ReaderNotifications` | 由接入方 `NotificationCenter.post` | 目录分页更新、书签远端合并后列表不刷新 |
 
 设计口径：**协议里不出现业务模型**。书签用中立的 `ReaderBookmarkDraft` /
 `ReaderBookmarkReceipt`，反馈入口用 `ReaderPositionContext`。

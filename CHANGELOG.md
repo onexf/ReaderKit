@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.2
+
+仅文档修正，无代码改动。
+
+- 注入点一览改为**按必要性分三档**（必须 / 强烈建议 / 按需），每项补「不注入会怎样」
+  一列。此前只有一句「只有 chapterLoader 是必需的」，接入方仍会漏看——不注入不报错、
+  只是能力静默关闭，必须把后果写明。
+- 修正 1.1.0 删除 Objective-C 后残留的过时描述：源码说明仍写着
+  `Sources/ReaderKitOC`、接入说明仍在讲 `ReaderEngineOCShim` 与 `#if canImport` 转出。
+- 修正两处已改名的协议：`ReaderBookshelfPolicy` → `ReaderBookshelfManaging`、
+  `ReaderHostConfiguration` → `ReaderHostConfiguring`（1.1.0 改名时文档未同步）。
+- 补充说明 Swift 6 严格并发下可直接 `import ReaderKit`，无需 `@preconcurrency`。
+
 ## 1.1.1
 
 ### 修复
