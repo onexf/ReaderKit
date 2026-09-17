@@ -163,9 +163,13 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
     
     // MARK: - 朗读协同
     
-    /// 滚动到指定章节的指定页，供朗读跟随使用。
+    /// 滚动到指定章节的指定页。
     ///
     /// 与左右翻页模式不同，滚动容器在库内，可以直接定位，不需要接入方注入翻页能力。
+    ///
+    /// ⚠️ **朗读跟随请用 `revealSpeechSentence(animated:)`**。页粒度定位对滚动模式不够：
+    /// 一页并不等于一屏，滚到页首之后朗读位置仍可能在可视区之外。本方法保留给
+    /// 按页跳转的场景。
     ///
     /// - Parameters:
     ///   - chapterID: 目标章节
@@ -183,6 +187,165 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         
         tableView.scrollToRow(at: IndexPath(row: page, section: section), at: .top, animated: true)
     }
+    
+    /// 屏幕最顶端那一行的首字符，换算成「章节 + 章内绝对坐标」。定位不到时返回 nil。
+    ///
+    /// **为什么朗读起点不能用「当前页页首」**：滚动模式的页码口径是「顶端像素所属的页」
+    /// （见 `revisePageNumber()`），屏幕上通常同时显示上一页的尾与下一页的头，
+    /// 所以「当前页」的页首多半已经滚到可视区上方了。拿页首当起点，用户点下播放
+    /// 听到的会是屏幕外的内容 —— 必须按真正可见的第一行来定。
+    ///
+    /// 左右翻页模式不存在这个问题（一页恰好一屏，页首就是屏幕第一行），故不需要对应实现。
+    ///
+    /// 返回章节**模型**而不只是 ID：章节模型的解析（内存 → 磁盘 → 解析器）在本类里，
+    /// 只给 ID 会逼调用方再实现一遍同样的查找。
+    open func visibleStartPosition() -> (chapter: ReaderChapterModel, location: NSInteger)? {
+        
+        let topPoint = CGPoint(x: 0, y: tableView.contentOffset.y + 0.5)
+        
+        guard let indexPath = tableView.indexPathForRow(at: topPoint),
+              indexPath.section < chapterIDs.count else { return nil }
+        
+        let chapterID = chapterIDs[indexPath.section]
+        
+        guard let chapterModel = resolveChapterModel(chapterID: chapterID),
+              indexPath.row < chapterModel.pageModels.count else { return nil }
+        
+        let pageModel = chapterModel.pageModels[indexPath.row]
+        
+        // 书籍首页没有正文，不能作为朗读起点
+        guard !pageModel.isHomePage, let pageRange = pageModel.range else { return nil }
+        
+        // cell 未实现化（极少见：刚跳章还没走完布局）时退回页首，
+        // 起点略偏总比不能开始朗读好
+        guard let cell = tableView.cellForRow(at: indexPath) as? ReaderPageCell,
+              let pageView = cell.renderingPageView else {
+            
+            return (chapterModel, pageRange.location)
+        }
+        
+        let pointInPageView = tableView.convert(topPoint, to: pageView)
+        
+        guard let indexInPage = pageView.characterIndex(atViewPoint: CGPoint(x: 0, y: pointInPageView.y)) else {
+            
+            return (chapterModel, pageRange.location)
+        }
+        
+        return (chapterModel, pageRange.location + indexInPage)
+    }
+    
+    /// 指定章节是否已在滚动容器的数据源里。
+    ///
+    /// 供朗读编排层判断「能不能靠滚动回到朗读位置」：不在数据源里的章节滚不过去，
+    /// 只能走接入方注入的跳章能力。
+    open func containsSpeechChapter(_ chapterID: NSNumber?) -> Bool {
+        
+        guard let chapterID else { return false }
+        
+        return chapterIDs.contains(chapterID)
+    }
+    
+    /// 当前朗读句是否真的在可视区里。
+    ///
+    /// 与「朗读位置是否在当前页」不是一回事：滚动模式下一页的大部分内容可能在可视区之外，
+    /// 按页判断会得出「在当前页」却看不见的结论，界面上表现为胶囊显示「暂停」、
+    /// 但正文里找不到高亮。
+    open var isSpeechSentenceVisible: Bool {
+        
+        guard let rect = speechSentenceRectInTable() else { return false }
+        
+        let visible = CGRect(origin: tableView.contentOffset, size: tableView.bounds.size)
+        
+        return visible.intersects(rect)
+    }
+    
+    /// 把朗读句滚进可视区。已经在舒适区内则不动。
+    ///
+    /// 「不动」这条很重要：朗读逐句推进，若每句都滚一次，正文会持续微抖，
+    /// 读起来比不跟随更难受。只有句子跑到可视区边缘之外才滚。
+    /// **要不要滚由编排层决定，本方法只负责滚。**「用户手动挪过视图就不跟随」这条判定
+    /// 两种阅读模式共用，收在 `ReaderSpeechController` 里，容器不再自己维护挂起状态。
+    open func revealSpeechSentence(animated: Bool) {
+        
+        revealSpeechSentence(animated: animated, allowingCoarseScroll: true)
+    }
+    
+    /// - Parameter allowingCoarseScroll: 句子所在 cell 尚未实现化时，是否允许先按页粗滚一次。
+    ///   粗滚后的精确对齐会再调一次本方法并传 false，避免布局始终不出来时无限递归。
+    private func revealSpeechSentence(animated: Bool, allowingCoarseScroll: Bool) {
+        
+        guard let rect = speechSentenceRectInTable() else {
+            
+            // cell 未实现化说明句子落在离可视区很远的页上，此时拿不到精确矩形。
+            // 先按页跳过去（不带动画，长距离动画既慢又晃），布局完成后再对齐到句子。
+            guard allowingCoarseScroll, let indexPath = speechSentenceIndexPath() else { return }
+            
+            tableView.scrollToRow(at: indexPath, at: .top, animated: false)
+            
+            DispatchQueue.main.async { [weak self] in
+                
+                self?.revealSpeechSentence(animated: false, allowingCoarseScroll: false)
+            }
+            
+            return
+        }
+        
+        let visible = CGRect(origin: tableView.contentOffset, size: tableView.bounds.size)
+        
+        // 上下各留一档余量：贴边的行虽然「可见」，但读起来已经很勉强，提前滚更自然
+        let comfort = visible.insetBy(dx: 0, dy: speechRevealEdgeInset)
+        
+        // 句子比舒适区还高时（超长句）只要句首露出来就算到位，否则永远满足不了包含条件
+        let settled = rect.height >= comfort.height
+            ? comfort.minY <= rect.minY && rect.minY <= comfort.maxY
+            : comfort.contains(rect)
+        
+        if settled { return }
+        
+        // 落点定在偏上位置而不是正中：朗读是向下推进的，句子放在上部能多留出
+        // 后续内容的预读空间，少滚几次
+        let maxOffsetY = max(0, tableView.contentSize.height - tableView.bounds.height)
+        
+        let targetY = min(max(0, rect.minY - tableView.bounds.height * speechRevealTopRatio), maxOffsetY)
+        
+        tableView.setContentOffset(CGPoint(x: 0, y: targetY), animated: animated)
+    }
+    
+    /// 朗读句所在的 cell 位置。朗读未开始、章节不在数据源里时返回 nil。
+    private func speechSentenceIndexPath() -> IndexPath? {
+        
+        guard let controller = vc?.engagedSpeechController,
+              let chapterID = controller.speakingChapterID,
+              let section = chapterIDs.firstIndex(of: chapterID),
+              let chapterModel = resolveChapterModel(chapterID: chapterID),
+              let sentenceRange = controller.speakingRange else { return nil }
+        
+        let page = chapterModel.page(location: sentenceRange.location).intValue
+        
+        guard page >= 0, page < chapterModel.pageModels.count else { return nil }
+        
+        return IndexPath(row: page, section: section)
+    }
+    
+    /// 朗读句在 tableView 内容坐标系里的矩形。句子所在 cell 未实现化时返回 nil。
+    ///
+    /// 依赖 cell 已实现化：矩形要靠该页的 CTFrame 算行框，而 CTFrame 只存在于
+    /// 已创建的 `ReaderPageView` 上。离可视区远的页拿不到，调用方需自行兜底。
+    private func speechSentenceRectInTable() -> CGRect? {
+        
+        guard let indexPath = speechSentenceIndexPath(),
+              let cell = tableView.cellForRow(at: indexPath) as? ReaderPageCell,
+              let pageView = cell.renderingPageView,
+              let rectInPageView = pageView.speechHighlightRectInView else { return nil }
+        
+        return pageView.convert(rectInPageView, to: tableView)
+    }
+    
+    /// 判定「句子已就位」时可视区上下各收掉的余量
+    private let speechRevealEdgeInset: CGFloat = 24
+    
+    /// 需要滚动时，句首落在可视区高度的这个比例处
+    private let speechRevealTopRatio: CGFloat = 0.3
     
     /// 刷新全部可见页的朗读高亮。
     open func reviseSpeechHighlight() {
@@ -528,6 +691,13 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         
         // 标记用户已开始主动滚动
         hasUserScrolled = true
+        
+        // 通报「用户主动挪了视图」，由编排层挂起朗读自动跟随，
+        // 否则用户想往回看前文会被下一句拽回来。
+        //
+        // 这里是**明确的用户信号**，不需要像左右翻页模式那样靠令牌推断，
+        // 所以直接通报而不走 `notifyDisplayedPositionAlter()`。
+        vc?.engagedSpeechController?.handleUserInitiatedPositionAlter()
     }
     
     // 结束拖拽
@@ -769,6 +939,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
            let topChapterModel = resolveChapterModel(chapterID: chapterIDs[firstIndexPath.section]) {
             topView.chapterName.text = topChapterModel.name
         }
+        
+        // 展示位置变了，通报引擎补画高亮并重算胶囊状态。
+        // 不这么做的话，用户滚离朗读位置后胶囊仍显示暂停，点下去停的是别处的朗读。
+        vc.notifyDisplayedPositionAlter()
         
     }
     

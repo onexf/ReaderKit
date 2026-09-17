@@ -236,6 +236,153 @@ open class ReaderViewController: ReaderScreenController {
         presentPositionHandler?(chapterID, location)
     }
 
+    // MARK: - 朗读控制胶囊
+
+    /// 朗读控制胶囊。首次访问时创建。
+    public var speechActionButton: ReaderSpeechActionButton {
+
+        if let createdSpeechActionButton { return createdSpeechActionButton }
+
+        let button = ReaderSpeechActionButton()
+
+        createdSpeechActionButton = button
+
+        return button
+    }
+
+    private var createdSpeechActionButton: ReaderSpeechActionButton?
+
+    /// 把朗读控制胶囊装到阅读器上，并接好两个动作。
+    ///
+    /// 由接入方在视图搭建完成后调用一次。**引擎不自动装**：胶囊是否出现、
+    /// 出现在哪一层属接入方的交互决策，有的接入方可能压根不提供朗读入口。
+    ///
+    /// 胶囊落在页脚信息栏那条带上（设计稿口径），装到 `contentView` 而不是页脚视图里 ——
+    /// 页脚在左右翻页与上下滚动两种模式下分别由接入方与 `ReaderScrollController` 各自持有，
+    /// 装在共同的父视图上才能一处覆盖两种模式。
+    ///
+    /// **调用时机要早**：正文容器与页脚都是用 `insertSubview(_:at: 0)` / `aboveSubview:`
+    /// 插到 `contentView` 底部的，所以先装的胶囊自然压在它们上面；而菜单遮罩与菜单栏是
+    /// 后续 append 到 `contentView` 的，会压在胶囊上面 —— 正是想要的层级。
+    /// 反过来在菜单初始化之后再装，胶囊会浮在菜单遮罩之上。
+    open func installSpeechActionButton() {
+
+        let button = speechActionButton
+
+        // contentView 在 `addSubviews()` 里创建，正常调用时机下一定有；
+        // 兜底挂 view 只为不让极端时序（尚未走完 viewDidLoad）崩掉
+        var container: UIView = view
+
+        if let contentView { container = contentView }
+
+        if button.superview !== container { container.addSubview(button) }
+
+        button.onPrimaryAction = { [weak self] in self?.handleSpeechPrimaryAction() }
+
+        // 返回箭头只在 .offPage 态出现，语义是「把正文跳回正在朗读的位置」
+        button.onReturnAction = { [weak self] in self?.speechController.returnToSpeakingPosition() }
+
+        reviseSpeechActionButtonAnchor()
+
+        button.adoptThemeColors(ReaderConfiguration.shared().currentThemeColors)
+
+        // 默认藏着：装的时候正文往往还在加载，页脚也还不存在。
+        // 由接入方在正文就位后经 `isSpeechActionButtonHidden` 放出来。
+        button.isHidden = true
+
+        reviseSpeechActionButton(animated: false)
+    }
+
+    /// 重算胶囊锚点。
+    ///
+    /// 锚点取自 `READER_RECT`（屏幕尺寸 + 安全区推导）而非 `view.bounds`，
+    /// 所以不依赖布局时机 —— `viewDidLoad` 里就能算准，不必等 `viewDidLayoutSubviews`。
+    /// 这与页脚信息栏自身的定位口径一致（见 `ReaderPageContentController`）。
+    open func reviseSpeechActionButtonAnchor() {
+
+        guard let button = createdSpeechActionButton else { return }
+
+        let rect = READER_RECT!
+
+        // 纵向落在页脚信息栏的垂直中心：设计稿里胶囊与页脚的页码、时间电量同处一条带上
+        button.anchorCenter = CGPoint(x: rect.midX,
+                                     y: rect.maxY - READER_STATUS_BOTTOM_VIEW_HEIGHT / 2)
+    }
+
+    /// 按当前朗读状态刷新胶囊。
+    ///
+    /// 需要调用的时机有两类：
+    /// - 朗读自身状态变化（开始 / 暂停 / 继续 / 推进到下一句）—— 引擎内部已自动调
+    /// - **展示位置变化**（用户手动翻页、跳章）—— 引擎感知不到接入方的翻页动作，
+    ///   需要接入方在翻页链路里调一次，否则「朗读位置是否在当前页」判断会滞后，
+    ///   表现为翻页后胶囊没变成「从这里开始读」
+    open func reviseSpeechActionButton(animated: Bool) {
+
+        guard let button = createdSpeechActionButton else { return }
+
+        // 用 engagedSpeechController：未启用朗读时按 .idle 渲染即可，
+        // 不该为了刷新一个按钮把整套朗读设施创建出来
+        button.apply(engagedSpeechController?.actionState ?? .idle, animated: animated)
+    }
+
+    /// 通报「正文展示位置变了」。
+    ///
+    /// 接入方**必须**在自己的位置变更收口处调用一次（翻页、跳章、解锁后续读都算）。
+    /// 引擎感知不到接入方的翻页动作，少调这一次会有两个可见后果：
+    ///
+    /// 1. 新页上不会出现朗读高亮 —— 高亮是写在具体某个正文视图上的属性，
+    ///    换页意味着换了视图，必须重新写一遍
+    /// 2. 控制胶囊的「朗读位置是否还看得见」判断滞后，翻页后仍显示「暂停」
+    ///
+    /// 上下滚动模式不需要接入方操心，滚动容器在库内，已自行接好。
+    open func notifyDisplayedPositionAlter() {
+
+        engagedSpeechController?.handleDisplayedPositionAlter()
+
+        reviseSpeechActionButton(animated: true)
+    }
+
+    /// 胶囊是否隐藏。
+    ///
+    /// 读写都不会触发创建：未装胶囊时读到 `true`（等价于不可见），写入被忽略。
+    /// 供接入方把胶囊的可见性挂到页脚那条信息带上 —— 书末页、菜单展开等页脚让位的场景，
+    /// 胶囊也该一起收起。
+    open var isSpeechActionButtonHidden: Bool {
+
+        get { createdSpeechActionButton?.isHidden ?? true }
+
+        set { createdSpeechActionButton?.isHidden = newValue }
+    }
+
+    /// 胶囊换肤。接入方在主题切换时调用。
+    open func adoptSpeechActionButtonTheme(_ colors: ReaderThemeColors) {
+
+        createdSpeechActionButton?.adoptThemeColors(colors)
+    }
+
+    /// 点击胶囊主区域。
+    private func handleSpeechPrimaryAction() {
+
+        let controller = speechController
+
+        switch controller.actionState {
+
+        case .idle, .offPage:
+
+            // .offPage 下主区域的语义是「从这里开始读」，即放弃原朗读位置、
+            // 改从当前展示页重新开始；想回到原位置走返回箭头
+            controller.startFromCurrentPage()
+
+        case .playing:
+
+            controller.pause()
+
+        case .paused:
+
+            controller.resume()
+        }
+    }
+
     // MARK: - 通用状态
 
     /// Combine 订阅容器。基类与子类共用。

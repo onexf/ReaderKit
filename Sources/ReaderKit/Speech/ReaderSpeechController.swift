@@ -100,19 +100,40 @@ public final class ReaderSpeechController {
         }
     }
 
-    /// 朗读位置是否落在当前展示页上。
+    /// 朗读位置是否落在用户当前**看得见**的范围里。
     ///
-    /// 两个条件都要满足：同一章、且同一页。只比页码会在跨章时误判
-    /// （各章页码都从 0 起算，第 2 章第 0 页与第 3 章第 0 页页码相同）。
+    /// 决定胶囊显示「暂停 / 继续」还是「从这里开始读」，所以口径必须是「看得见」，
+    /// 而不是「在当前页」—— 后者在滚动模式下会得出「在当前页却看不见」的结论，
+    /// 表现为胶囊显示暂停、正文里却找不到高亮。
     private var isSpeakingOnDisplayedPage: Bool {
 
-        guard let sentence = currentSentence,
-              let speakingChapter,
-              let record = reader?.readModel?.recordModel,
-              let displayedChapter = record.chapterModel,
-              speakingChapter.id == displayedChapter.id else { return false }
+        // 滚动模式：一页不等于一屏，可视区通常横跨两页，且「当前页」的大半内容
+        // 可能在可视区上方。必须问滚动容器要句子的实际可见性。
+        if ReaderConfiguration.shared().effectType == .scroll {
 
-        return speakingChapter.page(location: sentence.range.location).intValue == record.page.intValue
+            guard let scrollController = reader?.scrollController else { return false }
+
+            return scrollController.isSpeechSentenceVisible
+        }
+
+        // 左右翻页：一页恰好一屏，「在当前页」等价于「看得见」
+        return isSpeakingSentenceOnDisplayedPage
+    }
+
+    /// 左右翻页模式下，当前朗读句是否落在当前展示页上。
+    ///
+    /// 用 `highlightRange(inPage:chapterID:)` 而不是比较「句首所在页 == 当前页」：
+    /// 句子可能跨页，句首在上一页、句尾在本页时它同样是可见的。按句首页码比较会把这种
+    /// 情况判成不可见，界面上表现为读到跨页句就切「从这里开始读」、并且触发多余的翻页。
+    ///
+    /// `highlightRange` 内部已经校验了「非空闲」与「同一章」，这里不必重复。
+    private var isSpeakingSentenceOnDisplayedPage: Bool {
+
+        guard let record = reader?.readModel?.recordModel,
+              let displayedChapter = record.chapterModel,
+              let pageModel = record.pageModel else { return false }
+
+        return highlightRange(inPage: pageModel, chapterID: displayedChapter.id) != nil
     }
 
     /// 把正文跳回朗读位置。控制胶囊上的返回箭头调这个。
@@ -121,14 +142,7 @@ public final class ReaderSpeechController {
     /// 本方法是用户主动要求对齐，任意距离、任意方向都跳。
     public func returnToSpeakingPosition() {
 
-        guard let reader,
-              let speakingChapter,
-              let chapterID = speakingChapter.id,
-              let sentence = currentSentence else { return }
-
-        reader.presentPosition(chapterID: chapterID, location: sentence.range.location)
-
-        applyHighlight(for: sentence)
+        alignViewToSpeakingSentence()
     }
 
     /// 当前朗读所属的章节模型。
@@ -230,35 +244,83 @@ public final class ReaderSpeechController {
 
         guard activity != .idle else { return }
 
+        alignViewToSpeakingSentence()
+    }
+
+    /// 把正文对齐到当前朗读句。
+    ///
+    /// 两个调用方：胶囊上的返回箭头（用户主动要求）、以及回到前台时的补齐。
+    /// 与 `alignPage(to:)` 的区别是那个只在朗读自然推进时跟随、且左右翻页下只前进一页；
+    /// 本方法是「无论隔多远都对齐过去」。
+    private func alignViewToSpeakingSentence() {
+
         guard let reader,
               let speakingChapter,
               let chapterID = speakingChapter.id,
               let sentence = currentSentence else { return }
 
-        // 已经对齐就不要跳：跳转会重建正文视图，无谓的重建既闪屏也丢滚动位置
-        if let record = reader.readModel?.recordModel,
-           let displayedChapter = record.chapterModel,
-           displayedChapter.id == chapterID,
-           speakingChapter.page(location: sentence.range.location).intValue == record.page.intValue {
+        if ReaderConfiguration.shared().effectType == .scroll,
+           let scrollController = reader.scrollController,
+           scrollController.containsSpeechChapter(chapterID) {
 
-            applyHighlight(for: sentence)
+            // 优先按句滚而不是走 `presentPosition`（接入方注入的**按页**跳转）：
+            // 滚动模式下滚到页首之后句子仍可能在可视区之外，等于没回来。
+            // 容器内部会判断「已在可视区内就不动」，这里不必预判。
+            requestPositionAlter {
 
-            return
+                scrollController.revealSpeechSentence(animated: true)
+            }
+
+        }else if isSpeakingSentenceOnDisplayedPage {
+
+            // 已经对齐就不要跳：跳转会重建正文视图，无谓的重建既闪屏也丢滚动位置
+
+        }else{
+
+            requestPositionAlter {
+
+                reader.presentPosition(chapterID: chapterID, location: sentence.range.location)
+            }
         }
 
-        reader.presentPosition(chapterID: chapterID, location: sentence.range.location)
+        // 用户主动要求对齐，挂起随之解除
+        isFollowSuspended = false
 
-        // 跳转后视图是新建的，高亮要重新写一遍
-        applyHighlight(for: sentence)
+        // 跳转后视图可能是新建的，高亮要重新写一遍
+        reviseSpeechPresentation(for: sentence)
     }
+
+
 
     // MARK: - 对外控制
 
-    /// 从当前展示页开始朗读。
+    /// 从用户当前**看得见**的位置开始朗读。
     ///
-    /// 起点取当前页起始坐标所属的那个句的**句首**：页边界通常落在句子中间，
-    /// 从页边界读起会从半句开始，听感是漏了前半句。
+    /// 起点最终会落到所属句的**句首**（见 `beginSpeaking(fromLocation:)`）：
+    /// 起点通常落在句子中间，从中间读起听感是漏了前半句。
+    ///
+    /// 两种阅读模式取起点的方式不同，这个差异是必须的：
+    ///
+    /// - **左右翻页**：一页恰好一屏，页首就是屏幕第一行，取 `record.locationFirst` 即可。
+    /// - **上下滚动**：一页不等于一屏。页码口径是「顶端像素所属的页」，屏幕上通常同时
+    ///   显示上一页的尾与下一页的头，所以「当前页」的页首多半已滚到可视区上方。
+    ///   此时取页首会从屏幕外的内容读起 —— 必须问滚动容器要真正可见的第一行。
     public func startFromCurrentPage() {
+
+        // 起点取自用户眼前的内容，之前的挂起随之解除
+        isFollowSuspended = false
+
+        // 滚动模式：按可见首行定位，拿不到（书籍首页、布局未就绪）时退回按页
+        if ReaderConfiguration.shared().effectType == .scroll,
+           let scrollController = reader?.scrollController,
+           let position = scrollController.visibleStartPosition() {
+
+            guard prepare(chapter: position.chapter) else { return }
+
+            start(fromLocation: position.location)
+
+            return
+        }
 
         guard let record = reader?.readModel?.recordModel,
               let chapter = record.chapterModel else { return }
@@ -468,6 +530,10 @@ public final class ReaderSpeechController {
 
         currentIndex = nil
 
+        isFollowSuspended = false
+
+        awaitsRequestedPositionAlter = false
+
         // 换一个会话标识，让所有在途的异步结果（章节加载回调）作废。
         // 不做这一步的话，用户停止朗读后，之前发出的章节请求回来时会把朗读又启动起来。
         sessionID = UUID()
@@ -481,24 +547,63 @@ public final class ReaderSpeechController {
         activity = .idle
     }
 
-    // MARK: - 翻页跟随
+    // MARK: - 正文跟随
 
     /// 让正文跟上朗读位置。
     ///
-    /// **只在自然顺序推进（目标页正好是当前页的下一页）时才翻页。**
+    /// 两种阅读模式的跟随粒度不同，因为「一页」的含义不同：
     ///
-    /// 这条限制是刻意的：用户在朗读中手动翻页或跳章后，朗读位置会与展示页脱开，
-    /// 若无条件「翻到朗读所在页」，用户刚翻过去就被拽回来，等于禁止了手动翻页。
-    /// 脱开状态下界面会把控制按钮切成「从这里开始读」，由用户决定要不要对齐。
+    /// - **左右翻页**：一页 == 一屏，跟随只能按页，且**只在自然顺序推进
+    ///   （目标页正好是当前页的下一页）时才翻**。
+    /// - **上下滚动**：一页 != 一屏，可视区通常横跨两页，页内推进也需要滚动，
+    ///   所以按**句的实际位置**跟随，由滚动容器自行判断要不要滚、滚多少。
     private func alignPage(to sentence: ReaderSentence) {
 
-        guard let reader,
-              let record = reader.readModel?.recordModel,
-              let displayedChapter = record.chapterModel,
-              let speakingChapter else { return }
+        // 第一条规则（两种模式共用）：**看得见就不动**，同时解除挂起。
+        //
+        // 这一句同时承担了「挂起的自动解除」：用户翻到后面的内容后跟随被挂起，
+        // 视图停在他翻到的地方；朗读自然推进到那一页时句子重新可见，跟随就在这里恢复，
+        // 不需要他再点任何按钮。
+        if isSpeakingOnDisplayedPage {
 
-        // 朗读章节与展示章节不是同一章时，页码之间没有可比性（各章页码都从 0 起算），
-        // 直接返回。
+            isFollowSuspended = false
+
+            return
+        }
+
+        // 第二条规则（两种模式共用）：用户手动挪过视图就不跟随。
+        //
+        // 否则他刚翻过去 / 滚过去就被拽回来，等于禁止了「朗读中手动翻页」。
+        // 此时胶囊呈现为「从这里开始读」，用户可按返回箭头立即对齐，
+        // 也可以什么都不做 —— 等朗读读到他眼前这一页时上面那条会自动恢复跟随。
+        guard !isFollowSuspended else { return }
+
+        moveViewToSpeakingSentence(sentence)
+    }
+
+    /// 把正文移到当前朗读句处。两种模式的**判定**已在 `alignPage(to:)` 里统一，
+    /// 这里只负责各自的移动手段。
+    private func moveViewToSpeakingSentence(_ sentence: ReaderSentence) {
+
+        guard let reader, let speakingChapter else { return }
+
+        if ReaderConfiguration.shared().effectType == .scroll {
+
+            // 滚动容器在库内，可直接按句定位；阅读记录由容器的滚动回调维护。
+            // 容器内部还会判断「句子已在舒适区内就不滚」，避免逐句微抖。
+            requestPositionAlter {
+
+                reader.scrollController?.revealSpeechSentence(animated: true)
+            }
+
+            return
+        }
+
+        guard let record = reader.readModel?.recordModel,
+              let displayedChapter = record.chapterModel,
+              let chapterID = speakingChapter.id else { return }
+
+        // 朗读章节与展示章节不是同一章时，页码之间没有可比性（各章页码都从 0 起算）。
         //
         // 注意这**不是**「跨章不跟随」——换章那一刻 `alignViewToChapterStart` 已经把
         // 正文带到新章了，正常情况下两者是同一章。这条只兜两种例外：
@@ -506,21 +611,89 @@ public final class ReaderSpeechController {
         // 这两种情况下把用户从他正在看的章节拽走反而更糟，界面用三态按钮提示即可。
         guard speakingChapter.id == displayedChapter.id else { return }
 
+        let displayedPage = record.page.intValue
+
         let targetPage = speakingChapter.page(location: sentence.range.location).intValue
 
-        guard targetPage == record.page.intValue + 1 else { return }
+        requestPositionAlter {
 
-        if ReaderConfiguration.shared().effectType == .scroll {
+            if targetPage == displayedPage + 1 {
 
-            // 滚动容器在库内，可直接定位；阅读记录由容器的滚动回调维护
-            reader.scrollController?.scrollToSpeechPage(chapterID: speakingChapter.id, page: targetPage)
+                // 相邻一页走接入方的翻页链路，保留原生翻页动画。
+                // 左右翻页的整条链路（取页控制器、翻页动画、更新阅读记录、章末网络加载）
+                // 都在接入方那侧，只能请求它推进一页。
+                reader.advanceToNextPage()
+
+            }else{
+
+                // 相差不止一页（含往回）：**大字号下一个长句就能横跨两三页**，
+                // 此时下一句的句首会直接落在两页之外，必须能一步跳过去。
+                reader.presentPosition(chapterID: chapterID, location: sentence.range.location)
+            }
+        }
+    }
+
+    // MARK: - 跟随挂起
+
+    /// 自动跟随是否已被用户手动挪动视图而挂起。两种阅读模式共用。
+    ///
+    /// 解除路径有三条，其中第一条不需要用户操作：
+    /// - 朗读推进到用户眼前这一页（`alignPage(to:)` 的第一条规则）
+    /// - 用户按返回箭头
+    /// - 用户按「从这里开始读」
+    private var isFollowSuspended = false
+
+    /// 引擎已经请求了一次位置变更，还在等它被通报回来。
+    ///
+    /// **一次性令牌，不是时间窗口**：接入方的位置变更有同步的（普通翻页）也有异步的
+    /// （章末需要联网加载下一章，见宿主 `processDragBoundaryForward`），用同步窗口判定
+    /// 会把异步那条误判成用户操作，表现是每次跨章都错误挂起一次跟随。
+    ///
+    /// 令牌泄漏（请求发出但接入方最终没动，比如下一章被锁）时的退化方向是**安全**的：
+    /// 用户接下来的一次手动翻页会消耗掉这个令牌、少挂起一次，下一次就恢复正常；
+    /// 不会出现「永久挂起」这种只能靠点按钮才能救回来的状态。
+    private var awaitsRequestedPositionAlter = false
+
+    /// 在「这是引擎请求的位置变更」的标记下发起一次移动。
+    private func requestPositionAlter(_ body: () -> Void) {
+
+        awaitsRequestedPositionAlter = true
+
+        body()
+    }
+
+    /// 接入方通报「用户主动挪动了视图」。
+    ///
+    /// 滚动模式由容器在 `scrollViewWillBeginDragging` 时调用 —— 那是明确的用户信号，
+    /// 不需要靠令牌推断。左右翻页模式没有等价信号，走 `handleDisplayedPositionAlter()`
+    /// 里的令牌判定。
+    public func handleUserInitiatedPositionAlter() {
+
+        guard activity != .idle else { return }
+
+        isFollowSuspended = true
+    }
+
+    /// 接入方通报「正文展示位置变了」。
+    ///
+    /// 做两件事：
+    ///
+    /// 1. 把当前朗读句的高亮在新页上补画一遍 —— 高亮是写在具体某个正文视图上的属性，
+    ///    换页即换视图，不补这一笔的表现是「翻过去高亮不见了，要等下一句开口才恢复」
+    /// 2. 判断这次变更是不是引擎自己请求的；不是就说明用户手动挪了视图，挂起跟随
+    public func handleDisplayedPositionAlter() {
+
+        if awaitsRequestedPositionAlter {
+
+            // 是引擎请求的那一次，消耗掉令牌
+            awaitsRequestedPositionAlter = false
 
         }else{
 
-            // 左右翻页的整条链路（取页控制器、翻页动画、更新阅读记录、章末网络加载）
-            // 都在接入方那侧，只能请求它推进一页
-            reader.advanceToNextPage()
+            handleUserInitiatedPositionAlter()
         }
+
+        reviseHighlightForDisplayedPage()
     }
 
     // MARK: - 高亮
@@ -550,6 +723,33 @@ public final class ReaderSpeechController {
         return NSMakeRange(overlap.location - pageRange.location, overlap.length)
     }
 
+    /// 刷新所有跟「朗读位置」有关的界面：正文高亮 + 控制胶囊。
+    ///
+    /// 两件事必须一起做：胶囊显示 `.playing` 还是 `.offPage`，取决于朗读位置是否
+    /// 仍落在当前展示页上。凡是需要重写高亮的时刻，这个判断结果也可能刚变过，
+    /// 分开调用早晚会漏掉某条路径。
+    private func reviseSpeechPresentation(for sentence: ReaderSentence) {
+
+        applyHighlight(for: sentence)
+
+        reader?.reviseSpeechActionButton(animated: true)
+    }
+
+    /// 把当前朗读句的高亮重新写到正在展示的页上。
+    ///
+    /// 与 `applyHighlight(for:)` 的区别是**触发方向相反**：那个是「朗读推进了，
+    /// 把新句画上去」，本方法是「展示的页换了，把当前句在新页上补画一遍」。
+    ///
+    /// 必要性：高亮是写在具体某个 `ReaderPageView` 上的属性。用户在朗读中手动翻页时，
+    /// 新页的视图是新建的、身上没有高亮，而朗读句可能恰好跨到了这一页；
+    /// 不补这一笔，界面上就是「翻过去高亮不见了」，要等下一句开口才恢复。
+    public func reviseHighlightForDisplayedPage() {
+
+        guard let sentence = currentSentence else { return }
+
+        applyHighlight(for: sentence)
+    }
+
     /// 把当前句的高亮写到正在渲染的页上。
     private func applyHighlight(for sentence: ReaderSentence) {
 
@@ -562,8 +762,14 @@ public final class ReaderSpeechController {
 
         }else{
 
-            guard let display = reader.currentDisplayController,
-                  let pageView = display.renderingPageView,
+            guard let display = reader.currentDisplayController else { return }
+
+            // 新页控制器刚被 `setViewControllers` 接进容器时，视图加载是延后的，
+            // 此刻 `renderingPageView` 还是 nil。不强制加载就会静默跳过这一笔，
+            // 表现是「翻过去这一页整句都没有高亮，要等下一句开口才出现」。
+            display.loadViewIfNeeded()
+
+            guard let pageView = display.renderingPageView,
                   let record = display.recordModel,
                   let displayedChapter = record.chapterModel,
                   let pageModel = record.pageModel else { return }
@@ -705,7 +911,11 @@ public final class ReaderSpeechController {
            let displayedChapter = record.chapterModel,
            displayedChapter.id == chapterID { return }
 
-        reader.presentPosition(chapterID: chapterID, location: 0)
+        // 换章是引擎驱动的，走令牌，别被判成用户手动跳章
+        requestPositionAlter {
+
+            reader.presentPosition(chapterID: chapterID, location: 0)
+        }
     }
 
     /// 请求切章。引擎在忙时先停再切。
@@ -762,6 +972,8 @@ public final class ReaderSpeechController {
 
         publishNowPlaying()
 
+        reader?.reviseSpeechActionButton(animated: true)
+
         coordinator?.speechDidChangeActivity(activity, context: makeContext())
     }
 
@@ -812,9 +1024,17 @@ extension ReaderSpeechController: ReaderSpeechSynthesizingDelegate {
 
         guard let currentIndex, sentences.indices.contains(currentIndex) else { return }
 
+        // 再给跟随一次机会。
+        //
+        // `submitCurrentSentence()` 里已经对齐过一次，但那一刻上一句触发的翻页动画
+        // 可能还在飞、阅读记录也可能还没落定，判断会失准。真正出声时（这里）动画早已结束，
+        // 此时补判一次，跟随就从「一句只有一次机会」变成「会收敛」——
+        // 单次失准最多晚半秒，不会拖累整句。已经对齐时本调用是空操作。
+        alignPage(to: sentences[currentIndex])
+
         // 高亮挂在真正出声之后：引擎从收到请求到出声之间有延迟，
         // 提前高亮会让画面比声音快一截，看起来像高亮跑到了下一句
-        applyHighlight(for: sentences[currentIndex])
+        reviseSpeechPresentation(for: sentences[currentIndex])
     }
 
     public func speechSynthesizer(_ synthesizer: ReaderSpeechSynthesizing, didFinish fragment: ReaderSpeechFragment) {

@@ -530,33 +530,25 @@ open class ReaderLongPressView: ReaderPageView {
     
     // MARK: 绘制
     
-    /// 绘制
-    open override func draw(_ rect: CGRect) {
+    /// 绘制长按选区色块。
+    ///
+    /// 这里只画选区，坐标翻转与正文绘制都由父类 `draw(_:)` 负责。
+    /// 本类**曾经**整个重写 `draw(_:)`，结果是朗读高亮从来没显示过 —— 实际渲染正文的
+    /// 就是本类（`openLongPress` 默认开启），父类那段带高亮的绘制根本不会执行。
+    /// 所以这里必须走钩子，不要再改回重写 `draw(_:)`。
+    open override func drawUnderlay(in ctx: CGContext) {
         
-        if (frameRef == nil) {return}
+        guard selectRange != nil, !rects.isEmpty else { return }
         
-        let ctx = UIGraphicsGetCurrentContext()
+        let path = CGMutablePath()
         
-        ctx?.textMatrix = CGAffineTransform.identity
+        READER_COLOR_MAIN.withAlphaComponent(0.5).setFill()
         
-        ctx?.translateBy(x: 0, y: bounds.size.height)
+        path.addRects(rects)
         
-        ctx?.scaleBy(x: 1.0, y: -1.0)
+        ctx.addPath(path)
         
-        if selectRange != nil && !rects.isEmpty {
-            
-            let path = CGMutablePath()
-            
-            READER_COLOR_MAIN.withAlphaComponent(0.5).setFill()
-            
-            path.addRects(rects)
-            
-            ctx?.addPath(path)
-            
-            ctx?.fillPath()
-        }
-        
-        CTFrameDraw(frameRef!, ctx!)
+        ctx.fillPath()
     }
     
     /// 释放

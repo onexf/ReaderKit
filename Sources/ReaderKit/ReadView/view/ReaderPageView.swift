@@ -212,6 +212,47 @@ open class ReaderPageView: UIView {
         return NSMakeRange(highlightRange.location, end - highlightRange.location)
     }
     
+    /// 当前朗读高亮在**本视图坐标系**（UIKit，y 轴向下）里的外接矩形。未高亮时为 nil。
+    ///
+    /// `ReaderCoreText.rangeRects` 给的是 CoreText 坐标（y 轴向上、原点在左下），
+    /// 这里统一翻回 UIKit，调用方（滚动容器判断要不要滚、往哪滚）就不必关心坐标系差异。
+    ///
+    /// 多行句返回各行矩形的并集：滚动跟随只关心纵向区间，逐行处理没有意义。
+    open var speechHighlightRectInView: CGRect? {
+        
+        guard let sourceAttributedText,
+              let range = clampedHighlightRange(limit: sourceAttributedText.length) else { return nil }
+        
+        let rects = ReaderCoreText.rangeRects(range: range,
+                                              frameRef: frameRef,
+                                              content: sourceAttributedText.string)
+        
+        guard let first = rects.first else { return nil }
+        
+        let union = rects.dropFirst().reduce(first) { $0.union($1) }
+        
+        return CGRect(x: union.minX,
+                      y: bounds.height - union.maxY,
+                      width: union.width,
+                      height: union.height)
+    }
+    
+    /// 本视图坐标系里某一点落在第几个字符上。定位不到时返回 nil。
+    ///
+    /// 供滚动容器求「屏幕最顶端那一行的首字符」，从而把朗读起点定到用户**真正看得见**
+    /// 的位置。传 `x = 0` 即取该行行首。
+    ///
+    /// 坐标系说明：`ReaderCoreText.touchedCharacterIndex` 内部已把行框换算成 y 轴向下的
+    /// 矩形，所以这里直接传视图坐标，不需要翻转。
+    open func characterIndex(atViewPoint point: CGPoint) -> Int? {
+        
+        let index = ReaderCoreText.touchedCharacterIndex(point: point, frameRef: frameRef)
+        
+        guard index >= 0 else { return nil }
+        
+        return index
+    }
+    
     /// 绘制高亮。在已翻转的 CoreText 坐标系里调用。
     ///
     /// `ReaderCoreText.rangeRects` 返回的矩形基于 `CTFrameGetLineOrigins`，
@@ -267,6 +308,10 @@ open class ReaderPageView: UIView {
     }
     
     /// 绘制
+    ///
+    /// ⚠️ **子类不要重写本方法**。要叠加自己的图形请重写 `drawUnderlay(in:)` /
+    /// `drawOverlay(in:)` —— 重写 `draw(_:)` 会把朗读高亮一起丢掉，
+    /// 而且这类丢失在编译期与代码审查里都看不出来（子类看起来只是「自己画自己的」）。
     open override func draw(_ rect: CGRect) {
         
         if (frameRef == nil) {return}
@@ -284,11 +329,26 @@ open class ReaderPageView: UIView {
         // 背景色块要垫在文字下面，所以先画
         if highlightStyle == .background { drawHighlight(in: ctx, style: highlightStyle) }
         
+        // 子类的底层图形压在朗读高亮之上：长按选区是用户当下的直接操作，
+        // 两者重叠时该让选区赢
+        drawUnderlay(in: ctx)
+        
         CTFrameDraw(frameRef!, ctx);
         
         // 下划线压在文字之上，避免被字形遮住
         if highlightStyle == .underline { drawHighlight(in: ctx, style: highlightStyle) }
+        
+        drawOverlay(in: ctx)
     }
+    
+    /// 正文之下的附加绘制。子类重写以叠加自己的底层图形（如长按选区色块）。
+    ///
+    /// 传入的 `ctx` 已完成 CoreText 坐标翻转（translate + scale），
+    /// 所以可以直接用 `ReaderCoreText.rangeRects` 的返回值，不需要再换算。
+    open func drawUnderlay(in ctx: CGContext) { }
+    
+    /// 正文之上的附加绘制。坐标系同 `drawUnderlay(in:)`。
+    open func drawOverlay(in ctx: CGContext) { }
     
     public required init?(coder aDecoder: NSCoder) {
         
