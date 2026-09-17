@@ -114,6 +114,12 @@ public protocol ReaderSpeechSynthesizing: AnyObject {
     var spokenPrefixLength: Int { get }
 
     /// 暂停，保留当前位置。
+    ///
+    /// ⚠️ **编排层默认不走这个方法**，它把暂停实现为 `stop()` + 记录 `spokenPrefixLength`。
+    /// 因为暂停态下的 `stop()` 往往必须先 `continueSpeaking()` 才能保证取消回调到达，
+    /// 而那个 API 本身可能永不回调 —— 两者叠加会让引擎永久停在 `.stopping`，
+    /// 此后所有提交被拒，朗读彻底哑掉。让引擎在暂停期间保持 `.idle` 就没有这个风险。
+    /// 本方法保留给能保证这对 API 可靠的自定义实现。
     func pause()
 
     /// 从暂停位置继续。

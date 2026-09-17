@@ -193,6 +193,12 @@ public final class ReaderSpeechController {
 
         /// 单纯停止。
         case halt
+
+        /// 停在暂停态：保留朗读位置与音频会话，等用户继续。
+        ///
+        /// 「暂停」在引擎侧也是一次 stop（见 `pause()`），所以它同样要经过取消回调，
+        /// 必须能与 `halt` 区分开 —— 后者会清掉位置并释放会话。
+        case pause
     }
 
     // MARK: - 构造
@@ -354,15 +360,83 @@ public final class ReaderSpeechController {
     }
 
     /// 暂停。
+    ///
+    /// **暂停在引擎侧实现为「停止 + 记住读到哪」，不用 `pauseSpeaking` / `continueSpeaking`。**
+    ///
+    /// 那两个 API 都不可靠，而且它们的不可靠会互相放大：
+    /// `continueSpeaking()` 可能不出声也不投递任何回调（1.7.0 已因此改掉恢复路径），
+    /// 而合成器的 `stop()` 为了让**暂停态**也能可靠收到取消回调，内部又不得不先调一次
+    /// `continueSpeaking()`。于是「暂停 → 继续」这条路上藏着一次可能永不返回的往返：
+    /// 命中时引擎永久停在 `.stopping`，此后所有提交都被拒（`speak` 只接受 `.idle`），
+    /// 朗读彻底哑掉且无法自愈。表现就是「点几下暂停/播放之后再也没声音了」，
+    /// 频繁点击只是提高命中概率，不是另一个缺陷。
+    ///
+    /// 改成停止之后：暂停期间引擎处于 `.idle`，`resume()` 可以直接提交剩余部分、
+    /// 同步出声，那次往返连同它的窗口一起消失。代价只是暂停点退到当前**词首**
+    /// （`spokenPrefixLength` 给的是词起始位置），与此前恢复时的听感一致。
     public func pause() {
 
-        ReaderEnvironment.log("[Speech] pause() 进入 activity=\(activity) engine=\(synthesizer.state)")
+        ReaderEnvironment.log("[Speech] pause() 进入 activity=\(activity) engine=\(synthesizer.state) intent=\(String(describing: pendingIntent))")
 
-        guard activity == .playing else { return }
+        // 正常情况：确实在播放
+        if activity == .playing {
 
-        synthesizer.pause()
+            performPause()
 
+            return
+        }
+
+        // 以下两种都是「`activity` 还没跟上引擎」的过渡态。这些点击此前会被静默丢弃，
+        // 用户以为没生效就继续点，反而更容易撞上时序问题。
+
+        // 过渡态一：`resume()` 已发出 stop、取消回调还没到，未决意图是重启。
+        // 引擎已经在停了，改掉意图即可 —— 不改的话取消回调到达后朗读会自己读起来。
+        if case .restart = pendingIntent {
+
+            ReaderEnvironment.log("[Speech] pause() 撤销未决的 restart，改为 pause")
+
+            pendingIntent = .pause
+
+            return
+        }
+
+        // 过渡态二：`resume()` 已把新片段提交给引擎，但 `didStart` 还没到，
+        // `activity` 仍停在 `.paused`。引擎确实在出声（或即将出声），必须真的停下来，
+        // 否则这次点击丢失、声音继续读，用户看到的是「点了暂停没反应」。
+        if pendingIntent == nil, synthesizer.state != .idle {
+
+            ReaderEnvironment.log("[Speech] pause() 处于提交与出声之间，直接停止")
+
+            performPause()
+        }
+    }
+
+    /// 真正执行暂停。
+    private func performPause() {
+
+        awaitsPauseSettle = true
+
+        pendingIntent = .pause
+
+        synthesizer.stop()
+
+        // 记下本句读到哪，供 `resume()` 只提交剩余部分。
+        //
+        // 必须在这里读：`spokenPrefixLength` 要等到下一次 `speak` 才归零，此刻拿到的
+        // 正是最终进度。放到取消回调里读就晚了 —— 那期间用户可能已经点了「继续」，
+        // 把未决意图覆盖成 `.restart`，这一段就不会执行。
+        resumeOffsetInSentence += synthesizer.spokenPrefixLength
+
+        // 状态立刻置位，不等取消回调：`stopSpeaking(.immediate)` 是同步停声的，
+        // 界面与声音必须一起变，否则点了暂停要等一拍胶囊才切换。
         activity = .paused
+
+        // 显式再写一次锁屏信息，不能只靠 `activity` 的 didSet。
+        //
+        // didSet 只在值**发生变化**时触发，而过渡态二进来时 `activity` 已经是 `.paused`，
+        // 于是不触发 —— 锁屏会停在上一次写入的 rate=1 上，表现为
+        // 「阅读器内显示已暂停，锁屏还显示播放中」。
+        publishNowPlaying()
     }
 
     /// 从暂停位置继续。
@@ -396,16 +470,32 @@ public final class ReaderSpeechController {
         // 都没能根治，故不再在那条路上加补丁。
         guard let sentence = currentSentence else { return }
 
-        // 逐词进度是相对**本次提交的文本**的，而本次提交的可能已经是某次恢复后的剩余部分，
-        // 所以要累加而不是直接赋值
-        resumeOffsetInSentence += synthesizer.spokenPrefixLength
-
+        // 恢复偏移已经在 `pause()` 里累加过了，这里不能再加 —— 否则同一次暂停被算两遍,
+        // 剩余文本会从更靠后的位置开始，听感是「跳掉了一截」。
+        //
+        // 现在暂停态下引擎处于 `.idle`（暂停就是停止），所以 `start()` 里那道
+        // 「引擎必须 idle」的门通常直接放行，**同步提交、立即出声**，不再有
+        // 「先 stop 再等取消回调」的往返窗口。
+        // 唯一的例外是取消回调还在路上（用户在极短时间内点了暂停又点继续），
+        // 那种情况仍走 `start()` 内部的待办机制，由取消回调兜住。
         start(fromLocation: sentence.range.location)
     }
 
     /// 恢复朗读时，当前句要跳过的前缀字符数。
     ///
-    /// 由 `resume()` 累加、`submitCurrentSentence()` 消费。句子推进或重新起播时清零。
+    /// 已请求暂停，且还没有新的提交。用来识别并丢弃**迟到的** `didStart`。
+    ///
+    /// `pendingIntent` 挡不住全部情况：它在取消回调里就被清空了，而迟到的 `didStart`
+    /// 可能比取消回调更晚到达（两者都是异步派发，顺序不保证）。那一条会把 `activity`
+    /// 顶成 `.playing`，于是声音已停、界面与锁屏却显示播放中，且不会自愈。
+    ///
+    /// 这个标记跨越收尾，一直到下一次真正提交（`submitCurrentSentence()`）才清掉。
+    private var awaitsPauseSettle = false
+
+    /// 由 `pause()` 累加、`submitCurrentSentence()` 消费。句子推进或重新起播时清零。
+    ///
+    /// 累加而不是赋值：本句可能已经被暂停过若干次，每次拿到的逐词进度都是相对
+    /// **那一次提交的文本**（即上一次的剩余部分），必须叠起来才是相对整句的偏移。
     private var resumeOffsetInSentence: Int = 0
 
     /// 切到下一章并从头朗读。锁屏「下一曲」与界面跳章都走这里。
@@ -530,6 +620,11 @@ public final class ReaderSpeechController {
 
         guard let currentIndex, sentences.indices.contains(currentIndex) else { return }
 
+        // 新的提交开始，此前那次暂停的收尾已经无关了。放在这里而不是 `resume()` 里：
+        // 提交是「引擎将要投递新回调」的唯一时点，早于它清掉标记，仍可能把上一次的
+        // 迟到 didStart 当成本次的。
+        awaitsPauseSettle = false
+
         let sentence = sentences[currentIndex]
 
         // 翻页放在提交之前：翻页有动画耗时，等出声了再翻会出现「声音已经在读下一页、
@@ -604,6 +699,8 @@ public final class ReaderSpeechController {
         currentIndex = nil
 
         resumeOffsetInSentence = 0
+
+        awaitsPauseSettle = false
 
         isFollowSuspended = false
 
@@ -1152,6 +1249,24 @@ extension ReaderSpeechController: ReaderSpeechSynthesizingDelegate {
 
     public func speechSynthesizer(_ synthesizer: ReaderSpeechSynthesizing, didStart fragment: ReaderSpeechFragment) {
 
+        // 已经有未决意图（暂停 / 停止 / 换句 / 换章）时，这条 didStart 属于**正在被丢弃**
+        // 的那次提交，不能据它把状态改成播放中。
+        //
+        // 回调是异步派发的，而引擎侧的过滤只看 utterance 身份、`clearCurrent()` 要到取消
+        // 回调里才执行 —— 所以 `stop()` 发出之后、取消回调到达之前，上一次提交的 didStart
+        // 仍会到达。漏掉这道判断的后果是：用户点了暂停，声音确实停了，`activity` 却被这条
+        // 迟到的回调顶回 `.playing`，于是胶囊显示「暂停中」、锁屏也显示播放中，全都与
+        // 实际不符，且此后不会自愈（取消回调只负责收尾，不会再纠正状态）。
+        // `awaitsPauseSettle` 与 `pendingIntent` 各挡一段：前者跨越暂停收尾（取消回调会
+        // 清空 `pendingIntent`，而迟到的 didStart 可能比取消回调更晚到），后者覆盖
+        // 换句 / 换章 / 停止这些还没收尾的意图。
+        guard pendingIntent == nil, !awaitsPauseSettle else {
+
+            ReaderEnvironment.log("[Speech] 忽略迟到的 didStart intent=\(String(describing: pendingIntent)) awaitsPauseSettle=\(awaitsPauseSettle)")
+
+            return
+        }
+
         activity = .playing
 
         guard let currentIndex, sentences.indices.contains(currentIndex) else { return }
@@ -1206,6 +1321,26 @@ extension ReaderSpeechController: ReaderSpeechSynthesizingDelegate {
         case .halt:
 
             finishStop()
+
+        case .pause:
+
+            // 暂停的收尾：朗读位置、高亮、音频会话全部保留，**不能**走上面那条
+            // `finishStop()` —— 那会清掉位置并释放会话，暂停就变成了停止。
+
+            // 状态在这里**重新确认**，不能假设 `pause()` 里那次置位仍然成立：
+            // 那之后到取消回调之间，上一次提交的迟到回调可能把它改回过 `.playing`
+            // （`didStart` 已加了防守，但状态的终点定在这里才可靠 —— 取消回调是
+            //   暂停真正完成的时刻）。
+            activity = .paused
+
+            // 显式写一次锁屏信息，不依赖 `activity` 的 didSet。
+            //
+            // didSet 只在**值发生变化**时才触发，而这里 `activity` 往往已经是 `.paused`
+            // （`pause()` 里同步置过），于是不会触发、锁屏可能仍停在上一次写入的
+            // rate=1 上 —— 表现就是「阅读器内显示已暂停，锁屏还显示播放中」。
+            publishNowPlaying()
+
+            ReaderEnvironment.log("[Speech] 暂停收尾完成，位置与会话保留 activity=\(activity)")
         }
     }
 
@@ -1219,9 +1354,27 @@ extension ReaderSpeechController: ReaderSpeechSynthesizingDelegate {
 
         case .engineRejected:
 
-            // 正常流程不该走到这里：提交前已保证引擎处于 idle、且句文本非空。
-            // 真的发生说明状态机被绕开了，此时停下来比继续推进安全。
-            presentNotice(ReaderEnvironment.strings.speechFailed)
+            // 引擎拒收提交（唯一原因是它此刻不在 `.idle`）。
+            //
+            // 此前的处理是提示 + `stop()`，但那会把朗读位置一并清掉 —— 用户想接着听
+            // 得重新翻回去点一次。而被拒基本都是**暂时**的（上一次的取消回调还在路上），
+            // 所以改为退回暂停态：位置、高亮、音频会话全部保留，用户再点一次「继续」就行。
+            //
+            // 也不再弹提示：那更像是出了故障，而这里通常只是抢跑了一下。
+            ReaderEnvironment.log("[Speech] 提交被拒，退回暂停态等用户重试 engine=\(synthesizer.state)")
+
+            guard currentSentence != nil else {
+
+                presentNotice(ReaderEnvironment.strings.speechFailed)
+
+                stop()
+
+                return
+            }
+
+            activity = .paused
+
+            return
         }
 
         stop()

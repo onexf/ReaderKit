@@ -76,6 +76,14 @@ final class ReaderSpeechNowPlaying {
     /// 存成静态后，任何实例注册前都能把上一套摘干净，全局永远只有一套活跃 handler。
     nonisolated(unsafe) private static var registeredCommands: [(command: MPRemoteCommand, token: Any)] = []
 
+    /// 当前那套 handler 属于哪个实例。
+    ///
+    /// 用来区分「别人留下的残留」与「自己已经注册好的」：前者必须摘除，后者不该重复注册。
+    /// 1.8.0 为了摘掉旧会话的残留 token 去掉了「已注册就跳过」的短路，但那样做过了头 ——
+    /// 每次恢复朗读都会走一遍 `activate()`，于是命令表被反复全表摘除重注册（日志里表现为
+    /// 恢复时出现「摘除远程命令 target，共 5 个」）。功能上还能响应，但属无谓抖动。
+    nonisolated(unsafe) private static var registeredOwner: ObjectIdentifier?
+
     deinit {
         releaseCommandCenter()
 
@@ -156,6 +164,9 @@ final class ReaderSpeechNowPlaying {
             info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artwork.size) { _ in artwork }
         }
 
+        // 命令可用性与播放信息一起更新，两路信号必须同步
+        reviseTransportCommandAvailability(isPlaying: activity == .playing)
+
         ReaderEnvironment.log("[Speech] 写锁屏信息 activity=\(activity) rate=\(info[MPNowPlayingInfoPropertyPlaybackRate] ?? "nil") elapsed=\(Int(context.estimatedElapsed))/\(Int(context.estimatedDuration))s artwork=\(artwork != nil)")
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
@@ -170,9 +181,13 @@ final class ReaderSpeechNowPlaying {
 
     private func configureCommandCenterIfNeeded() {
 
-        // 注册前先把上一套摘干净。**不做「已注册就跳过」的短路** ——
-        // 需要保证的是「全局只有一套活跃 handler」，而不是「本实例只注册一次」。
-        // 上一个会话可能没走完 deinit，它的 token 只能由这里代为摘除。
+        // 已经是**本实例**注册的那一套，直接复用。
+        // 要保证的是「全局只有一套活跃 handler」，这一条已经满足，没必要重注册。
+        guard Self.registeredOwner != ObjectIdentifier(self) || Self.registeredCommands.isEmpty else { return }
+
+        // 注册前把上一套摘干净。可能是上一个会话残留的 —— 它没走完 deinit 时，
+        // token 只能由这里代为摘除（`MPRemoteCommandCenter` 是进程级单例，
+        // 而 token 只能通过它摘）。
         Self.releaseRegisteredCommands()
 
         let center = MPRemoteCommandCenter.shared()
@@ -191,6 +206,31 @@ final class ReaderSpeechNowPlaying {
 
         // 刻意不注册 changePlaybackPositionCommand：没有真实时长，拖动进度无从落点
         center.changePlaybackPositionCommand.isEnabled = false
+
+        Self.registeredOwner = ObjectIdentifier(self)
+    }
+
+    /// 按当前是否在播放，开关「播放」与「暂停」两个命令。
+    ///
+    /// **这是除 `playbackRate` 之外的第二路状态信号，两路都给才可靠。**
+    /// 实测 iOS 26 上只写 `MPNowPlayingInfoPropertyPlaybackRate = 0` 不足以让锁屏与
+    /// 控制中心的按钮图标跟着变 —— 声音已经停了、我们写的 rate 也确实是 0，
+    /// 那两处却仍显示为播放中。原因是没有真实播放器时系统不完全采信 `nowPlayingInfo`
+    /// （`AVSpeechSynthesizer` 直接出声不是被系统认账的 Now Playing 源）。
+    ///
+    /// 命令可用性是一路更硬的信号：只有「暂停」可用时，系统无从渲染出播放按钮。
+    ///
+    /// `togglePlayPauseCommand` 始终保持可用 —— 耳机线控与部分车机只发这一个命令，
+    /// 把它一起关掉会导致线控完全失效。
+    private func reviseTransportCommandAvailability(isPlaying: Bool) {
+
+        let center = MPRemoteCommandCenter.shared()
+
+        center.playCommand.isEnabled = !isPlaying
+
+        center.pauseCommand.isEnabled = isPlaying
+
+        center.togglePlayPauseCommand.isEnabled = true
     }
 
     /// 注册单个命令。
@@ -236,5 +276,7 @@ final class ReaderSpeechNowPlaying {
         }
 
         registeredCommands.removeAll()
+
+        registeredOwner = nil
     }
 }

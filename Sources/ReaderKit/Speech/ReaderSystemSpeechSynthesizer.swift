@@ -116,6 +116,15 @@ public final class ReaderSystemSpeechSynthesizer: NSObject, ReaderSpeechSynthesi
         synthesizer.speak(utterance)
     }
 
+    /// ⚠️ **`ReaderSpeechController` 已不再调用本方法。**
+    ///
+    /// 它把「暂停」实现为 `stop()` + 记录已读进度，恢复时重新提交剩余部分。原因是
+    /// `pauseSpeaking` / `continueSpeaking` 这一对 API 不可靠：`continueSpeaking()`
+    /// 可能不出声也不投递任何回调，而暂停态下的 `stop()` 又必须先调一次
+    /// `continueSpeaking()` 才能保证取消回调到达（见下方 `stop()`）——
+    /// 两者叠加会让引擎永久停在 `.stopping`，此后所有提交被拒，朗读彻底哑掉。
+    ///
+    /// 方法保留在协议里，是为了让能保证这对 API 可靠的自定义实现仍可使用。
     public func pause() {
 
         guard state == .speaking else { return }
@@ -127,6 +136,7 @@ public final class ReaderSystemSpeechSynthesizer: NSObject, ReaderSpeechSynthesi
         state = .paused
     }
 
+    /// ⚠️ **`ReaderSpeechController` 已不再调用本方法**，原因见 `pause()`。
     public func resume() {
 
         guard state == .paused else { return }
