@@ -151,6 +151,11 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         // 换肤会清缓存重新分页，本章总页数可能变，页码要重算（清掉判重缓存强制下发）
         displayedPageIndexPath = nil
         revisePageNumber()
+        
+        // cell 是刚重建的，朗读高亮要补画一遍。
+        // `willDisplay` 通常已经补过，这里再来一次是兜底（幂等），
+        // 免得哪天 reloadData 的时机变了又静默丢高亮。
+        vc?.notifyBodyViewRebuilt()
     }
     
     /// Scroll to the very bottom (END recommend area) without animation

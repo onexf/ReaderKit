@@ -349,6 +349,23 @@ open class ReaderViewController: ReaderScreenController {
         reviseSpeechActionButton(animated: true)
     }
 
+    /// 通报「正文视图被重建了，但展示位置没变」。
+    ///
+    /// 接入方在切换主题、字号、行距、段间距、阅读方向之后调用 —— 这些操作都会重建正文视图，
+    /// 而朗读高亮是写在具体某个 `ReaderPageView` 上的属性，新建的视图身上没有它，
+    /// 表现就是「切主题后高亮消失，要等下一句开口才回来」。
+    ///
+    /// **不要用 `notifyDisplayedPositionAlter()` 代替**：那个会参与「这次变更是不是用户
+    /// 手动挪的」判定，而换肤换字号并没有挪动位置，走那条会被误判成手动操作、
+    /// 把朗读跟随挂起。
+    open func notifyBodyViewRebuilt() {
+
+        engagedSpeechController?.reviseHighlightForDisplayedPage()
+
+        // 不带动画：视图刚重建，此刻做形变动画只会看到一次突变
+        reviseSpeechActionButton(animated: false)
+    }
+
     /// 胶囊是否隐藏。
     ///
     /// 读写都不会触发创建：未装胶囊时读到 `true`（等价于不可见），写入被忽略。
