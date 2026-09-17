@@ -202,28 +202,46 @@ open class ReaderPageView: UIView {
     /// 不夹取就会在 CoreText 里越界。
     private func clampedHighlightRange(limit: Int) -> NSRange? {
         
-        guard let highlightRange,
-              highlightRange.location != NSNotFound,
-              highlightRange.length > 0,
-              highlightRange.location < limit else { return nil }
+        guard let highlightRange else { return nil }
         
-        let end = min(NSMaxRange(highlightRange), limit)
+        return clamped(highlightRange, limit: limit)
+    }
+    
+    /// 把范围夹到给定长度内。越界返回 nil。
+    private func clamped(_ range: NSRange, limit: Int) -> NSRange? {
         
-        return NSMakeRange(highlightRange.location, end - highlightRange.location)
+        guard range.location != NSNotFound,
+              range.length > 0,
+              range.location < limit else { return nil }
+        
+        let end = min(NSMaxRange(range), limit)
+        
+        return NSMakeRange(range.location, end - range.location)
     }
     
     /// 当前朗读高亮在**本视图坐标系**（UIKit，y 轴向下）里的外接矩形。未高亮时为 nil。
-    ///
-    /// `ReaderCoreText.rangeRects` 给的是 CoreText 坐标（y 轴向上、原点在左下），
-    /// 这里统一翻回 UIKit，调用方（滚动容器判断要不要滚、往哪滚）就不必关心坐标系差异。
-    ///
-    /// 多行句返回各行矩形的并集：滚动跟随只关心纵向区间，逐行处理没有意义。
     open var speechHighlightRectInView: CGRect? {
         
-        guard let sourceAttributedText,
-              let range = clampedHighlightRange(limit: sourceAttributedText.length) else { return nil }
+        guard let highlightRange else { return nil }
         
-        let rects = ReaderCoreText.rangeRects(range: range,
+        return rect(forRange: highlightRange)
+    }
+    
+    /// 指定**页内**范围在本视图坐标系（UIKit，y 轴向下）里的外接矩形。
+    ///
+    /// 与 `speechHighlightRectInView` 的区别：本方法不依赖高亮是否已经写进来，
+    /// 传什么范围就算什么范围。调用方需要在「高亮还没落笔」的时刻判断某句的位置时用它 ——
+    /// 读已经画上去的那个会拿到上一句的结果。
+    ///
+    /// `ReaderCoreText.rangeRects` 给的是 CoreText 坐标（y 轴向上、原点在左下），
+    /// 这里统一翻回 UIKit，调用方就不必关心坐标系差异。
+    /// 多行范围返回各行矩形的并集：滚动跟随只关心纵向区间，逐行处理没有意义。
+    open func rect(forRange range: NSRange) -> CGRect? {
+        
+        guard let sourceAttributedText,
+              let clamped = clamped(range, limit: sourceAttributedText.length) else { return nil }
+        
+        let rects = ReaderCoreText.rangeRects(range: clamped,
                                               frameRef: frameRef,
                                               content: sourceAttributedText.string)
         

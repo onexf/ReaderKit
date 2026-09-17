@@ -327,18 +327,43 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         return IndexPath(row: page, section: section)
     }
     
-    /// 朗读句在 tableView 内容坐标系里的矩形。句子所在 cell 未实现化时返回 nil。
+    /// 朗读句在 tableView 内容坐标系里的矩形。当前没有任何一页画出高亮时返回 nil。
     ///
-    /// 依赖 cell 已实现化：矩形要靠该页的 CTFrame 算行框，而 CTFrame 只存在于
-    /// 已创建的 `ReaderPageView` 上。离可视区远的页拿不到，调用方需自行兜底。
+    /// **取所有可见页上实际画出来的高亮的并集**，而不是「句首所在页那一个 cell」。
+    ///
+    /// 后者曾导致一个 bug：句子跨页时句首在上一页，那一页滚出屏幕后 `cellForRow` 取不到，
+    /// 于是判定「句子不可见」—— 而它的后半段正大大方方地高亮在屏幕中间，胶囊却显示
+    /// 「从这里开始读」。
+    ///
+    /// 每一页的范围都用 `highlightRange(inPage:chapterID:)` **现算**，而不是读页面上已经
+    /// 写进去的高亮：跟随判定发生在高亮落笔之前（见 `ReaderSpeechController` 的
+    /// `alignPage(to:)` 与 `reviseSpeechPresentation(for:)` 的先后），读已画的会拿到上一句。
+    ///
+    /// 算法与绘制走的是同一条链（`highlightRange` → `rangeRects`），所以「胶囊说看不见、
+    /// 正文里却有高亮」这类自相矛盾不会再出现。左右翻页模式用的也是同一个原则。
     private func speechSentenceRectInTable() -> CGRect? {
         
-        guard let indexPath = speechSentenceIndexPath(),
-              let cell = tableView.cellForRow(at: indexPath) as? ReaderPageCell,
-              let pageView = cell.renderingPageView,
-              let rectInPageView = pageView.speechHighlightRectInView else { return nil }
+        guard let controller = vc?.engagedSpeechController else { return nil }
         
-        return pageView.convert(rectInPageView, to: tableView)
+        var union: CGRect?
+        
+        for cell in tableView.visibleCells {
+            
+            guard let pageCell = cell as? ReaderPageCell,
+                  let pageView = pageCell.renderingPageView,
+                  let pageModel = pageCell.pageModel,
+                  let indexPath = tableView.indexPath(for: cell),
+                  indexPath.section < chapterIDs.count,
+                  let range = controller.highlightRange(inPage: pageModel,
+                                                        chapterID: chapterIDs[indexPath.section]),
+                  let rectInPageView = pageView.rect(forRange: range) else { continue }
+            
+            let rectInTable = pageView.convert(rectInPageView, to: tableView)
+            
+            union = union.map { $0.union(rectInTable) } ?? rectInTable
+        }
+        
+        return union
     }
     
     /// 判定「句子已就位」时可视区上下各收掉的余量

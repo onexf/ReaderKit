@@ -304,9 +304,16 @@ open class ReaderViewController: ReaderScreenController {
 
         let rect = READER_RECT!
 
-        // 纵向落在页脚信息栏的垂直中心：设计稿里胶囊与页脚的页码、时间电量同处一条带上
-        button.anchorCenter = CGPoint(x: rect.midX,
-                                     y: rect.maxY - READER_STATUS_BOTTOM_VIEW_HEIGHT / 2)
+        // 纵向与页脚的页码、时间电量**同一条水平中线**。
+        //
+        // 注意不是页脚整条带的垂直中心：带高 46，而里面那行内容是 y=16、高 22
+        // （`ReaderStatusBottomView.contentTopInset` / `.contentHeight`），
+        // 行中心在带顶 +27 处。按带中心（+23）摆会比页码高 4pt，肉眼看得出来没对齐。
+        let bandTop = rect.maxY - READER_STATUS_BOTTOM_VIEW_HEIGHT
+
+        let rowCenterY = bandTop + ReaderStatusBottomView.contentTopInset + ReaderStatusBottomView.contentHeight / 2
+
+        button.anchorCenter = CGPoint(x: rect.midX, y: rowCenterY)
     }
 
     /// 按当前朗读状态刷新胶囊。
