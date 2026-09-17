@@ -104,10 +104,24 @@ public protocol ReaderSpeechSynthesizing: AnyObject {
     /// 调用方需要换句时应先 `stop()`，等 `didCancel` 到达后再提交。
     func speak(_ fragment: ReaderSpeechFragment)
 
+    /// 当前片段内**已开始朗读**的字符数。
+    ///
+    /// 用于「暂停后从原处继续」：编排层不依赖引擎的 `resume()`，而是把当前句剩余的部分
+    /// 重新提交一次（理由见 `resume()` 的说明），需要知道从哪里接上。
+    ///
+    /// 每次 `speak(_:)` 应重置为 0。拿不到逐词进度的实现返回 0 即可 ——
+    /// 那样恢复时会重读整句，功能正确、只是听感上有重复。
+    var spokenPrefixLength: Int { get }
+
     /// 暂停，保留当前位置。
     func pause()
 
     /// 从暂停位置继续。
+    ///
+    /// ⚠️ **编排层默认不走这个方法**。`AVSpeechSynthesizer.continueSpeaking()` 在从锁屏 /
+    /// 后台恢复时不可靠：可能不出声、且**不投递任何回调**，于是引擎僵死而界面显示
+    /// 「播放中」。编排层改为「重新提交当前句的剩余部分」，每次都有 `didStart` 确认，
+    /// 状态必然真实。本方法保留给能保证 `resume` 可靠的自定义实现。
     func resume()
 
     /// 停止并丢弃当前片段。

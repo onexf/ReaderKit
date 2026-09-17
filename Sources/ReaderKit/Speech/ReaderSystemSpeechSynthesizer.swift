@@ -32,6 +32,12 @@ public final class ReaderSystemSpeechSynthesizer: NSObject, ReaderSpeechSynthesi
 
     public private(set) var state: ReaderSpeechState = .idle
 
+    /// 当前片段内已开始朗读的字符数。由 `willSpeakRangeOfSpeechString` 维护。
+    ///
+    /// 只做一次整数赋值、不触发任何重绘，所以开启逐词回调的开销可以忽略 ——
+    /// 当初拒绝**词级高亮**是因为要重算矩形并重绘 CoreText，与这里不是一回事。
+    public private(set) var spokenPrefixLength: Int = 0
+
     public weak var delegate: ReaderSpeechSynthesizingDelegate?
 
     // MARK: - 内部持有
@@ -82,6 +88,9 @@ public final class ReaderSystemSpeechSynthesizer: NSObject, ReaderSpeechSynthesi
 
             return
         }
+
+        // 新片段，逐词进度归零
+        spokenPrefixLength = 0
 
         let utterance = AVSpeechUtterance(string: fragment.text)
 
@@ -249,6 +258,19 @@ extension ReaderSystemSpeechSynthesizer: AVSpeechSynthesizerDelegate {
             self.state = .idle
 
             self.delegate?.speechSynthesizer(self, didCancel: fragment)
+        }
+    }
+
+    /// 逐词进度。**只用来记录读到哪里**，供「暂停后从原处继续」使用，不做任何绘制。
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                                  willSpeakRangeOfSpeechString characterRange: NSRange,
+                                  utterance: AVSpeechUtterance) {
+
+        performOnMain { [weak self] in
+
+            guard let self, utterance === self.currentUtterance else { return }
+
+            self.spokenPrefixLength = characterRange.location
         }
     }
 

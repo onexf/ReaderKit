@@ -312,6 +312,9 @@ public final class ReaderSpeechController {
         // 起点取自用户眼前的内容，之前的挂起随之解除
         isFollowSuspended = false
 
+        // 重新起播，与「恢复暂停」无关，偏移作废
+        resumeOffsetInSentence = 0
+
         // 滚动模式：按可见首行定位，拿不到（书籍首页、布局未就绪）时退回按页
         if ReaderConfiguration.shared().effectType == .scroll,
            let scrollController = reader?.scrollController,
@@ -372,23 +375,32 @@ public final class ReaderSpeechController {
         // 实际表现是「锁屏点播放，出声约一秒就停，状态还显示播放中」。
         if !audioSession.isActive { audioSession.activate() }
 
-        // 引擎已经不在暂停态，说明它的 utterance 已被系统丢弃，`continueSpeaking` 无从恢复。
-        // 此时不能把 activity 置为 .playing —— 那就是「显示播放中但没声音」。
-        // 改为从当前句重新读一遍，宁可重复半句也不要假状态。
-        guard synthesizer.state == .paused else {
+        // **不用 `synthesizer.resume()`（即 `continueSpeaking()`）。**
+        //
+        // 它从锁屏 / 后台恢复时不可靠：可能不出声，而且**不投递任何回调** ——
+        // 于是引擎僵死，编排层却已经把 activity 置成 .playing，界面显示「播放中」
+        // 却没有声音；系统那侧按「有没有真的输出音频」自己判断，锁屏按钮又显示
+        // 「已暂停」，两边彻底相反。
+        //
+        // 改为把当前句**尚未读完的部分**重新提交一次。每次都是全新的 `speak`，
+        // 有 `didStart` 回调确认，`activity` 只在确认出声后才变 —— 状态必然真实。
+        // 代价是恢复时会重读当前词的开头几个字符，听感上几乎无感。
+        //
+        // 试过两版修补 `continueSpeaking` 的方案（重新激活会话、按引擎状态兜底），
+        // 都没能根治，故不再在那条路上加补丁。
+        guard let sentence = currentSentence else { return }
 
-            if let sentence = currentSentence {
+        // 逐词进度是相对**本次提交的文本**的，而本次提交的可能已经是某次恢复后的剩余部分，
+        // 所以要累加而不是直接赋值
+        resumeOffsetInSentence += synthesizer.spokenPrefixLength
 
-                start(fromLocation: sentence.range.location)
-            }
-
-            return
-        }
-
-        synthesizer.resume()
-
-        activity = .playing
+        start(fromLocation: sentence.range.location)
     }
+
+    /// 恢复朗读时，当前句要跳过的前缀字符数。
+    ///
+    /// 由 `resume()` 累加、`submitCurrentSentence()` 消费。句子推进或重新起播时清零。
+    private var resumeOffsetInSentence: Int = 0
 
     /// 切到下一章并从头朗读。锁屏「下一曲」与界面跳章都走这里。
     ///
@@ -518,12 +530,44 @@ public final class ReaderSpeechController {
         // 画面还停在上一页」。高亮则相反，挂在 didStart（见该回调的说明）。
         alignPage(to: sentence)
 
-        let fragment = ReaderSpeechFragment(text: sentence.text,
+        // 恢复朗读时只提交本句剩余的部分（见 `resume()`）。
+        // `range` 仍然是**整句**范围 —— 高亮与翻页跟随都靠它，不能跟着截断。
+        let text = spokenText(of: sentence)
+
+        let fragment = ReaderSpeechFragment(text: text,
                                            range: sentence.range,
                                            voiceIdentifier: voiceIdentifier,
                                            language: language)
 
         synthesizer.speak(fragment)
+    }
+
+    /// 本次要提交给引擎的文本：整句，或恢复朗读时的剩余部分。
+    private func spokenText(of sentence: ReaderSentence) -> String {
+
+        let offset = resumeOffsetInSentence
+
+        // 偏移只对紧接着的那一次提交生效，用完即清
+        resumeOffsetInSentence = 0
+
+        guard offset > 0 else { return sentence.text }
+
+        // 偏移按 UTF-16 计（`willSpeakRangeOfSpeechString` 给的是 NSRange），
+        // 所以要走 NSString 而不是 Swift String 的字符索引，否则 emoji
+        // 与组合字符会把偏移算歪
+        let source = sentence.text as NSString
+
+        guard offset < source.length else { return sentence.text }
+
+        let remainder = source.substring(from: offset)
+
+        // 剩下的只有空白时退回整句：提交空串会被引擎拒绝，反而卡住恢复
+        guard !remainder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+
+            return sentence.text
+        }
+
+        return remainder
     }
 
     /// 推进到下一句；本章读完则交给章节衔接。
@@ -542,6 +586,9 @@ public final class ReaderSpeechController {
 
         self.currentIndex = next
 
+        // 换句了，上一句的恢复偏移作废
+        resumeOffsetInSentence = 0
+
         submitCurrentSentence()
     }
 
@@ -549,6 +596,8 @@ public final class ReaderSpeechController {
     private func finishStop() {
 
         currentIndex = nil
+
+        resumeOffsetInSentence = 0
 
         isFollowSuspended = false
 
