@@ -1,5 +1,65 @@
 # Changelog
 
+## 1.8.3
+
+把本库与一个**已知能正常工作的参考实现**（FM，同机 iOS 26.6.1 上从 App 内暂停时锁屏与
+控制中心状态完全同步）之间所有可枚举的非架构差异消除掉。两项改动本身是净改进，
+但**没有**解决锁屏状态同步问题 —— 它们的价值在于把排除范围钉死，见下方结论。
+
+### 变更：恢复 `.allowAirPlay` 与 `.allowBluetoothA2DP`
+
+1.6.1 曾把这两个 option 删掉，理由是「`AVSpeechSynthesizer` 配 `MPNowPlayingInfoCenter`
+时，`.playback` 上带**任何** option 都可能让系统不把朗读当作主播放源」。
+**那个理由不成立** —— 参考实现带着这两个 option，锁屏状态完全正常。
+删掉它们既没解决问题，又让我们与一个已知可用的配置无谓地产生差异。
+
+`.duckOthers` 仍默认关闭。这一个是真的会让播放卡片整个消失（1.6.0 已验证），
+与上面两个不是一回事。
+
+### 新增：写入播放队列信息
+
+补上 `MPNowPlayingInfoPropertyPlaybackQueueCount` 与 `...QueueIndex`（参考实现有，
+我们此前完全没写）。**一项 = 一章**，与锁屏「上一曲 / 下一曲」映射为上一章 / 下一章
+的语义一致，数据取自 `ReaderBookModel.chapterListModels`。
+目录未加载完时给的是当前已知章节数，会随补目录变大 —— 与用户在目录里看到的一致。
+
+`ReaderSpeechContext` 随之新增 `queueCount` / `queueIndex`（带默认值，
+既有构造点不受影响）。日志增加 `queue=i/N` 一栏。
+
+### 结论：锁屏状态不同步的原因已定位到架构，排除范围钉死
+
+**现象要说准确**（此前描述得过头了，导致排查方向错）：
+
+- 从**锁屏 / 控制中心**操作播放暂停 → 三处状态完全一致，**是对的**
+- 从**阅读页**操作播放暂停 → 只有阅读页状态对，锁屏与控制中心不跟着变
+
+所以不是「系统不采信我们写的 `rate`」，而是**系统只在自己发起命令并收到成功响应时才刷新
+Now Playing UI，单纯的 `nowPlayingInfo` 写入驱动不了它**。
+
+至此与参考实现的差异只剩一项：它用 `AVPlayer` 播放预先合成好的音频文件，
+而我们用 `AVSpeechSynthesizer` 直接出声。`AVPlayer` 的状态变化系统能**直接观测**，
+无需 app 通知；`AVSpeechSynthesizer` 只能靠 app 写 `nowPlayingInfo` 通知，而这条路
+不触发 UI 刷新。
+
+**已排除的路，不要再试**（每一条都做过真机验证）：
+
+| 方向 | 结果 |
+|---|---|
+| category options（`.duckOthers` / `.allowAirPlay` / `.allowBluetoothA2DP`） | 无效；`.duckOthers` 另有其害 |
+| `mode`（已是 `.spokenAudio`，与参考实现相同） | 无差异 |
+| `usesApplicationAudioSession = false` | 更糟：锁屏无信息且声音出一下就停 |
+| 弃用 `continueSpeaking()`、改重提交剩余句 | 状态变真了，图标照旧 |
+| 补时间轴（时长 + 已播时间） | 无效，且把原本正常的锁屏页弄坏了 |
+| 已播时间改为连续值（实际出声时长） | 无效 |
+| 暂停时**不写**时间轴 | 无效，且暂停时进度条消失 |
+| 远程命令 token 改进程级静态 | 无效 |
+| 命令可用性跟随播放状态 | 无效 |
+| 补 `PlaybackQueueCount` / `QueueIndex` | 无效 |
+| `MPNowPlayingInfoCenter.playbackState` | **iOS 不可用**，Apple 官方确认是 macOS API，所需 entitlement 为 Apple 保留 |
+
+根治只有一条路：改成「合成音频 + `AVPlayer`」。完整排查过程与方法论教训见
+`.kiro/learnings/decisions/2026-09-16_tts-nowplaying-needs-real-player.md`。
+
 ## 1.8.2
 
 本版是锁屏播放状态问题的**封版**：该问题在当前架构下确认无解，不要再在这条路上加补丁。

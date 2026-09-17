@@ -77,18 +77,33 @@ public struct ReaderSpeechContext {
     /// 后果是暂停后锁屏按钮仍显示播放中。**给一个原地不动的已播时间比不给更糟。**
     public let estimatedElapsed: TimeInterval
 
+    /// 播放队列的总项数。**一项 = 一章**（锁屏的上一曲 / 下一曲映射为上一章 / 下一章）。
+    ///
+    /// 与 `queueIndex` 一起写进 `MPNowPlayingInfoPropertyPlaybackQueueCount` /
+    /// `...QueueIndex`，告诉系统「这是一个有 N 项的播放队列、当前在第 i 项」。
+    /// 目录未加载完时是当前已知的章节数，会随目录补齐而变大 —— 这与用户在目录里看到的
+    /// 一致，不必为此等到全书目录加载完。
+    public let queueCount: Int
+
+    /// 当前项在播放队列中的索引（0 起）。口径同 `queueCount`。
+    public let queueIndex: Int
+
     public init(bookTitle: String,
                 chapterTitle: String,
                 sentenceText: String,
                 chapterProgress: Double,
                 estimatedDuration: TimeInterval = 0,
-                estimatedElapsed: TimeInterval = 0) {
+                estimatedElapsed: TimeInterval = 0,
+                queueCount: Int = 0,
+                queueIndex: Int = 0) {
         self.bookTitle = bookTitle
         self.chapterTitle = chapterTitle
         self.sentenceText = sentenceText
         self.chapterProgress = chapterProgress
         self.estimatedDuration = estimatedDuration
         self.estimatedElapsed = estimatedElapsed
+        self.queueCount = queueCount
+        self.queueIndex = queueIndex
     }
 }
 

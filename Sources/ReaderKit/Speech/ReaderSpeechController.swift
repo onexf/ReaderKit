@@ -1273,12 +1273,28 @@ public final class ReaderSpeechController {
             duration = estimated
         }
 
+        // 播放队列：一项 = 一章，与锁屏「上一曲 / 下一曲」的映射保持一致。
+        // 目录未加载完时给的是当前已知章节数，会随补目录变大 —— 与用户在目录里看到的一致。
+        let chapterList = book?.chapterListModels
+
+        let queueCount = chapterList?.count ?? 0
+
+        var queueIndex = 0
+
+        if let chapterList, let speakingChapterID,
+           let matched = chapterList.firstIndex(where: { $0.id == speakingChapterID }) {
+
+            queueIndex = matched
+        }
+
         return ReaderSpeechContext(bookTitle: book?.storyName ?? "",
                                    chapterTitle: chapter?.name ?? "",
                                    sentenceText: sentence?.text ?? "",
                                    chapterProgress: progress,
                                    estimatedDuration: duration,
-                                   estimatedElapsed: elapsed)
+                                   estimatedElapsed: elapsed,
+                                   queueCount: queueCount,
+                                   queueIndex: queueIndex)
     }
 
     /// 按语言估算每秒朗读的字符数。

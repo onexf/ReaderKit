@@ -170,6 +170,17 @@ final class ReaderSpeechNowPlaying {
             info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = context.estimatedElapsed
         }
 
+        // 播放队列信息（一项 = 一章）。**对齐参考实现加的** ——
+        // FM 写了这两个字段且锁屏状态正常，我们此前完全没写。
+        // 它们告诉系统「这是一个有 N 项的队列、当前在第 i 项」，可能影响系统
+        // 对播放源的认定方式（也是「上一曲 / 下一曲」在锁屏上可用的语义依据）。
+        if context.queueCount > 0 {
+
+            info[MPNowPlayingInfoPropertyPlaybackQueueCount] = context.queueCount
+
+            info[MPNowPlayingInfoPropertyPlaybackQueueIndex] = context.queueIndex
+        }
+
         if let artwork {
 
             info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artwork.size) { _ in artwork }
@@ -184,7 +195,7 @@ final class ReaderSpeechNowPlaying {
             ? "omitted"
             : "\(Int(context.estimatedElapsed))/\(Int(context.estimatedDuration))s"
 
-        ReaderEnvironment.log("[Speech] 写锁屏信息 activity=\(activity) rate=\(info[MPNowPlayingInfoPropertyPlaybackRate] ?? "nil") timeline=\(timeline) artwork=\(artwork != nil)")
+        ReaderEnvironment.log("[Speech] 写锁屏信息 activity=\(activity) rate=\(info[MPNowPlayingInfoPropertyPlaybackRate] ?? "nil") timeline=\(timeline) queue=\(context.queueIndex)/\(context.queueCount) artwork=\(artwork != nil)")
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }

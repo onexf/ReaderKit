@@ -115,22 +115,24 @@ final class ReaderSpeechAudioSession {
     
     /// category 选项。
     ///
-    /// **默认一个都不传，这是刻意的。** `AVSpeechSynthesizer` 配 `MPNowPlayingInfoCenter`
-    /// 时，`.playback` 上带任何 option 都可能让系统不把朗读当作「主播放源」，
-    /// 后果是锁屏 / 控制中心要么不显示播放信息、要么显示了但播放/暂停按钮的状态
-    /// **不跟着 App 变**（点了暂停，App 内暂停了，锁屏按钮却还是暂停图标）。
+    /// `.duckOthers` **必须默认关闭**：它让会话变成「与其它音频共存」，系统就不再把朗读
+    /// 当作主播放源，锁屏 / 控制中心连播放卡片都不显示。保留为可配置
+    /// （`ducksOtherAudio`）—— 锁屏控制是硬需求，压低共存只是偏好。
     ///
-    /// 曾经带过三个，逐个说明为什么去掉：
-    /// - `.duckOthers`：让会话变成「与其它音频共存」，是上述问题最主要的来源。
-    ///   保留为可配置（`ducksOtherAudio`），默认关 —— 锁屏控制是硬需求，压低共存是偏好。
-    /// - `.allowBluetoothA2DP` / `.allowAirPlay`：对 `.playback` 而言本就是隐含行为，
-    ///   传了是冗余，去掉不影响蓝牙耳机与 AirPlay 出声。
+    /// `.allowAirPlay` 与 `.allowBluetoothA2DP` 则是**对齐参考实现**加回来的。
+    /// 1.6.1 曾把它们删掉，理由是「`.playback` 上带任何 option 都可能让系统不把朗读
+    /// 当主播放源」—— 那个理由站不住：参考项目 FM 带着这两个 option，锁屏状态完全正常。
+    /// 删掉它们既没解决问题，也让我们与一个已知能正常工作的实现无谓地产生了差异。
     ///
     /// 后台播放不受这些选项影响（只依赖 `.playback` 与 `UIBackgroundModes: audio`），
     /// 所以出问题时的现象往往是「后台播放正常、锁屏却不对」，容易误判成锁屏功能没做。
     private var categoryOptions: AVAudioSession.CategoryOptions {
-        
-        ducksOtherAudio ? [.duckOthers] : []
+
+        var options: AVAudioSession.CategoryOptions = [.allowAirPlay, .allowBluetoothA2DP]
+
+        if ducksOtherAudio { options.insert(.duckOthers) }
+
+        return options
     }
 
     // MARK: - 系统通知
