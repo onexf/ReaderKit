@@ -12,6 +12,15 @@ open class ReaderPageCell: UITableViewCell {
     /// 阅读视图
     private var readView: ReaderPageView!
     
+    /// 当前承载正文渲染的视图，供朗读高亮等跨文件能力取用。
+    ///
+    /// 与 `ReaderPageContentController.renderingPageView` 同名同语义，
+    /// 让编排层不必区分「翻页模式的页控制器」与「滚动模式的 cell」。
+    ///
+    /// 高亮的清理不在这里做：`ReaderPageView` 换 `pageModel` 时会自行清掉，
+    /// 复用路径必然经过那里，放在视图层更不容易漏。
+    open var renderingPageView: ReaderPageView? { readView }
+    
     open var pageModel: ReaderPageModel! {
         
         didSet{

@@ -151,6 +151,91 @@ open class ReaderViewController: ReaderScreenController {
         readUnlockedChapterHandler?(chapterId, showLoading)
     }
 
+    // MARK: - 朗读（TTS）
+
+    /// 朗读的宿主协调扩展点。为 nil 时朗读走库内默认行为（自管音频会话与锁屏）。
+    ///
+    /// weak：宿主实现通常是持有业务 ViewModel 的适配器，可能反向持有阅读器。
+    public weak var speechCoordinator: ReaderSpeechCoordinating? {
+
+        // 只在编排器已创建时转发，避免仅仅注入协调者就把编排器建起来
+        didSet { createdSpeechController?.coordinator = speechCoordinator }
+    }
+
+    /// 朗读编排器。首次访问时创建。
+    ///
+    /// 惰性创建而非随控制器一起构造：编排器会持有 `AVSpeechSynthesizer` 并注册
+    /// 三类音频中断监听，不使用朗读功能的接入方不该为此付代价。
+    public var speechController: ReaderSpeechController {
+
+        if let createdSpeechController { return createdSpeechController }
+
+        let controller = ReaderSpeechController(reader: self)
+
+        controller.coordinator = speechCoordinator
+
+        createdSpeechController = controller
+
+        return controller
+    }
+
+    /// 已创建的编排器实例。
+    ///
+    /// 单独存一份而不用 `lazy var`：需要「查询是否已创建」而不触发创建，
+    /// `lazy` 做不到这件事。
+    private var createdSpeechController: ReaderSpeechController?
+
+    /// 朗读是否已经启用过。
+    ///
+    /// 供退出阅读器等收尾场景判断该不该去停朗读 —— 直接读 `speechController`
+    /// 会把编排器创建出来，为了停一个从未开始的朗读而创建实例是本末倒置。
+    public var isSpeechEngaged: Bool { createdSpeechController != nil }
+
+    /// 若朗读已启用则停止。退出阅读器时调用。
+    public func stopSpeechIfEngaged() {
+
+        createdSpeechController?.stop()
+    }
+
+    /// 已创建的朗读编排器；未启用朗读时为 nil。
+    ///
+    /// 与 `speechController` 的区别：本属性**不会**触发创建。视图层（如滚动容器
+    /// 在 cell 复用后回填高亮）需要「有就用、没有就跳过」，不能因为查询而把编排器建起来。
+    public var engagedSpeechController: ReaderSpeechController? { createdSpeechController }
+
+    /// 请求正文向后翻一页。实现由接入方注入。
+    ///
+    /// 为什么必须注入而不能在库内实现：左右翻页模式的整条翻页链路都在接入方那侧 ——
+    /// 取下一页控制器、`setViewControllers` 动画、更新阅读记录、章节边界的网络加载，
+    /// 都发生在接入方实现的 `ReaderSheetControllerDelegate` 里，库内没有等价入口。
+    ///
+    /// 上下滚动模式不走这里：滚动容器 `ReaderScrollController` 在库内，可自行定位。
+    ///
+    /// 为 nil 时左右翻页模式下的朗读不会自动翻页（朗读本身照常推进），
+    /// 此时朗读位置会离开当前展示页，界面上表现为控制按钮切回「从这里开始读」。
+    open var advanceToNextPageHandler: (() -> Void)?
+
+    /// 引擎内部统一入口：请求向后翻一页。
+    open func advanceToNextPage() {
+
+        advanceToNextPageHandler?()
+    }
+
+    /// 请求正文跳转到指定章节的指定**章内绝对坐标**。实现由接入方注入。
+    ///
+    /// 与 `advanceToNextPageHandler` 的分工：那个只能前进一页，用于朗读的顺序跟随；
+    /// 本入口是任意位置跳转，用于「后台听了几章之后回到前台，把正文对齐到朗读位置」。
+    ///
+    /// 接入方通常直接接到自己已有的按坐标跳章能力上。为 nil 时回前台不做对齐，
+    /// 正文停在用户离开时的位置。
+    open var presentPositionHandler: ((_ chapterID: NSNumber, _ location: NSInteger) -> Void)?
+
+    /// 引擎内部统一入口：请求跳转到指定位置。
+    open func presentPosition(chapterID: NSNumber, location: NSInteger) {
+
+        presentPositionHandler?(chapterID, location)
+    }
+
     // MARK: - 通用状态
 
     /// Combine 订阅容器。基类与子类共用。

@@ -12,6 +12,12 @@ open class ReaderLongPressController: ReaderPageContentController {
     /// 阅读视图
     private var readView: ReaderLongPressView!
     
+    /// 当前承载正文渲染的视图。
+    ///
+    /// 书名页走 `super.initReadView()`，此时本类的 `readView` 为 nil、
+    /// 渲染视图落在父类那个上，故需要回退到 super。
+    open override var renderingPageView: ReaderPageView? { readView ?? super.renderingPageView }
+    
     // 初始化阅读视图
     open override func initReadView() {
         

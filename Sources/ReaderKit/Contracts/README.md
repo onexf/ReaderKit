@@ -22,6 +22,7 @@
 | 协议 | 替代的业务依赖 | 状态 |
 |---|---|---|
 | `ReaderTerminalPageProviding` | 书末页控制器 | 已接线 |
+| `ReaderSpeechCoordinating` | 音频会话与锁屏的接管、朗读拦截、封面图、状态外抛 | 已接线（全可选，不注入朗读也完整可用） |
 | `ReaderLocalizing` | 文案本地化 | 待做 |
 | `ReaderTelemetry` | 埋点上报 | 待做 |
 | `ReaderContentSourcing` | 内容接口、目录分页与合并、CDN 调度 | 待做 |

@@ -74,6 +74,15 @@ public enum ReaderEnvironment {
     ///   - container: 触发提示的视图，接入方可据此决定挂载位置
     ///   - message: 已本地化的提示文案
     nonisolated(unsafe) public static var presentErrorNotice: (_ container: UIView, _ message: String) -> Void = { _, _ in }
+
+    /// 朗读时当前句的高亮样式。默认背景色块。
+    ///
+    /// 放环境而非 `ReaderConfiguration`：这是**接入方**的设计取向，不是终端用户
+    /// 可调的阅读设置。`ReaderConfiguration` 的字段都会被持久化并出现在设置面板里，
+    /// 把它塞进去会让「用户改过的设置」与「接入方定的样式」混在同一份存储里。
+    ///
+    /// 具体色值取自当前主题的 `speechHighlightFill` / `speechHighlightText`。
+    nonisolated(unsafe) public static var speechHighlightStyle: ReaderSpeechHighlightStyle = .background
 }
 
 /// 阅读器引擎所需的图片资源。
@@ -171,6 +180,20 @@ public struct ReaderImages {
     /// 参数为当前阅读主题，接入方可据此返回不同切图（该图通常是彩色插图、不做染色，
     /// 故需按主题分别提供）。库内默认不区分主题。
     public var bookmarkLockSeal: (ReaderThemeType) -> UIImage? = { _ in symbol("lock.fill") }
+
+    // MARK: - 朗读
+
+    /// 朗读入口（开始朗读）
+    public var speechPlay: () -> UIImage? = { symbol("headphones") }
+
+    /// 朗读控制条 - 暂停
+    public var speechPause: () -> UIImage? = { symbol("pause.fill") }
+
+    /// 朗读控制条 - 继续
+    public var speechResume: () -> UIImage? = { symbol("play.fill") }
+
+    /// 朗读控制条 - 退出朗读
+    public var speechStop: () -> UIImage? = { symbol("xmark") }
 
     // MARK: - 远程图片
 

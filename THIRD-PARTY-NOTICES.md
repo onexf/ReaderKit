@@ -37,3 +37,49 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+---
+
+## Readium swift-toolkit
+
+朗读能力的**合成状态机**（`Sources/ReaderKit/Speech/ReaderSystemSpeechSynthesizer.swift`）
+衍生自 Readium swift-toolkit 的 `AVTTSEngine`：显式状态机（idle / speaking / paused /
+stopping）与「上一条 utterance 的回调未到达前不得提交下一条」这一约束取自该实现，
+用于规避 `AVSpeechSynthesizer` 在 iOS 15 上的引擎死锁。
+
+音色筛选规则（`ReaderSpeechVoiceCatalog`）中「过滤 `.eloquence.` 与
+`com.apple.speech.synthesis.voice.` 前缀的老式音色」亦来自其 `TTSVoice` 实现。
+
+本库的编排层（分句、翻页跟随、章节衔接、高亮）为自研，未使用其
+`PublicationSpeechSynthesizer`。
+
+- 项目主页：https://github.com/readium/swift-toolkit
+- 许可证：BSD-3-Clause
+
+```
+Copyright 2024 Readium Foundation. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```

@@ -14,7 +14,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'ReaderKit'
-  s.version          = '1.2.0'
+  s.version          = '1.3.0'
   s.summary          = '小说阅读器引擎：排版分页、翻页与滚动、阅读菜单、目录书签、主题换肤'
   s.description      = <<-DESC
                        小说阅读器内核，库内零业务代码。
@@ -31,5 +31,7 @@ Pod::Spec.new do |s|
 
   s.source_files     = 'Sources/ReaderKit/**/*.swift'
 
-  s.frameworks       = 'UIKit', 'CryptoKit'
+  # AVFoundation / MediaPlayer / NaturalLanguage 为语音朗读所需：
+  # 分别用于语音合成与音频会话、锁屏播放信息与远程控制、按句切分。
+  s.frameworks       = 'UIKit', 'CryptoKit', 'AVFoundation', 'MediaPlayer', 'NaturalLanguage'
 end

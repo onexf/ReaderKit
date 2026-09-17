@@ -67,3 +67,16 @@ public enum ReaderSheetHeaderType: NSInteger {
     /// 行内容
     case line
 }
+/// 朗读时当前句的高亮样式
+///
+/// 由接入方经 `ReaderEnvironment.speechHighlightStyle` 选择。
+/// 这是接入方的设计取向，不是终端用户设置，故不入 `ReaderConfiguration`、也不持久化，
+/// rawValue 无需保持稳定。
+public enum ReaderSpeechHighlightStyle: NSInteger {
+    /// 背景色块（默认）。在正文绘制前铺一层 `speechHighlightFill`
+    case background
+    /// 文字变色。把高亮范围的前景色改为 `speechHighlightText`
+    case textColor
+    /// 下划线。在高亮范围各行底边画 `speechHighlightFill` 色的线
+    case underline
+}

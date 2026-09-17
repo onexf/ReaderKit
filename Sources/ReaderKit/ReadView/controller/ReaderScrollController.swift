@@ -160,6 +160,80 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         tableView.contentOffset = CGPoint(x: 0, y: maxOffset)
     }
     
+    
+    // MARK: - 朗读协同
+    
+    /// 滚动到指定章节的指定页，供朗读跟随使用。
+    ///
+    /// 与左右翻页模式不同，滚动容器在库内，可以直接定位，不需要接入方注入翻页能力。
+    ///
+    /// - Parameters:
+    ///   - chapterID: 目标章节
+    ///   - page: 章内页码
+    open func scrollToSpeechPage(chapterID: NSNumber?, page: Int) {
+        
+        guard let chapterID,
+              let section = chapterIDs.firstIndex(of: chapterID) else { return }
+        
+        // 目标页尚未在数据源里（章节还没加载完）时不要硬滚，
+        // scrollToRow 传越界 indexPath 会抛异常
+        guard let chapterModel = resolveChapterModel(chapterID: chapterID),
+              page >= 0,
+              page < chapterModel.pageModels.count else { return }
+        
+        tableView.scrollToRow(at: IndexPath(row: page, section: section), at: .top, animated: true)
+    }
+    
+    /// 刷新全部可见页的朗读高亮。
+    open func reviseSpeechHighlight() {
+        
+        for cell in tableView.visibleCells {
+            
+            guard let indexPath = tableView.indexPath(for: cell) else { continue }
+            
+            reviseSpeechHighlight(for: cell, at: indexPath)
+        }
+    }
+    
+    /// 清除全部可见页的朗读高亮。
+    open func clearSpeechHighlight() {
+        
+        for cell in tableView.visibleCells {
+            
+            (cell as? ReaderPageCell)?.renderingPageView?.speechHighlightRange = nil
+        }
+    }
+    
+    /// 按当前朗读位置刷新单个 cell 的高亮。
+    ///
+    /// 用 `engagedSpeechController` 而非 `speechController`：这条路径会在每次
+    /// cell 即将显示时跑一遍，用后者会让「从未使用朗读的用户」也把编排器创建出来。
+    private func reviseSpeechHighlight(for cell: UITableViewCell, at indexPath: IndexPath) {
+        
+        guard let pageCell = cell as? ReaderPageCell,
+              let pageView = pageCell.renderingPageView else { return }
+        
+        guard let controller = vc?.engagedSpeechController else {
+            
+            pageView.speechHighlightRange = nil
+            
+            return
+        }
+        
+        guard indexPath.section < chapterIDs.count,
+              let pageModel = pageCell.pageModel else {
+            
+            pageView.speechHighlightRange = nil
+            
+            return
+        }
+        
+        // 必须带上章节标识：不同章节的页范围都从 0 开始，只比页内范围会把
+        // 另一章的同位置段落也点亮
+        pageView.speechHighlightRange = controller.highlightRange(inPage: pageModel,
+                                                                 chapterID: chapterIDs[indexPath.section])
+    }
+    
     open override func addSubviews() {
         
         super.addSubviews()
@@ -391,6 +465,12 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
     
     /// 书籍首页将要出现
     open func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        
+        // 朗读高亮的回填必须在下面那条 row != 0 的提前返回之前做。
+        //
+        // 起因是 ReaderPageView 在换 pageModel 时会主动清掉高亮（cell 复用的必要处理），
+        // 于是「滚出屏幕再滚回来」的页会丢失高亮。这里在页重新可见的时机补设回去。
+        reviseSpeechHighlight(for: cell, at: indexPath)
         
         if indexPath.row != 0 { return }
         

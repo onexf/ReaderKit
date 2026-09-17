@@ -96,6 +96,23 @@ public struct ReaderStrings {
         "Failed to load \(name), please try again"
     }
 
+    // MARK: - 朗读
+
+    /// 朗读入口按钮标题
+    public var speechPlay: String = "Read Aloud"
+    /// 朗读控制条的暂停按钮标题
+    public var speechPause: String = "Pause"
+    /// 朗读控制条的继续按钮标题
+    public var speechResume: String = "Resume"
+    /// 退出朗读按钮标题
+    public var speechStop: String = "Stop"
+    /// 长按正文后弹出的「从这里开始读」动作标题
+    public var speechStartHere: String = "Start reading here"
+    /// 设备上没有可用于当前内容语言的音色
+    public var speechVoiceUnavailable: String = "No voice available for this language"
+    /// 朗读失败的通用提示
+    public var speechFailed: String = "Read aloud failed, please try again"
+
     /// 全默认值实例（英文）。库在宿主未注入时使用，保证可独立运行。
     public static let `default` = ReaderStrings()
 

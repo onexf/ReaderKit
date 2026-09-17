@@ -70,6 +70,30 @@ public protocol ReaderThemeColors {
     
     // Reader Accent
     var accent: UIColor { get }       // 强调色（行高滑块已填充轨道、阅读方向选中段底色）
+    
+    // Reader Speech
+    var speechHighlightFill: UIColor { get }  // 朗读高亮填充（背景色块样式的底色、下划线样式的线色）
+    var speechHighlightText: UIColor { get }  // 朗读高亮文字色（文字变色样式）
+}
+
+// MARK: - 朗读高亮色的默认实现
+
+/// 朗读高亮的两个色槽给协议默认实现，由 `accent` 派生。
+///
+/// 为什么不做成必填：本协议是接入方要实现的契约，加必填属性会让**已有**的
+/// conformer 直接编译不过（`ReaderTintAssign` 的成员初始化器是显式声明的，
+/// 加字段等于改公开 API）。给默认实现则老接入方零改动即可拿到可用的高亮色，
+/// 有设计稿的接入方再覆盖。
+public extension ReaderThemeColors {
+
+    /// 默认取强调色的低透明度版本。
+    ///
+    /// 透明度压到 0.22 是为了让正文文字仍然清晰可读 —— 高亮是辅助定位的，
+    /// 不该盖过它标记的那句话。深色主题下 `accent` 本身较亮，同一透明度也够醒目。
+    var speechHighlightFill: UIColor { accent.withAlphaComponent(0.22) }
+
+    /// 默认直接取强调色。文字变色样式下高亮字本身就是前景，不能带透明度。
+    var speechHighlightText: UIColor { accent }
 }
 
 // MARK: - 主题颜色结构体
@@ -93,8 +117,21 @@ public struct ReaderTintAssign: ReaderThemeColors {
     public let line: UIColor
     public let accent: UIColor
 
+    /// 朗读高亮填充色。为 nil 时走协议默认实现（由 `accent` 派生）。
+    private let speechHighlightFillValue: UIColor?
+
+    /// 朗读高亮文字色。为 nil 时走协议默认实现（取 `accent`）。
+    private let speechHighlightTextValue: UIColor?
+
+    public var speechHighlightFill: UIColor { speechHighlightFillValue ?? accent.withAlphaComponent(0.22) }
+
+    public var speechHighlightText: UIColor { speechHighlightTextValue ?? accent }
+
     /// 供接入方在自己的 `ReaderThemeProviding` 实现里构造配色。
     /// Swift 不会把 struct 的隐式成员初始化器暴露到模块外，故显式声明。
+    ///
+    /// 末尾两个朗读高亮色带默认值 nil，所以既有调用处无需改动；
+    /// 拿到设计稿后按主题传入即可覆盖派生兜底。
     public init(page: UIColor,
                 textT0: UIColor,
                 textT1: UIColor,
@@ -110,7 +147,9 @@ public struct ReaderTintAssign: ReaderThemeColors {
                 fillControl: UIColor,
                 dividerLine: UIColor,
                 line: UIColor,
-                accent: UIColor) {
+                accent: UIColor,
+                speechHighlightFill: UIColor? = nil,
+                speechHighlightText: UIColor? = nil) {
         self.page = page
         self.textT0 = textT0
         self.textT1 = textT1
@@ -127,6 +166,8 @@ public struct ReaderTintAssign: ReaderThemeColors {
         self.dividerLine = dividerLine
         self.line = line
         self.accent = accent
+        self.speechHighlightFillValue = speechHighlightFill
+        self.speechHighlightTextValue = speechHighlightText
     }
 }
 

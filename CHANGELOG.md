@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.3.0
+
+### 新增：语音朗读（TTS）
+
+设备端语音朗读，逐句朗读并在正文高亮当前句，支持后台播放与锁屏控制。
+朗读能力开箱可用 —— 不实现任何新注入点也能完整工作。
+
+新增源码集中在 `Sources/ReaderKit/Speech/`（8 个文件）与
+`Sources/ReaderKit/Contracts/ReaderSpeechCoordinating.swift`：
+
+- 分句走 `NLTokenizer(unit: .sentence)` 并按正文判定语言，多语种下不靠标点切分
+- 合成引擎抽象为 `ReaderSpeechSynthesizing`，设备端实现 `ReaderSystemSpeechSynthesizer`
+  用显式状态机规避 `AVSpeechSynthesizer` 在 iOS 15 的引擎死锁
+- 音频会话含来电中断、拔耳机、媒体服务重置三类处理
+- 锁屏 / 控制中心 / 灵动岛的播放信息与远程控制（play / pause / 上一章 / 下一章）
+- 编排层负责翻页跟随、章节自动续读、高亮驱动
+
+朗读入口与播放控件的 UI 尚未包含在本次变更内。
+
+### 新增注入点（全部可选）
+
+| 注入点 | 挂载位置 | 不注入会怎样 |
+|---|---|---|
+| `ReaderSpeechCoordinating` | `reader.speechCoordinator` | 朗读走库内默认行为（自管音频会话与锁屏）；锁屏无封面 |
+| `advanceToNextPageHandler` | `reader.advanceToNextPageHandler` | 左右翻页模式下朗读不自动翻页（朗读本身照常推进） |
+| `presentPositionHandler` | `reader.presentPositionHandler` | 后台听完回到前台时正文不对齐到朗读位置 |
+
+### 其它新增
+
+- `ReaderThemeColors` 增加 `speechHighlightFill` / `speechHighlightText` 两个色槽。
+  **两者都有协议默认实现**（由 `accent` 派生），既有 conformer 无需改动；
+  `ReaderTintAssign` 的初始化器末尾新增两个带默认值的可选参数供覆盖。
+- `ReaderEnvironment.speechHighlightStyle` 选择高亮样式（背景色块 / 文字变色 / 下划线），
+  默认背景色块。这是接入方的设计取向而非用户设置，故不入 `ReaderConfiguration`。
+- `ReaderStrings` 增加 7 个朗读文案字段，`ReaderImages` 增加 4 个朗读图标，均带默认值。
+- `ReaderPageContentController` / `ReaderLongPressController` / `ReaderPageCell`
+  新增 `renderingPageView` 转发入口，供高亮等能力取到正在渲染的页视图。
+
+### 接入方需要做的事
+
+- **`Info.plist` 声明 `UIBackgroundModes` 含 `audio`**，否则没有后台播放。
+  这是唯一的必做项，其余注入点不接也能用。
+
 ## 1.2.0
 
 ### 破坏性变更

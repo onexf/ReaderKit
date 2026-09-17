@@ -14,7 +14,7 @@
 ### SPM
 
 ```swift
-.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.2.0")
+.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.3.0")
 // 本地开发也可用路径引用：.package(path: "../ReaderKit")
 ```
 
@@ -95,6 +95,35 @@ reader.placeholderProvider = myPlaceholderProvider // 加载失败空态
 | `ReaderChapterAccessDelegate` | `reader.chapterUnlockDelegate` | 章节未解锁 / 目录未加载完时无回调 |
 | `ReaderHostConfiguring` | `ReaderEnvironment.hostConfiguration` | 图片 URL 原样返回（不拼 CDN 压缩参数），书签上限取默认 99 |
 | `ReaderNotifications` | 由接入方 `NotificationCenter.post` | 目录分页更新、书签远端合并后列表不刷新 |
+| `ReaderSpeechCoordinating` | `reader.speechCoordinator` | 朗读仍完整可用（库内自管音频会话与锁屏），只是锁屏没有封面图 |
+| `advanceToNextPageHandler` | `reader.advanceToNextPageHandler` | 左右翻页模式下朗读不自动翻页；朗读本身照常推进，只是正文停在原页 |
+| `presentPositionHandler` | `reader.presentPositionHandler` | 后台听完回到前台时正文不对齐到朗读位置 |
+
+### 语音朗读（TTS）
+
+朗读是**开箱可用**的：不实现上表最后三项也能正常朗读、高亮、跨章续读、后台播放与锁屏控制。
+
+唯一的必做项在接入方工程侧 —— `Info.plist` 声明 `UIBackgroundModes` 含 `audio`，
+否则切后台或锁屏后朗读会被系统挂起。
+
+```swift
+// 从当前展示页开始朗读
+reader.speechController.startFromCurrentPage()
+
+reader.speechController.pause()
+reader.speechController.resume()
+reader.speechController.stop()
+
+// 界面判断三态：朗读位置是否落在当前展示页
+let range = reader.speechController.speakingRange
+```
+
+`speechController` 首次访问时才创建（它会持有 `AVSpeechSynthesizer` 并注册音频中断监听），
+不使用朗读功能的接入方不会为此付代价。需要「查询是否已启用而不触发创建」时用
+`isSpeechEngaged` 或 `engagedSpeechController`。
+
+高亮样式经 `ReaderEnvironment.speechHighlightStyle` 选择，色值取自当前主题的
+`speechHighlightFill` / `speechHighlightText`，两者都有由 `accent` 派生的默认实现。
 
 设计口径：**协议里不出现业务模型**。书签用中立的 `ReaderBookmarkDraft` /
 `ReaderBookmarkReceipt`，反馈入口用 `ReaderPositionContext`。

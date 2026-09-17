@@ -29,6 +29,19 @@ open class ReaderPageContentController: ReaderScreenController {
     
     /// 书籍首页视图
     private var homeView: ReaderBookCoverView!
+    /// 当前承载正文渲染的视图，供朗读高亮等跨文件能力取用。
+    ///
+    /// 为什么用转发入口而不是把 `readView` 直接放开为 internal：
+    /// 子类 `ReaderLongPressController` 声明了同名的 `readView`（类型是
+    /// `ReaderPageView` 的子类 `ReaderLongPressView`）。两个 `readView` 现在能共存，
+    /// 恰恰是因为本类这个是 `private`、对子类不可见，不构成 override 关系。
+    /// 一旦放开为 internal，子类的存储属性就会与继承来的属性冲突（Swift 不允许
+    /// 用存储属性 override 属性），编译不过。
+    ///
+    /// 改成可重写的计算属性后，调用方拿到的始终是「这一页实际在渲染的那个视图」，
+    /// 不必关心自己面对的是哪个子类。
+    /// - Returns: 书名页（`isHomePage`）没有正文视图，此时返回 nil。
+    open var renderingPageView: ReaderPageView? { readView }
     
     open override func viewDidLoad() {
         
