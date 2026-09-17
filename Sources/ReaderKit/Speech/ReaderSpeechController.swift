@@ -39,6 +39,8 @@ public final class ReaderSpeechController {
 
             audioSession.isManagedExternally = coordinator?.managesAudioSessionExternally ?? false
 
+            audioSession.ducksOtherAudio = coordinator?.speechDucksOtherAudio ?? false
+
             nowPlaying.isManagedExternally = coordinator?.managesNowPlayingExternally ?? false
         }
     }
@@ -975,6 +977,21 @@ public final class ReaderSpeechController {
         reader?.reviseSpeechActionButton(animated: true)
 
         coordinator?.speechDidChangeActivity(activity, context: makeContext())
+    }
+
+    /// 重新把当前上下文写到锁屏 / 控制中心。
+    ///
+    /// 供接入方在**异步资源就绪后**主动刷新，典型场景是封面图下载完成：
+    /// `nowPlayingArtwork()` 是同步接口、首次通常返回 nil（不能在那里同步等网络，
+    /// 会卡住朗读推进），不主动刷新的话封面要等到下一次状态变化
+    /// （暂停 / 继续 / 换章）才出现 —— 表现为「锁屏上要切一次章封面才显示」。
+    ///
+    /// 未在朗读时为空操作。
+    public func refreshNowPlaying() {
+
+        guard activity != .idle else { return }
+
+        publishNowPlaying()
     }
 
     /// 把当前上下文写到锁屏。

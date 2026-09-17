@@ -27,6 +27,33 @@ public enum ReaderScreenMetrics {
         return activeScene?.windows.first { $0.isKeyWindow } ?? activeScene?.windows.first
     }
 
+    /// 处于**前台激活**场景时的安全区。非前台、或窗口尚未布局好时返回 nil。
+    private static var foregroundSafeAreaInsets: UIEdgeInsets? {
+        let scenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+        // 只认前台激活场景：后台（含锁屏）场景的窗口安全区不可信
+        guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }),
+              let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first
+        else { return nil }
+
+        let insets = window.safeAreaInsets
+
+        // 全面屏设备上顶部安全区恒大于 0；取到 0 说明窗口还没布局好，同样不可信
+        guard insets.top > 0 else { return nil }
+
+        return insets
+    }
+
+    /// 最近一次在前台取到的有效安全区。
+    ///
+    /// **存在理由**：后台（含锁屏）时取不到可信的窗口安全区，而朗读跨章会在后台触发
+    /// 重新分页（`ReaderChapterModel.reviseFont()`），分页尺寸直接依赖安全区。
+    /// 一旦后台算出与前台不同的尺寸，回到前台后正文就会按那份错误分页渲染 ——
+    /// 实际表现为页数不对（8 页 / 7 页来回变）、首页大片空白、章节标题重复出现。
+    ///
+    /// 所以后台一律沿用前台缓存值，保证「后台分的页」与「前台渲染用的尺寸」一致。
+    nonisolated(unsafe) private static var cachedSafeAreaInsets: UIEdgeInsets?
+
     // MARK: - 屏幕
 
     public static var screenBounds: CGRect { UIScreen.main.bounds }
@@ -36,8 +63,21 @@ public enum ReaderScreenMetrics {
 
     // MARK: - 安全区
 
-    /// 当前窗口安全区（取不到窗口时为 .zero）
-    public static var safeAreaInsets: UIEdgeInsets { currentWindow?.safeAreaInsets ?? .zero }
+    /// 当前窗口安全区。
+    ///
+    /// 前台取实时值并缓存；后台（含锁屏）沿用缓存 —— 理由见 `cachedSafeAreaInsets`。
+    /// 进入阅读器必然经过前台，所以缓存不会为空；真为空才回落 `.zero`。
+    public static var safeAreaInsets: UIEdgeInsets {
+
+        if let insets = foregroundSafeAreaInsets {
+
+            cachedSafeAreaInsets = insets
+
+            return insets
+        }
+
+        return cachedSafeAreaInsets ?? .zero
+    }
 
     /// 安全区顶部高度（刘海 / 灵动岛 / 状态栏占位）
     public static var safeAreaTop: CGFloat { safeAreaInsets.top }

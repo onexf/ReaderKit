@@ -66,7 +66,7 @@ final class ReaderSpeechAudioSession {
             do {
                 let session = AVAudioSession.sharedInstance()
 
-                try session.setCategory(.playback, mode: .spokenAudio, options: Self.categoryOptions)
+                try session.setCategory(.playback, mode: .spokenAudio, options: self.categoryOptions)
 
                 try session.setActive(true)
 
@@ -85,22 +85,36 @@ final class ReaderSpeechAudioSession {
 
         performOnMain {
 
-            // notifyOthersOnDeactivation：让被我们压低音量的其它 App 知道可以恢复了。
-            // 不带这个选项，用户的背景音乐会一直停在压低状态。
+            // notifyOthersOnDeactivation：让被我们打断（或压低）的其它 App 知道可以恢复了。
+            // 不带这个选项，用户的背景音乐会一直停着不恢复。
             try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
         }
     }
 
+    /// 朗读期间是否把其它 App 的音频**压低**而不是打断。默认 false。
+    ///
+    /// ⚠️ 开启它会让锁屏 / 控制中心的「正在播放」卡片消失，详见 `categoryOptions`。
+    var ducksOtherAudio: Bool = false
+    
     /// category 选项。
     ///
-    /// `.duckOthers` 是产品决定：朗读期间把其它 App 的音频**压低**而不是打断，
-    /// 用户可以边听书边留着背景音乐。
-    /// `.allowBluetoothA2DP` 与 `.allowAirPlay` 让蓝牙耳机与 AirPlay 正常出声。
-    private static let categoryOptions: AVAudioSession.CategoryOptions = [
-        .duckOthers,
-        .allowBluetoothA2DP,
-        .allowAirPlay
-    ]
+    /// `.allowBluetoothA2DP` 与 `.allowAirPlay` 让蓝牙耳机与 AirPlay 正常出声，恒开。
+    ///
+    /// **`.duckOthers` 默认不开，这是刻意的。** 它与锁屏播放信息互斥：
+    /// 带上它之后音频会话的性质变成「与其它音频共存」，系统就不再把朗读当作主播放源，
+    /// 于是 `MPNowPlayingInfoCenter` 填了也不会在锁屏 / 控制中心呈现 ——
+    /// 表现为「后台播放正常，但锁屏上没有播放信息」（后台播放只依赖 `.playback`
+    /// 与 `UIBackgroundModes: audio`，不受这个选项影响，所以两者会同时出现一个好一个坏）。
+    ///
+    /// 需要「压低共存」且不需要锁屏卡片的接入方，把 `ducksOtherAudio` 置 true。
+    private var categoryOptions: AVAudioSession.CategoryOptions {
+        
+        var options: AVAudioSession.CategoryOptions = [.allowBluetoothA2DP, .allowAirPlay]
+        
+        if ducksOtherAudio { options.insert(.duckOthers) }
+        
+        return options
+    }
 
     // MARK: - 系统通知
 

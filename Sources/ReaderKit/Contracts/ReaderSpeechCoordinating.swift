@@ -85,6 +85,18 @@ public protocol ReaderSpeechCoordinating: AnyObject {
     /// 适用场景：App 内有多个播放源需要竞争同一个进程级单例，须由 App 统一裁决。
     var managesNowPlayingExternally: Bool { get }
 
+    /// 朗读期间是否把其它 App 的音频**压低**而不是打断。
+    ///
+    /// ⚠️ **与锁屏播放信息互斥，默认 false。** 压低靠的是 `AVAudioSession` 的
+    /// `.duckOthers`，它会把会话性质变成「与其它音频共存」，系统于是不再把朗读当作
+    /// 主播放源，锁屏 / 控制中心的「正在播放」卡片就不出现了。
+    ///
+    /// 后台播放不受影响（那只依赖 `.playback` 与 `UIBackgroundModes: audio`），
+    /// 所以开启后的现象是「后台播放正常、锁屏没信息」。
+    ///
+    /// 需要边听书边留着背景音乐、且不要锁屏卡片时才置 true。
+    var speechDucksOtherAudio: Bool { get }
+
     /// 朗读即将开始，接入方可否决。
     ///
     /// 返回 false 则本次朗读不启动。典型用途：激励视频广告正在播放，
@@ -113,6 +125,8 @@ public extension ReaderSpeechCoordinating {
     var managesAudioSessionExternally: Bool { false }
 
     var managesNowPlayingExternally: Bool { false }
+
+    var speechDucksOtherAudio: Bool { false }
 
     func speechShouldBegin() -> Bool { true }
 
