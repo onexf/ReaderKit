@@ -14,9 +14,15 @@
 //     必须在释放时逐个摘除，否则每个曾经存在过的实例都会永久占住锁屏控制的响应链，
 //     表现为「反复进出阅读器后，锁屏按钮点了没反应或响应到了已销毁的会话」。
 //
-//  2. 本类**不写播放时长与已播时间**。`AVSpeechSynthesizer` 不提供音频时长，
-//     写进去的只能是按字数估算的假值：锁屏进度条会与实际听感对不上，
-//     用户拖动后落点也不准。所以锁屏只给章节名、书名、封面与播放控制。
+//  2. 播放时长与已播时间**必须写**，即便只能是按字符数折算的估算值。
+//     曾经因为「`AVSpeechSynthesizer` 拿不到真实时长、估算值与听感对不上」而不写，
+//     代价是控制中心的播放暂停按钮状态对不上：系统会先乐观改按钮，再读
+//     `nowPlayingInfo` 复核，复核不到时间锚点就把按钮弹回去 ——
+//     现象是「点了暂停，声音确实停了，图标却马上变回播放中」。
+//     锁屏时 App 在后台，系统更多靠「有没有真的输出音频」判断，所以那边看不出来。
+//     结论：进度条秒数不准可以接受，播放状态显示错误不能接受。
+//     拖动进度仍不开放（`changePlaybackPositionCommand` 保持禁用），
+//     因为估算值不足以支撑精确落点。
 //
 
 import Foundation
@@ -123,13 +129,25 @@ final class ReaderSpeechNowPlaying {
         // 暂停时速率必须置 0，否则锁屏界面仍显示为播放中
         info[MPNowPlayingInfoPropertyPlaybackRate] = (activity == .playing) ? 1.0 : 0.0
 
+        // **时间轴必须一起给。** 只改 playbackRate 不足以让系统确认状态变更：
+        // 控制中心会先乐观地把按钮改掉，再读 nowPlayingInfo 复核，复核不到时间锚点
+        // 就把按钮弹回原状 —— 表现为「点了暂停，声音确实停了，图标却马上变回播放中」。
+        // 锁屏时 App 在后台，系统更多靠「有没有真的输出音频」判断，所以那边看不出问题。
+        //
+        // 值是按字符数折算的估算（见 `ReaderSpeechContext.estimatedDuration`）：
+        // 比例正确，绝对秒数不准。`AVSpeechSynthesizer` 拿不到真实时长，
+        // 而「有个比例对的时间轴」比「状态显示错误」可接受得多。
+        if context.estimatedDuration > 0 {
+
+            info[MPMediaItemPropertyPlaybackDuration] = context.estimatedDuration
+
+            info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = context.estimatedElapsed
+        }
+
         if let artwork {
 
             info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artwork.size) { _ in artwork }
         }
-
-        // 刻意不写 MPMediaItemPropertyPlaybackDuration 与
-        // MPNowPlayingInfoPropertyElapsedPlaybackTime，理由见文件头第 2 条
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }

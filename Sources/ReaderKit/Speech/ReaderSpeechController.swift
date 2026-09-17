@@ -1088,21 +1088,55 @@ public final class ReaderSpeechController {
 
         let sentence = currentSentence
 
-        // 章内进度按字符位置估算。刻意不做时间维度的进度：
-        // AVSpeechSynthesizer 不提供音频时长，任何「还剩几分钟」都是编的。
         let totalLength = chapter?.fullContent?.length ?? 0
 
         var progress: Double = 0
 
+        var spokenLength = 0
+
         if totalLength > 0, let sentence {
 
-            progress = min(1, max(0, Double(sentence.range.location) / Double(totalLength)))
+            spokenLength = min(totalLength, max(0, sentence.range.location))
+
+            progress = Double(spokenLength) / Double(totalLength)
         }
+
+        // 时间轴按字符数折算。**必须提供**，不能只给 progress：
+        // 锁屏 / 控制中心确认播放状态变更时会一并读时间轴，缺了它按钮会弹回原状
+        // （点了暂停、声音停了、图标却马上变回播放中）。
+        let charactersPerSecond = Self.estimatedCharactersPerSecond(forLanguage: language)
+
+        let duration = Double(totalLength) / charactersPerSecond
+
+        let elapsed = Double(spokenLength) / charactersPerSecond
 
         return ReaderSpeechContext(bookTitle: book?.storyName ?? "",
                                    chapterTitle: chapter?.name ?? "",
                                    sentenceText: sentence?.text ?? "",
-                                   chapterProgress: progress)
+                                   chapterProgress: progress,
+                                   estimatedDuration: duration,
+                                   estimatedElapsed: elapsed)
+    }
+
+    /// 按语言估算每秒朗读的字符数。
+    ///
+    /// 只用于折算锁屏时间轴，**不参与朗读本身**，所以精度要求很低 ——
+    /// 目标是让进度条比例正确、时间数字不至于离谱，而不是精确预测。
+    ///
+    /// CJK 单字信息量大、语速慢；拉丁文按字符计快得多。两档足够，
+    /// 再细分意义不大（真实语速还受音色与设备影响）。
+    private static func estimatedCharactersPerSecond(forLanguage language: String?) -> Double {
+
+        guard let language, !language.isEmpty else { return 15 }
+
+        let primary = language.split(separator: "-").first.map(String.init)?.lowercased() ?? ""
+
+        switch primary {
+
+        case "zh", "ja", "ko": return 5.5
+
+        default: return 15
+        }
     }
 }
 

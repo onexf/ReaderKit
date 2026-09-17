@@ -56,15 +56,34 @@ public struct ReaderSpeechContext {
 
     /// 当前句在本章内的位置比例，取值 0...1。
     ///
-    /// 这是**章内**进度而非全书进度，也不是时间进度 ——
-    /// `AVSpeechSynthesizer` 不提供音频时长，任何时间维度的进度都只能是估算。
+    /// 这是**章内**进度而非全书进度。
     public let chapterProgress: Double
 
-    public init(bookTitle: String, chapterTitle: String, sentenceText: String, chapterProgress: Double) {
+    /// 本章朗读总时长的**估算值**（秒）。
+    ///
+    /// `AVSpeechSynthesizer` 不提供音频时长，这个值由字符数按语言的平均语速折算，
+    /// 只保证「比例正确」，绝对秒数是估的。
+    ///
+    /// **为什么仍要提供**：锁屏 / 控制中心的播放暂停按钮状态**不只看**
+    /// `MPNowPlayingInfoPropertyPlaybackRate`，缺少时间轴时系统无法确认状态变更，
+    /// 会把按钮弹回原状 —— 表现为「点了暂停，声音停了，图标却马上变回播放中」。
+    public let estimatedDuration: TimeInterval
+
+    /// 已朗读时长的**估算值**（秒）。口径同 `estimatedDuration`。
+    public let estimatedElapsed: TimeInterval
+
+    public init(bookTitle: String,
+                chapterTitle: String,
+                sentenceText: String,
+                chapterProgress: Double,
+                estimatedDuration: TimeInterval = 0,
+                estimatedElapsed: TimeInterval = 0) {
         self.bookTitle = bookTitle
         self.chapterTitle = chapterTitle
         self.sentenceText = sentenceText
         self.chapterProgress = chapterProgress
+        self.estimatedDuration = estimatedDuration
+        self.estimatedElapsed = estimatedElapsed
     }
 }
 
