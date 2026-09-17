@@ -751,6 +751,20 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         reviseReadEntry(isRollingUp: true)
     }
     
+    /// **程序化**滚动动画结束。
+    ///
+    /// `setContentOffset(_:animated: true)` 与 `scrollToRow(at:at:animated: true)` 走的是本回调，
+    /// **不会**触发 `scrollViewDidEndDragging` / `didEndDecelerating`（那两个只对手指拖动生效）。
+    ///
+    /// 不接这一条的后果有两个，都是朗读自动滚动之后才暴露的：
+    /// - 阅读记录不更新 —— 自动滚过去的那段进度没保存
+    /// - 没有位置变更通报 —— 朗读胶囊不刷新，「朗读位置是否看得见」的判断停留在滚动之前，
+    ///   界面上表现为自动滚动后胶囊错误地显示「从这里开始读」，要等下一句开口才恢复
+    open func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        
+        reviseReadEntry(isRollingUp: false)
+    }
+    
     // 正在滚动
     open func scrollViewDidScroll(_ scrollView: UIScrollView) {
         

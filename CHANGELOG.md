@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.5.2
+
+### 修复：上下滚动模式自动滚动后胶囊状态错误，要等下一句才恢复
+
+`setContentOffset(_:animated: true)` 与 `scrollToRow(at:at:animated: true)` 结束时走
+`scrollViewDidEndScrollingAnimation`，**不会**触发 `scrollViewDidEndDragging` /
+`didEndDecelerating`（那两个只对手指拖动生效）。而容器只接了后两个，于是朗读驱动的
+自动滚动落定后没有任何位置变更通报：胶囊不刷新，「朗读位置是否看得见」的判断停留在
+滚动之前，界面上表现为自动滚动后错误显示「从这里开始读」。
+
+同一个漏接还导致**自动滚过去的那段阅读进度没有保存**。
+
+现已实现 `scrollViewDidEndScrollingAnimation`。
+
+### 修复：左右翻页模式下正文溢出阅读区域，被页脚与朗读胶囊遮挡
+
+`ReaderLongPressController`（`openLongPress` 默认开启，它才是实际渲染正文的那个）
+把 `readView` 的高度设为**排版高度** `contentSize.height`。这个高度是必须的 ——
+`ReaderPageView.draw(_:)` 按 `bounds.height` 做 CoreText 坐标翻转，而 CTFrame 是按
+`contentSize` 排的，两者不一致文字会整体错位。
+
+但排版高度可能超过阅读区域（末段的段后间距、末行的行距都算在内，字号与行距调大时更明显），
+超出的部分会画进页脚那条带里。页脚自身 0.6 透明，所以以前看着只是发虚；叠上不透明的
+朗读胶囊之后就是明显的遮挡。
+
+现在给 `readView` 套一层裁剪容器：保住绘制所需的高度，同时不让内容溢出阅读区域。
+
 ## 1.5.1
 
 ### 修复：上下滚动模式下胶囊状态与正文高亮互相矛盾
