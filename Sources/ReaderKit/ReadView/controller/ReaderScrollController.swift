@@ -250,6 +250,15 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         return chapterIDs.contains(chapterID)
     }
     
+    /// 用户的手指或惯性正在滚动。
+    ///
+    /// 供编排层判断「此刻该不该插手自动滚动」：两个滚动同时进行会明显卡顿甚至跳变，
+    /// 尤其是刚松手、惯性还没停的那一小段。
+    open var isUserScrolling: Bool {
+        
+        tableView.isTracking || tableView.isDragging || tableView.isDecelerating
+    }
+    
     /// 当前朗读句是否真的在可视区里。
     ///
     /// 与「朗读位置是否在当前页」不是一回事：滚动模式下一页的大部分内容可能在可视区之外，

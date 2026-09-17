@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.6.1
+
+### 修复：锁屏 / 控制中心的播放暂停按钮状态与 App 内不一致
+
+1.6.0 去掉了 `.duckOthers`，锁屏信息因此显示出来了，但 `.playback` 上仍留着
+`.allowBluetoothA2DP` 与 `.allowAirPlay`。`AVSpeechSynthesizer` 配
+`MPNowPlayingInfoCenter` 时，category 上带**任何** option 都可能让系统不把朗读当作
+「主播放源」，后果之一就是播放/暂停按钮的状态不跟着 App 变 —— 在锁屏点了暂停，
+App 内确实暂停了（胶囊显示「继续」），锁屏按钮却仍是暂停图标。
+
+这两个 option 对 `.playback` 本就是隐含行为，传了是冗余，现已去掉，
+蓝牙耳机与 AirPlay 出声不受影响。`.duckOthers` 仍保留为可配置
+（`ReaderSpeechCoordinating.speechDucksOtherAudio`），默认关。
+
+后台播放不受这些选项影响（只依赖 `.playback` 与 `UIBackgroundModes: audio`），
+所以这类问题的现象往往是「后台播放正常、锁屏却不对」，容易被误判成锁屏功能没做。
+
+### 修复：上下滚动模式下刚松手时自动滚动介入会卡顿
+
+用户手指或惯性还在滚动时，朗读的自动滚动会与之同时进行，两个滚动打架，
+表现为明显卡顿甚至跳变，「刚松手、惯性还没停」那一小段最容易撞上。
+
+现在自动跟随在 `isUserScrolling`（tracking / dragging / decelerating 任一为真）时
+直接跳过本次 —— 跟随每句判两次，下一次会再来，跳过没有后果。
+用户主动按返回箭头对齐的路径不受此限制，仍然立即执行。
+
+新增 `ReaderScrollController.isUserScrolling`。
+
 ## 1.6.0
 
 ### 修复：锁屏 / 控制中心不显示播放信息

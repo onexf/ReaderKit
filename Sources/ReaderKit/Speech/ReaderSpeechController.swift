@@ -591,11 +591,19 @@ public final class ReaderSpeechController {
 
         if ReaderConfiguration.shared().effectType == .scroll {
 
+            guard let scrollController = reader.scrollController else { return }
+
+            // 用户的手指或惯性还在滚动时不要插手：两个滚动同时进行会明显卡顿甚至跳变，
+            // 「刚松手、惯性还没停」那一小段最容易撞上。
+            //
+            // 跳过没有后果：跟随每句判两次，下一次会再来。
+            guard !scrollController.isUserScrolling else { return }
+
             // 滚动容器在库内，可直接按句定位；阅读记录由容器的滚动回调维护。
             // 容器内部还会判断「句子已在舒适区内就不滚」，避免逐句微抖。
             requestPositionAlter {
 
-                reader.scrollController?.revealSpeechSentence(animated: true)
+                scrollController.revealSpeechSentence(animated: true)
             }
 
             return

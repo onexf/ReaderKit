@@ -14,7 +14,7 @@
 ### SPM
 
 ```swift
-.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.6.0")
+.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.6.1")
 // 本地开发也可用路径引用：.package(path: "../ReaderKit")
 ```
 
