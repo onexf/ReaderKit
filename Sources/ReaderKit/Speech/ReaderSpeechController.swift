@@ -363,9 +363,27 @@ public final class ReaderSpeechController {
 
         guard activity == .paused else { return }
 
-        // 中断（来电等）期间系统会把会话置为非激活，继续前必须重新激活，
-        // 否则 continueSpeaking 不出声
-        audioSession.activate()
+        // **只在会话确实非激活时才重新配置。**
+        //
+        // 曾经在这里无条件调 `audioSession.activate()`，理由是「中断期间会话被置为非激活」。
+        // 但那条路径（`handleInterruption(.ended)`）自己已经激活过了，这里那一次是多余的，
+        // 而且有害：对处于暂停态的 `AVSpeechSynthesizer` 重新 `setCategory` 会让它丢掉
+        // 当前 utterance 且**不投递任何回调** —— 引擎僵死、界面却停在「播放中」。
+        // 实际表现是「锁屏点播放，出声约一秒就停，状态还显示播放中」。
+        if !audioSession.isActive { audioSession.activate() }
+
+        // 引擎已经不在暂停态，说明它的 utterance 已被系统丢弃，`continueSpeaking` 无从恢复。
+        // 此时不能把 activity 置为 .playing —— 那就是「显示播放中但没声音」。
+        // 改为从当前句重新读一遍，宁可重复半句也不要假状态。
+        guard synthesizer.state == .paused else {
+
+            if let sentence = currentSentence {
+
+                start(fromLocation: sentence.range.location)
+            }
+
+            return
+        }
 
         synthesizer.resume()
 

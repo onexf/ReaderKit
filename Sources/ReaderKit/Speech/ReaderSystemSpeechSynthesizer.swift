@@ -251,4 +251,37 @@ extension ReaderSystemSpeechSynthesizer: AVSpeechSynthesizerDelegate {
             self.delegate?.speechSynthesizer(self, didCancel: fragment)
         }
     }
+
+    /// 引擎确认已暂停。
+    ///
+    /// `pause()` 里那次 `state = .paused` 只是**预期**；本回调才是事实。
+    /// 接上它是为了让 `state` 可信 —— 编排层的 `resume()` 会拿 `state` 判断
+    /// 「引擎还在暂停态吗」，据此决定是继续还是重读当前句。那个判断建立在
+    /// 预期值上就没有意义。
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didPause utterance: AVSpeechUtterance) {
+
+        performOnMain { [weak self] in
+
+            guard let self, utterance === self.currentUtterance else { return }
+
+            // 正在停止的过程中收到 didPause 不要覆盖 .stopping，
+            // 否则 stop() 的收尾判断会错乱
+            guard self.state != .stopping else { return }
+
+            self.state = .paused
+        }
+    }
+
+    /// 引擎确认已恢复出声。
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didContinue utterance: AVSpeechUtterance) {
+
+        performOnMain { [weak self] in
+
+            guard let self, utterance === self.currentUtterance else { return }
+
+            guard self.state != .stopping else { return }
+
+            self.state = .speaking
+        }
+    }
 }

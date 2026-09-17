@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.6.2
+
+### 修复：从锁屏恢复朗读后出声约一秒即停，界面仍显示「播放中」
+
+`resume()` 里无条件调了 `audioSession.activate()`，那会重新 `setCategory`。
+**对处于暂停态的 `AVSpeechSynthesizer` 重新配置音频会话，它会丢掉当前 utterance
+且不投递任何回调** —— 引擎从此僵死，而编排层已经把 `activity` 置为 `.playing`，
+于是界面显示「播放中」却没有声音。
+
+那次 `activate()` 本来也是多余的：唯一需要重新激活的场景是中断结束，
+而那条路径（`handleInterruption(.ended)`）自己已经激活过了。
+
+三处改动：
+
+- `ReaderSpeechAudioSession` 自己记账 `isActive`（`AVAudioSession` 没有可查询的
+  「是否已激活」）。`resume()` 改为**只在会话确实非激活时**才重新配置。
+- `resume()` 增加防僵死兜底：若引擎已不在暂停态（utterance 已被系统丢弃），
+  不再把 `activity` 置为 `.playing`，而是从当前句重新读 —— 宁可重复半句，
+  也不要出现「显示播放中但没声音」的假状态。
+- `ReaderSystemSpeechSynthesizer` 接上 `didPause` / `didContinue` 回调校正自身 `state`。
+  在此之前 `pause()` / `resume()` 里的状态赋值只是**预期**，而上面那条兜底要靠 `state`
+  判断，建立在预期值上没有意义。
+
 ## 1.6.1
 
 ### 修复：锁屏 / 控制中心的播放暂停按钮状态与 App 内不一致

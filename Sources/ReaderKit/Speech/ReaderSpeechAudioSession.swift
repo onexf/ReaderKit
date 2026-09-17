@@ -56,12 +56,24 @@ final class ReaderSpeechAudioSession {
 
     // MARK: - 激活与反激活
 
+    /// 会话当前是否处于激活状态（本类自己的记账）。
+    ///
+    /// `AVAudioSession` 没有可查询的「是否已激活」，只能自己记。
+    ///
+    /// **用途**：让调用方能区分「需要重新激活」与「已经是活的」。
+    /// 对处于暂停态的 `AVSpeechSynthesizer` 重新 `setCategory` 会让它丢掉当前 utterance
+    /// 且**不投递任何回调** —— 引擎从此僵死，界面却还显示「播放中」。
+    /// 所以恢复朗读时必须先问这一句，不能无条件重配会话。
+    private(set) var isActive = false
+
     /// 配置并激活会话。朗读开始前调用。
     func activate() {
 
         guard !isManagedExternally else { return }
 
-        performOnMain {
+        performOnMain { [weak self] in
+
+            guard let self else { return }
 
             do {
                 let session = AVAudioSession.sharedInstance()
@@ -70,10 +82,13 @@ final class ReaderSpeechAudioSession {
 
                 try session.setActive(true)
 
+                self.isActive = true
+
             } catch {
 
                 // 会话配置失败不该让阅读本身崩掉或卡住：朗读会因为没有音频输出
                 // 而听不见，但正文浏览必须继续可用。
+                self.isActive = false
             }
         }
     }
@@ -83,11 +98,13 @@ final class ReaderSpeechAudioSession {
 
         guard !isManagedExternally else { return }
 
-        performOnMain {
+        performOnMain { [weak self] in
 
             // notifyOthersOnDeactivation：让被我们打断（或压低）的其它 App 知道可以恢复了。
             // 不带这个选项，用户的背景音乐会一直停着不恢复。
             try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+
+            self?.isActive = false
         }
     }
 
@@ -148,6 +165,10 @@ final class ReaderSpeechAudioSession {
         switch type {
 
         case .began:
+
+            // 中断开始时系统已把会话置为非激活，记账要跟上，
+            // 否则之后恢复朗读时会误判为「还活着」而不重新激活
+            isActive = false
 
             performOnMain { [weak self] in self?.delegate?.audioSessionRequestsPause() }
 
