@@ -411,8 +411,21 @@ public final class ReaderSpeechController {
         }
     }
 
+    /// 结算当前这一段出声时长。停止出声的每条路径都要调。
+    private func settleSpeakingSegment() {
+
+        guard let start = speakingSegmentStart else { return }
+
+        accumulatedSpeakingTime += Date().timeIntervalSince(start)
+
+        speakingSegmentStart = nil
+    }
+
     /// 真正执行暂停。
     private func performPause() {
+
+        // 先结算再写锁屏，顺序不能反 —— 下面的 `publishNowPlaying()` 要用结算后的值
+        settleSpeakingSegment()
 
         awaitsPauseSettle = true
 
@@ -483,6 +496,25 @@ public final class ReaderSpeechController {
 
     /// 恢复朗读时，当前句要跳过的前缀字符数。
     ///
+    /// 本章已累计的**实际出声时长**（秒），不含当前正在出声的这一段。
+    ///
+    /// 锁屏时间轴必须**连续**，这是它存在的唯一理由。
+    ///
+    /// 曾经用「当前句句首的字符位置折算秒数」当已播时间，那个值在**整句朗读期间完全不变**。
+    /// 系统拿到 `MPNowPlayingInfoPropertyElapsedPlaybackTime` 会把它当锚点、配合 `rate`
+    /// 自己往前推，而我们每次刷新又写回那个不动的值 —— 时间轴反复被拽回原处。
+    /// 系统看到「声称在播放、时间却不走」的自相矛盾信息，就不再采信我们声明的 `rate`，
+    /// 改用自己的判断，于是暂停后按钮仍显示播放中。
+    ///
+    /// （这就是 1.7.1 的回归：那一版补时间轴修好了控制中心，却把原本正常的锁屏页弄坏了，
+    ///   当时误判成「修好了一处」。）
+    private var accumulatedSpeakingTime: TimeInterval = 0
+
+    /// 当前这一段出声的起始时刻。未在出声时为 nil。
+    ///
+    /// 暂停 / 停止时结算进 `accumulatedSpeakingTime`。
+    private var speakingSegmentStart: Date?
+
     /// 已请求暂停，且还没有新的提交。用来识别并丢弃**迟到的** `didStart`。
     ///
     /// `pendingIntent` 挡不住全部情况：它在取消回调里就被清空了，而迟到的 `didStart`
@@ -545,6 +577,12 @@ public final class ReaderSpeechController {
     private func prepare(chapter: ReaderChapterModel) -> Bool {
 
         if let speakingChapterID, speakingChapterID == chapter.id, !sentences.isEmpty { return true }
+
+        // 换章了，出声计时归零。锁屏时间轴的总时长按**本章**字符数外推，
+        // 计时不归零会让已播时间越章累加、很快超过总时长。
+        settleSpeakingSegment()
+
+        accumulatedSpeakingTime = 0
 
         // fullContent 由 reviseFont() 生成，同时也是 pageModels 的排版来源。
         // 它为空说明这一章还没排版，此时分页范围也不存在，无法建立坐标映射。
@@ -701,6 +739,10 @@ public final class ReaderSpeechController {
         resumeOffsetInSentence = 0
 
         awaitsPauseSettle = false
+
+        speakingSegmentStart = nil
+
+        accumulatedSpeakingTime = 0
 
         isFollowSuspended = false
 
@@ -1204,14 +1246,32 @@ public final class ReaderSpeechController {
             progress = Double(spokenLength) / Double(totalLength)
         }
 
-        // 时间轴按字符数折算。**必须提供**，不能只给 progress：
-        // 锁屏 / 控制中心确认播放状态变更时会一并读时间轴，缺了它按钮会弹回原状
-        // （点了暂停、声音停了、图标却马上变回播放中）。
-        let charactersPerSecond = Self.estimatedCharactersPerSecond(forLanguage: language)
+        // 时间轴**必须提供**，不能只给 progress：锁屏 / 控制中心确认播放状态变更时会一并
+        // 读时间轴。但它同样**必须连续** —— 给一个原地不动的已播时间比不给更糟，
+        // 系统会因为「声称在播放、时间却不走」而不再采信我们声明的 rate（详见
+        // `accumulatedSpeakingTime` 的说明，那正是 1.7.1 把锁屏页弄坏的原因）。
+        //
+        // 所以已播时间取**实际经过的出声时长**，不用字符位置折算。
+        let elapsed = accumulatedSpeakingTime + (speakingSegmentStart.map { Date().timeIntervalSince($0) } ?? 0)
 
-        let duration = Double(totalLength) / charactersPerSecond
+        // 总时长按字符数与语言平均语速估算。**刻意不按「实测速率」外推** ——
+        // 试过，结果是刚起播时把总时长算成三倍多（`spokenLength` 取的是当前句**句首**
+        // 位置，是个离散值，读了 5 秒时它还很小，据此算出的速率极低）。
+        // 字符估算虽然绝对值不准，但稳定、不会跳。
+        let estimated = Double(totalLength) / Self.estimatedCharactersPerSecond(forLanguage: language)
 
-        let elapsed = Double(spokenLength) / charactersPerSecond
+        // 唯一的例外：实际读得比估算慢（低语速倍率、朗读较慢的音色）以致已播时间超过了
+        // 估算总长。此时必须外推，否则会出现「已播时间 > 总时长」这种自相矛盾的组合。
+        let duration: TimeInterval
+
+        if elapsed > estimated, spokenLength > 0 {
+
+            duration = elapsed * Double(totalLength) / Double(spokenLength)
+
+        }else{
+
+            duration = estimated
+        }
 
         return ReaderSpeechContext(bookTitle: book?.storyName ?? "",
                                    chapterTitle: chapter?.name ?? "",
@@ -1266,6 +1326,10 @@ extension ReaderSpeechController: ReaderSpeechSynthesizingDelegate {
 
             return
         }
+
+        // 出声计时开始。已经在计时中就不动 —— 连续朗读时句与句之间不该断开，
+        // 否则每次换句都会丢掉一小段，时间轴会越走越慢。
+        if speakingSegmentStart == nil { speakingSegmentStart = Date() }
 
         activity = .playing
 

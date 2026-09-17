@@ -61,15 +61,20 @@ public struct ReaderSpeechContext {
 
     /// 本章朗读总时长的**估算值**（秒）。
     ///
-    /// `AVSpeechSynthesizer` 不提供音频时长，这个值由字符数按语言的平均语速折算，
-    /// 只保证「比例正确」，绝对秒数是估的。
+    /// `AVSpeechSynthesizer` 不提供音频时长。起播初期这个值按字符数与语言平均语速折算；
+    /// 攒够样本后改为按**实测速率**外推（已用 `estimatedElapsed` 秒读掉了多少字符），
+    /// 所以越读越准，且天然保证 `estimatedElapsed <= estimatedDuration`。
     ///
-    /// **为什么仍要提供**：锁屏 / 控制中心的播放暂停按钮状态**不只看**
+    /// **为什么必须提供**：锁屏 / 控制中心的播放暂停按钮状态**不只看**
     /// `MPNowPlayingInfoPropertyPlaybackRate`，缺少时间轴时系统无法确认状态变更，
     /// 会把按钮弹回原状 —— 表现为「点了暂停，声音停了，图标却马上变回播放中」。
     public let estimatedDuration: TimeInterval
 
-    /// 已朗读时长的**估算值**（秒）。口径同 `estimatedDuration`。
+    /// 已朗读时长（秒）。**实际经过的出声时间**，不是估算值。
+    ///
+    /// 必须连续、单调不减。曾经用「当前句句首的字符位置折算秒数」，那个值在整句朗读期间
+    /// 完全不变，系统会因为「声称在播放、时间却不走」而不再采信我们声明的播放速率 ——
+    /// 后果是暂停后锁屏按钮仍显示播放中。**给一个原地不动的已播时间比不给更糟。**
     public let estimatedElapsed: TimeInterval
 
     public init(bookTitle: String,

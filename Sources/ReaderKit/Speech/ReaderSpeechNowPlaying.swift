@@ -14,15 +14,22 @@
 //     必须在释放时逐个摘除，否则每个曾经存在过的实例都会永久占住锁屏控制的响应链，
 //     表现为「反复进出阅读器后，锁屏按钮点了没反应或响应到了已销毁的会话」。
 //
-//  2. 播放时长与已播时间**必须写**，即便只能是按字符数折算的估算值。
-//     曾经因为「`AVSpeechSynthesizer` 拿不到真实时长、估算值与听感对不上」而不写，
-//     代价是控制中心的播放暂停按钮状态对不上：系统会先乐观改按钮，再读
-//     `nowPlayingInfo` 复核，复核不到时间锚点就把按钮弹回去 ——
-//     现象是「点了暂停，声音确实停了，图标却马上变回播放中」。
-//     锁屏时 App 在后台，系统更多靠「有没有真的输出音频」判断，所以那边看不出来。
-//     结论：进度条秒数不准可以接受，播放状态显示错误不能接受。
-//     拖动进度仍不开放（`changePlaybackPositionCommand` 保持禁用），
-//     因为估算值不足以支撑精确落点。
+//  2. 播放时长与已播时间**必须写，而且已播时间必须连续**。这一条踩过两次坑，方向相反：
+//
+//     - 一开始不写，理由是「`AVSpeechSynthesizer` 拿不到真实时长，估算值与听感对不上」。
+//       代价是控制中心的按钮状态对不上：系统先乐观改按钮，再读 `nowPlayingInfo` 复核，
+//       复核不到时间锚点就弹回去。
+//     - 于是补上了，但已播时间用的是「当前句句首的字符位置折算秒数」——
+//       **那个值在整句朗读期间完全不变**。系统把它当锚点、配合 rate 自己往前推，
+//       我们每次刷新又写回那个不动的值，时间轴反复被拽回原处。系统看到
+//       「声称在播放、时间却不走」的矛盾信息，就不再采信我们声明的 rate。
+//       结果是把原本正常的**锁屏页**也弄坏了（1.7.1 的回归，当时误判成修好了一处）。
+//
+//     现在已播时间取**实际经过的出声时间**（连续、单调不减），总时长按字符数估算。
+//     这个组合是目前最准的，但**它并没有修好锁屏按钮的状态** —— 那个是架构限制，
+//     见下方 `update(context:activity:artwork:)` 里的说明。
+//     拖动进度仍不开放（`changePlaybackPositionCommand` 保持禁用）——
+//     总时长仍是估算值，不足以支撑精确落点。
 //
 
 import Foundation
@@ -149,9 +156,13 @@ final class ReaderSpeechNowPlaying {
         // 就把按钮弹回原状 —— 表现为「点了暂停，声音确实停了，图标却马上变回播放中」。
         // 锁屏时 App 在后台，系统更多靠「有没有真的输出音频」判断，所以那边看不出问题。
         //
-        // 值是按字符数折算的估算（见 `ReaderSpeechContext.estimatedDuration`）：
-        // 比例正确，绝对秒数不准。`AVSpeechSynthesizer` 拿不到真实时长，
-        // 而「有个比例对的时间轴」比「状态显示错误」可接受得多。
+        // 时间轴播放与暂停都写。
+        //
+        // **不要再试「暂停时不写」** —— 试过，无效：真机日志确认暂停时写出的是
+        // `timeline=omitted`，锁屏按钮照旧显示播放中，唯一的变化是暂停时进度条整个消失，
+        // 纯属体验退步。把已播时间改成连续值（实际出声时长）也无效。
+        // 系统采纳时间轴、就是不采纳 `rate`，症结不在这个字段的有无与取值。
+        // 完整的失败清单见 `.kiro/learnings/decisions/2026-09-16_tts-nowplaying-needs-real-player.md`。
         if context.estimatedDuration > 0 {
 
             info[MPMediaItemPropertyPlaybackDuration] = context.estimatedDuration
@@ -167,7 +178,13 @@ final class ReaderSpeechNowPlaying {
         // 命令可用性与播放信息一起更新，两路信号必须同步
         reviseTransportCommandAvailability(isPlaying: activity == .playing)
 
-        ReaderEnvironment.log("[Speech] 写锁屏信息 activity=\(activity) rate=\(info[MPNowPlayingInfoPropertyPlaybackRate] ?? "nil") elapsed=\(Int(context.estimatedElapsed))/\(Int(context.estimatedDuration))s artwork=\(artwork != nil)")
+        // 时间轴一栏要能看出「这次到底写没写」——「暂停时不写」正是当前方案的关键，
+        // 只打印数值的话无从确认它生效了
+        let timeline = info[MPNowPlayingInfoPropertyElapsedPlaybackTime] == nil
+            ? "omitted"
+            : "\(Int(context.estimatedElapsed))/\(Int(context.estimatedDuration))s"
+
+        ReaderEnvironment.log("[Speech] 写锁屏信息 activity=\(activity) rate=\(info[MPNowPlayingInfoPropertyPlaybackRate] ?? "nil") timeline=\(timeline) artwork=\(artwork != nil)")
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
