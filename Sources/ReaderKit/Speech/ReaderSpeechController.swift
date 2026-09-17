@@ -59,6 +59,8 @@ public final class ReaderSpeechController {
 
             guard activity != oldValue else { return }
 
+            ReaderEnvironment.log("[Speech] activity \(oldValue) → \(activity)")
+
             notifyActivityAlter()
         }
     }
@@ -354,6 +356,8 @@ public final class ReaderSpeechController {
     /// 暂停。
     public func pause() {
 
+        ReaderEnvironment.log("[Speech] pause() 进入 activity=\(activity) engine=\(synthesizer.state)")
+
         guard activity == .playing else { return }
 
         synthesizer.pause()
@@ -363,6 +367,8 @@ public final class ReaderSpeechController {
 
     /// 从暂停位置继续。
     public func resume() {
+
+        ReaderEnvironment.log("[Speech] resume() 进入 activity=\(activity) engine=\(synthesizer.state) sessionActive=\(audioSession.isActive)")
 
         guard activity == .paused else { return }
 
@@ -1239,11 +1245,24 @@ extension ReaderSpeechController: ReaderSpeechRemoteCommandDelegate {
 
     var canRespondToRemoteCommand: Bool { activity != .idle }
 
-    func remoteCommandRequestsPlay() { resume() }
+    func remoteCommandRequestsPlay() {
 
-    func remoteCommandRequestsPause() { pause() }
+        ReaderEnvironment.log("[Speech] 收到远程命令 play")
+
+        resume()
+    }
+
+    func remoteCommandRequestsPause() {
+
+        ReaderEnvironment.log("[Speech] 收到远程命令 pause")
+
+        pause()
+    }
 
     func remoteCommandRequestsToggle() {
+
+        ReaderEnvironment.log("[Speech] 收到远程命令 togglePlayPause activity=\(activity)")
+
 
         switch activity {
 

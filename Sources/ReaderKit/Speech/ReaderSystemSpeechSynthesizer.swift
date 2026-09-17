@@ -61,6 +61,15 @@ public final class ReaderSystemSpeechSynthesizer: NSObject, ReaderSpeechSynthesi
         super.init()
 
         synthesizer.delegate = self
+
+        // 关于 usesApplicationAudioSession：
+        //
+        // 试过置 false（让合成器用自己独立的会话），结果是锁屏 / 控制中心**完全不显示**
+        // 播放信息 —— 音频从合成器私有会话流出，而我们激活的 App 会话没有音频，系统
+        // 无法把 Now Playing 归给任何一方。比「有信息但按钮弹回」更糟，已回退。
+        //
+        // 所以保持默认 true：合成器用 App 会话，音频从我们激活的 .playback 会话流出，
+        // 我们才是明确的 Now Playing 主源。控制中心暂停按钮弹回是另一回事，另行解决。
     }
 
     // MARK: - 朗读控制

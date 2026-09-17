@@ -75,6 +75,13 @@ public enum ReaderEnvironment {
     ///   - message: 已本地化的提示文案
     nonisolated(unsafe) public static var presentErrorNotice: (_ container: UIView, _ message: String) -> Void = { _, _ in }
 
+    /// 诊断日志出口。默认丢弃。
+    ///
+    /// 库内不直接 `print`：既污染接入方的日志系统，也会在 Release 里留下噪音。
+    /// 接上接入方自己的日志设施后，朗读、远程控制这类**只能靠现象推断**的路径才有据可查 ——
+    /// 锁屏与控制中心的状态问题反复出现过多轮，每轮都靠猜，代价很高。
+    nonisolated(unsafe) public static var log: (_ message: String) -> Void = { _ in }
+
     /// 朗读时当前句的高亮样式。默认背景色块。
     ///
     /// 放环境而非 `ReaderConfiguration`：这是**接入方**的设计取向，不是终端用户

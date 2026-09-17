@@ -60,14 +60,21 @@ final class ReaderSpeechNowPlaying {
     /// 库不该擅自抢。
     var isManagedExternally: Bool = false
 
-    /// 已注册的远程命令与其 target token。
+    /// 已注册的远程命令与其 target token。**进程级**。
     ///
     /// 必须成对保存：`removeTarget(nil)` 只能清掉「本进程所有」target，
     /// 在多播放源场景会误伤别人；按 token 精确摘除才安全。
-    private var registeredCommands: [(command: MPRemoteCommand, token: Any)] = []
-
-    /// 命令是否已注册，避免重复注册。
-    private var isCommandCenterConfigured: Bool = false
+    ///
+    /// **必须是静态的**：`MPRemoteCommandCenter` 是全局单例，token 也只能通过它摘除。
+    /// 曾经存在过的会话若没能走完 `deinit` / `deactivate()`（阅读器被销毁但朗读没进 idle、
+    /// 异常退出路径等），它的 handler 会永久留在响应链上，而新实例**摘不掉别人的 token**。
+    /// 此后点锁屏 / 控制中心按钮，系统会同时收到「已处理」与「无可操作项」两种结果，
+    /// 可能据此判定命令失败并把按钮弹回原状 —— 现象是「声音确实停了、图标却马上变回
+    /// 播放中」，而且**随进出阅读器的次数累积而变严重**（所以有时在锁屏页测不出来：
+    /// 那一轮的响应链还干净）。
+    ///
+    /// 存成静态后，任何实例注册前都能把上一套摘干净，全局永远只有一套活跃 handler。
+    nonisolated(unsafe) private static var registeredCommands: [(command: MPRemoteCommand, token: Any)] = []
 
     deinit {
         releaseCommandCenter()
@@ -149,6 +156,8 @@ final class ReaderSpeechNowPlaying {
             info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artwork.size) { _ in artwork }
         }
 
+        ReaderEnvironment.log("[Speech] 写锁屏信息 activity=\(activity) rate=\(info[MPNowPlayingInfoPropertyPlaybackRate] ?? "nil") elapsed=\(Int(context.estimatedElapsed))/\(Int(context.estimatedDuration))s artwork=\(artwork != nil)")
+
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
@@ -161,9 +170,10 @@ final class ReaderSpeechNowPlaying {
 
     private func configureCommandCenterIfNeeded() {
 
-        guard !isCommandCenterConfigured else { return }
-
-        isCommandCenterConfigured = true
+        // 注册前先把上一套摘干净。**不做「已注册就跳过」的短路** ——
+        // 需要保证的是「全局只有一套活跃 handler」，而不是「本实例只注册一次」。
+        // 上一个会话可能没走完 deinit，它的 token 只能由这里代为摘除。
+        Self.releaseRegisteredCommands()
 
         let center = MPRemoteCommandCenter.shared()
 
@@ -194,6 +204,8 @@ final class ReaderSpeechNowPlaying {
             // 前者会让系统把控制权交给仍存活的其它响应者，后者只是单纯失败
             guard let self, self.delegate?.canRespondToRemoteCommand == true else {
 
+                ReaderEnvironment.log("[Speech] 远程命令到达但会话不可响应，回报 noActionableNowPlayingItem")
+
                 return .noActionableNowPlayingItem
             }
 
@@ -202,11 +214,21 @@ final class ReaderSpeechNowPlaying {
             return .success
         }
 
-        registeredCommands.append((command, token))
+        Self.registeredCommands.append((command, token))
     }
 
     /// 摘除全部已注册命令。
     private func releaseCommandCenter() {
+
+        Self.releaseRegisteredCommands()
+    }
+
+    /// 摘除进程内全部已注册命令。
+    private static func releaseRegisteredCommands() {
+
+        guard !registeredCommands.isEmpty else { return }
+
+        ReaderEnvironment.log("[Speech] 摘除远程命令 target，共 \(registeredCommands.count) 个")
 
         for entry in registeredCommands {
 
@@ -214,7 +236,5 @@ final class ReaderSpeechNowPlaying {
         }
 
         registeredCommands.removeAll()
-
-        isCommandCenterConfigured = false
     }
 }
