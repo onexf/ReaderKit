@@ -46,7 +46,30 @@ open class ReaderPageView: UIView {
             
             sourceAttributedText = pageModel.showContent
             
-            sourceRect = CGRect(origin: CGPoint.zero, size: pageModel.contentSize)
+            // 排版范围按阅读模式取，两者都必须与「这一页在**版面上占多高**」一致：
+            //
+            // - **上下滚动**：一页就是一个 cell，cell 高度取 `contentSize`（见 `ReaderPageCell`），
+            //   所以按 `contentSize` 排。内容流式衔接，排高一点不会有人看不到。
+            // - **左右翻页**：一页恰好一屏，必须按**阅读区域**排。
+            //
+            // 翻页模式为什么不能用 `contentSize`：它是在**无高度约束**下量出来的，
+            // 会把末行的完整行高与段后间距都算进去，因而比阅读区域高出一截（字号与行距
+            // 调大时更明显）。而 CoreText 是从版面**顶部**往下排的，box 高一截就意味着
+            // 末行落到阅读区域之外 —— 表现为末行压在页脚上（页脚 0.6 透明，早期只是发虚，
+            // 叠上不透明的朗读胶囊后就成了明显遮挡）。
+            //
+            // 用阅读区域排不会丢行：分页（`ReaderTypesetter.pageing`）用的就是这个尺寸，
+            // 同一段文字、同一个尺寸，CoreText 纳入的行数必然与分页时判定的可见行一致。
+            // 不用三元表达式：`pageModel.contentSize` 是隐式解包可选（`CGSize!`），
+            // 与 `READER_VIEW_RECT.size`（`CGSize`）放在三元的两支里类型统一不了
+            var typesetSize: CGSize = READER_VIEW_RECT.size
+            
+            if ReaderConfiguration.shared().effectType == .scroll {
+                
+                typesetSize = pageModel.contentSize
+            }
+            
+            sourceRect = CGRect(origin: CGPoint.zero, size: typesetSize)
             
             // 页数据换了就把朗读高亮清掉。
             //

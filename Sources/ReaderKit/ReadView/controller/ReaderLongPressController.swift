@@ -31,31 +31,22 @@ open class ReaderLongPressController: ReaderPageContentController {
             // 阅读视图范围（翻页/滚动差异已在 READER_VIEW_RECT 内处理）
             let rect = READER_VIEW_RECT!
             
-            // 长按功能需要内容高度防止拖拽超出界限
             let pageModel = recordModel.pageModel!
-            
-            // 裁剪容器。
-            //
-            // `readView` 的高度必须等于**排版高度**（`contentSize.height`）：
-            // `ReaderPageView.draw(_:)` 按 `bounds.height` 做 CoreText 坐标翻转，
-            // 而它的 CTFrame 是按 `contentSize` 排的，两者不一致文字就会整体错位。
-            //
-            // 但排版高度可能**超过阅读区域**（末段的段后间距、末行的行距都会算进去，
-            // 字号与行距调大时更明显）。超出的部分会画进页脚那条带里，与页码、时间电量、
-            // 朗读胶囊叠在一起 —— 页脚自身是 0.6 透明所以以前看着只是发虚，
-            // 加上不透明的朗读胶囊之后就成了明显的遮挡。
-            //
-            // 所以另加一层容器做裁剪：既保住绘制所需的高度，又不让内容溢出阅读区域。
-            let clipView = UIView(frame: rect)
-            clipView.clipsToBounds = true
-            clipView.backgroundColor = UIColor.clear
-            view.addSubview(clipView)
             
             // 阅读视图
             readView = ReaderLongPressView()
             readView.pageModel = pageModel
-            clipView.addSubview(readView)
-            readView.frame = CGRect(x: 0, y: 0, width: rect.width, height: pageModel.contentSize.height)
+            view.addSubview(readView)
+            
+            // 高度取**阅读区域**，与 `ReaderPageView` 在翻页模式下的排版尺寸严格一致。
+            //
+            // `ReaderPageView.draw(_:)` 按 `bounds.height` 做 CoreText 坐标翻转，
+            // 所以视图高度与排版高度必须相等，否则文字整体错位。
+            //
+            // 这里曾经用 `pageModel.contentSize.height`（注释理由是「长按拖拽需要内容高度」）。
+            // 那个值是在无高度约束下量出来的，比阅读区域高出末行行距与段后间距，
+            // 于是每一页的末行都落到阅读区域之外、压在页脚上。
+            readView.frame = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height)
         }
     }
     
