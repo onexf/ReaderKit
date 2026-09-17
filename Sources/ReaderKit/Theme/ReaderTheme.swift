@@ -74,6 +74,9 @@ public protocol ReaderThemeColors {
     // Reader Speech
     var speechHighlightFill: UIColor { get }  // 朗读高亮填充（背景色块样式的底色、下划线样式的线色）
     var speechHighlightText: UIColor { get }  // 朗读高亮文字色（文字变色样式）
+    var speechCapsuleFill: UIColor { get }    // 朗读控制胶囊底色
+    var speechCapsuleText: UIColor { get }    // 朗读控制胶囊的图标与文字色
+    var speechCapsuleDivider: UIColor { get } // 朗读控制胶囊内的分隔线色
 }
 
 // MARK: - 朗读高亮色的默认实现
@@ -94,6 +97,24 @@ public extension ReaderThemeColors {
 
     /// 默认直接取强调色。文字变色样式下高亮字本身就是前景，不能带透明度。
     var speechHighlightText: UIColor { accent }
+
+    /// 朗读控制胶囊底色。
+    ///
+    /// 默认由主文字色降透明度得到，而不是写死一个灰值：这样六套主题自动各得一个
+    /// 与自身正文色协调的胶囊底 —— 浅色主题下是半透明深灰（≈ 设计稿的 `#6C6C6C`），
+    /// 夜间主题下自动变成半透明浅灰，不至于在深底上糊成一片。
+    ///
+    /// 设计稿目前只给了浅色态的 `#6C6C6C`；六套主题的值齐了之后由接入方覆盖。
+    var speechCapsuleFill: UIColor { textT1.withAlphaComponent(0.62) }
+
+    /// 胶囊内图标与文字色。
+    ///
+    /// 默认取页面背景色。这是个反色关系：浅色主题下页面是近白色（≈ 设计稿的 `#F8F8F8`），
+    /// 落在深灰胶囊上正好；夜间主题下页面是深色，落在浅灰胶囊上同样成立。
+    var speechCapsuleText: UIColor { page }
+
+    /// 胶囊内分隔线色。默认在图文色基础上压透明度，弱于图文但仍可见。
+    var speechCapsuleDivider: UIColor { speechCapsuleText.withAlphaComponent(0.5) }
 }
 
 // MARK: - 主题颜色结构体

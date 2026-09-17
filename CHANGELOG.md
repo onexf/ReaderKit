@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.4.0
+
+### 新增：朗读控制胶囊
+
+`ReaderSpeechActionButton` —— 一个四态复用的悬浮控件，供接入方放在正文页脚上方居中处。
+
+| 状态 | 内容 |
+|---|---|
+| `.idle` 未朗读 | 🎧 从这里开始读 |
+| `.playing` 当页播放中 | ⏸ 暂停 |
+| `.paused` 当页已暂停 | ▶ 继续 |
+| `.offPage` 朗读中但已翻到别页 | ↩ │ 🎧 从这里开始读 |
+
+`.offPage` 状态有**两个独立点击区**：左侧箭头回到朗读位置（`onReturnAction`），
+右侧从当前页重新开始读（`onPrimaryAction`）。其余状态只有主区域一个点击区。
+
+状态切换带动画：图标与文字交叉溶解，返回段的淡入淡出与胶囊宽度变化同时进行，
+时长与曲线复用 `READER_MENU_MOTION_TIME` / `READER_MENU_MOTION_OPTIONS`，与阅读菜单同步。
+
+宽度由内容撑出，切换时**中心保持不动** —— 持有方只需设一次 `anchorCenter`。
+
+### 新增 API
+
+- `ReaderSpeechActionState`：胶囊的四个状态
+- `ReaderSpeechController.actionState`：把「活动状态」与「朗读位置是否在当前展示页」
+  收敛成上述枚举，界面直接照它渲染，不必自己判断位置关系
+- `ReaderSpeechController.returnToSpeakingPosition()`：把正文跳回朗读位置。
+  与内部的翻页跟随不同，本方法任意距离、任意方向都跳，供返回箭头调用
+- `ReaderImages.speechReturnToPlaying`：返回箭头图标，默认 SF Symbol `arrow.uturn.left`
+- `ReaderThemeColors` 增加三个色槽：`speechCapsuleFill` / `speechCapsuleText` /
+  `speechCapsuleDivider`。**三者都有协议默认实现**，既有 conformer 无需改动：
+  底色由 `textT1` 降透明度得到、图文取 `page`（与底色成反色关系），
+  因此六套主题各自自动得到一组协调配色，无需逐套指定
+
+### 接入方需要做的事
+
+胶囊本身不自动挂载 —— 显隐时机与挂载位置属接入方的交互决策，需自行 `addSubview`
+并在朗读状态变化时调 `apply(_:animated:)`。
+
 ## 1.3.0
 
 ### 新增：语音朗读（TTS）

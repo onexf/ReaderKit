@@ -78,6 +78,59 @@ public final class ReaderSpeechController {
     /// 当前朗读所属的章节 ID。跨章判断用。
     public private(set) var speakingChapterID: NSNumber?
 
+    /// 朗读控制胶囊该显示成哪一态。
+    ///
+    /// 把「活动状态」与「朗读位置是否在当前展示页」两件事收敛成一个枚举，
+    /// 界面直接照它渲染即可，不必自己判断位置关系。
+    public var actionState: ReaderSpeechActionState {
+
+        switch activity {
+
+        case .idle:
+
+            return .idle
+
+        case .playing:
+
+            return isSpeakingOnDisplayedPage ? .playing : .offPage
+
+        case .paused:
+
+            return isSpeakingOnDisplayedPage ? .paused : .offPage
+        }
+    }
+
+    /// 朗读位置是否落在当前展示页上。
+    ///
+    /// 两个条件都要满足：同一章、且同一页。只比页码会在跨章时误判
+    /// （各章页码都从 0 起算，第 2 章第 0 页与第 3 章第 0 页页码相同）。
+    private var isSpeakingOnDisplayedPage: Bool {
+
+        guard let sentence = currentSentence,
+              let speakingChapter,
+              let record = reader?.readModel?.recordModel,
+              let displayedChapter = record.chapterModel,
+              speakingChapter.id == displayedChapter.id else { return false }
+
+        return speakingChapter.page(location: sentence.range.location).intValue == record.page.intValue
+    }
+
+    /// 把正文跳回朗读位置。控制胶囊上的返回箭头调这个。
+    ///
+    /// 与 `alignPage(to:)` 的区别：那个只在自然顺序推进时跟随、且只前进一页；
+    /// 本方法是用户主动要求对齐，任意距离、任意方向都跳。
+    public func returnToSpeakingPosition() {
+
+        guard let reader,
+              let speakingChapter,
+              let chapterID = speakingChapter.id,
+              let sentence = currentSentence else { return }
+
+        reader.presentPosition(chapterID: chapterID, location: sentence.range.location)
+
+        applyHighlight(for: sentence)
+    }
+
     /// 当前朗读所属的章节模型。
     ///
     /// 必须单独持有，不能用 `readModel.recordModel.chapterModel` 代替 —— 后者是
