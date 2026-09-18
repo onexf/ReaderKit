@@ -116,7 +116,28 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     }
     
     /// 修改阅读记录为指定章节位置
-    open func modify(chapterID: NSNumber!, location: NSInteger, isSave: Bool = true) {
+    ///
+    /// - Parameter anchorsParagraphToPageTop: 是否为本次定位重排分页，使目标位置所在段落成为页首。
+    ///
+    ///   **书签跳转要（默认 `true`），按位置对齐正文不要（传 `false`）。**
+    ///
+    ///   `adoptBookmarkPaging(at:)` 会把整章在目标段落的段首处切成两段、分别分页再拼接，
+    ///   于是前半段的最后一页是个残页（文字到哪断到哪、下方大片空白），其后所有页边界整体错位。
+    ///   书签需要这个效果（书签段落必须落在页首），代价可以接受。
+    ///
+    ///   但朗读对齐只需要「落到含该句的那一页」，句子位置由高亮标示，重排分页纯属副作用：
+    ///   - 目标位置在正文第一段时，切点落在标题后的换行处，前半段只剩标题一行 ——
+    ///     单独分页出来就是一页**只有标题、正文空白**
+    ///   - 每次对齐的位置不同，于是每次都按新切点重排一次，表现为「排版随朗读继续不断变化」
+    ///   - 重排是内存态（`isSave: false` 时不落盘），翻走再翻回来会从归档重读出常规分页，
+    ///     所以现象看起来还会自行恢复，很容易被误判成渲染时机问题
+    ///
+    ///   该缺陷只在左右翻页模式暴露（滚动模式走下面的分支，从不重排），
+    ///   且只在「朗读位置不在章首」时暴露 —— 前台跨章对齐传的是 `location: 0`，
+    ///   `adoptBookmarkPaging` 内部 `guard splitAt > 0` 直接早退，看不出差别。
+    ///   锁屏期间跨章不导航、回前台才按当前朗读句补齐，传的位置在章节深处，于是才发作。
+    open func modify(chapterID: NSNumber!, location: NSInteger, isSave: Bool = true,
+                     anchorsParagraphToPageTop: Bool = true) {
         
         if ReaderChapterModel.isExist(storyID: storyID, chapterID: chapterID) {
             
@@ -125,7 +146,20 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
             // 书签精确定位:翻页模式下对该章临时分页,使书签所在段成为页首
             // 滚动模式保持常规分页,用页内偏移复用滚动控制器的定位恢复机制
             if ReaderConfiguration.shared().effectType != .scroll {
-                chapterModel.adoptBookmarkPaging(at: location)
+                
+                if anchorsParagraphToPageTop {
+                    
+                    chapterModel.adoptBookmarkPaging(at: location)
+                    
+                } else {
+                    
+                    // 不重排，但仍要确保常规分页已按当前排版构建。
+                    // `reviseFont()` 受分页签名短路，签名一致时是空操作；
+                    // 不调的话，若字号/行距在此之前变过，`page(location:)`
+                    // 会落在旧分页上（`adoptBookmarkPaging` 内部本来也先调了它）。
+                    chapterModel.reviseFont()
+                }
+                
                 page = chapterModel.page(location: location)
                 scrollOffsetInPage = 0
             } else {

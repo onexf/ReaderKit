@@ -104,8 +104,6 @@ public struct ReaderStrings {
     public var speechPause: String = "Pause"
     /// 朗读控制条的继续按钮标题
     public var speechResume: String = "Resume"
-    /// 退出朗读按钮标题
-    public var speechStop: String = "Stop"
     /// 长按正文后弹出的「从这里开始读」动作标题
     public var speechStartHere: String = "Start reading here"
     /// 设备上没有可用于当前内容语言的音色

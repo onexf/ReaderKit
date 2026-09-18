@@ -1,5 +1,69 @@
 # Changelog
 
+## 1.9.0
+
+朗读发声路径从 `AVSpeechSynthesizer.speak()` 直出改为「先把句子合成为音频文件，
+再用 `AVPlayer` 播放」。这是 1.8.3 结论的落地：`AVPlayer` 的播放状态系统能直接观测，
+不需要 app 写 `nowPlayingInfo` 去通知，**从阅读页操作暂停/继续时锁屏与控制中心随之同步**。
+
+该问题此前用九个版本从配置、时序、字段完整性各个角度试过，全部失败，
+根因在架构而不在参数，见 `.kiro/learnings/decisions/2026-09-16_tts-nowplaying-needs-real-player.md`。
+
+### 破坏性变更（三项）
+
+1. `ReaderSpeechController.init` 的 `synthesizer:` 参数改名为 `renderer:`，类型由
+   `ReaderSpeechSynthesizing` 改为 `ReaderSpeechAudioRendering`。
+2. `ReaderSpeechActivity` 新增 `.preparing`（合成中）。用 `if activity != .idle`
+   这类判断的接入方不受影响；对该枚举做穷尽 `switch` 的需要补一个分支。
+   **UI 侧无需改动** —— `ReaderSpeechActionState` 没有新增 case，`.preparing` 映射到
+   `.playing`，胶囊照常显示暂停按钮（用户点了播放、意图已生效，不算假状态）。
+3. 删除 `ReaderImages.speechStop` 与 `ReaderStrings.speechStop`。这两个注入点没有任何
+   消费方 —— 库内胶囊只有「开始 / 暂停 / 继续 / 回到朗读位置」四个动作，
+   停止由退出阅读器触发。保留一个没人用的注入点会让接入方以为自己漏接了。
+
+### 新增
+
+- `ReaderSpeechAudioRendering` 协议与 `ReaderSpeechAudioRenderer` 实现：基于
+  `AVSpeechSynthesizer.write(_:toBufferCallback:)` 离线渲染，**不出声**。
+  三种 PCM 格式（int16 / float32 / int32）归一后补 44 字节 RIFF/WAVE 头 ——
+  裸 PCM 没有容器信息，`AVPlayer` 读不出时长，锁屏时间轴与播放结束判断都会失效。
+- `ReaderSpeechAudioCache`：`Library/Caches/ReaderKitSpeech/`，键为
+  `sha256(text + voiceIdentifier + rateMultiplier)`，200MB LRU 上限、超限删到 80%。
+- `ReaderSpeechPlayer`：复用单个 `AVPlayer` + `replaceCurrentItem`。时长由
+  `item.status` KVO 就绪后经 `speechPlayerDidLoadDuration` 上报（协议带默认空实现，
+  接入方不必实现）。
+
+旧的 `ReaderSpeechSynthesizing`（直接出声）整套原样保留，作为渲染持续失败时的降级路径。
+
+### 修复
+
+- **朗读对齐不再重排分页**。`ReaderReadRecordModel.modify(chapterID:location:)` 新增
+  `anchorsParagraphToPageTop: Bool = true`；传 `false` 时跳过 `adoptBookmarkPaging(at:)`。
+  该重排是书签定位专用（把书签段落顶到页首，代价是整章切开重新分页），
+  朗读对齐复用同一入口后，表现为「左右翻页模式下锁屏切章、解锁回前台，正在读的句子被顶到
+  页首、分页错位；朗读句在章首时排出一页只有标题、正文空白」。
+  默认值不变，书签跳转行为不受影响。详见
+  `.kiro/learnings/bugs/2026-09-16_bookmark-repaging-leaked-into-speech-align.md`。
+- **修复连续朗读一段时间后崩溃**（`EXC_BAD_ACCESS`，栈在系统 `TextToSpeech.framework`）。
+  渲染器原先每句新建一个 `AVSpeechSynthesizer`、函数返回即释放，连续听书会在短时间内
+  创建销毁成百上千个系统对象，而系统侧仍可能持有回调。改为复用实例属性；
+  超时放弃时补 `stopSpeaking(at: .immediate)` 中断在途的 `write`，
+  避免下一句的 `write` 撞在同一实例的未结束渲染上（会产出截断音频并被缓存长期复用）。
+- **修复雪崩式跨章**。`proceed` 原先用 `ReaderChapterModel.isExist()` 判断章节可读，
+  而它只判归档文件存在；目录加载会建出只有标题的空壳章节，分句只得 1 句 →
+  读完立刻结束本章 → 连锁跨章。改为新增 `hasReadableBody`（判 `content` 非空），
+  空壳走网络加载，章节准备失败时停止朗读。
+- **修复换章后重播上一句**。`renderer.cancelAll()` 拦不住已派发到主线程的 completion，
+  改为在 `proceed()` 开头统一更新 `sessionID` 作废在途结果 ——
+  跨章有两条路径都必经此处，在各调用点分别处理会漏。
+
+### 移除
+
+删掉为绕开 `AVSpeechSynthesizer` 异步往返而堆积的整套机制：`PendingIntent`（未决意图）、
+`awaitsPauseSettle`（防迟到回调顶回状态）、`resumeOffsetInSentence`（记录已读字符数）。
+`AVPlayer` 允许随时替换正在播放的内容，`pause()` 同步且幂等，这些都不再需要 ——
+暂停/播放可以放心快速连点。
+
 ## 1.8.3
 
 把本库与一个**已知能正常工作的参考实现**（FM，同机 iOS 26.6.1 上从 App 内暂停时锁屏与

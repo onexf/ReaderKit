@@ -199,9 +199,6 @@ public struct ReaderImages {
     /// 朗读控制条 - 继续
     public var speechResume: () -> UIImage? = { symbol("play.fill") }
 
-    /// 朗读控制条 - 退出朗读
-    public var speechStop: () -> UIImage? = { symbol("xmark") }
-
     /// 回到朗读位置（朗读中但用户已翻到别页时出现在控制胶囊最左侧）
     public var speechReturnToPlaying: () -> UIImage? = { symbol("arrow.uturn.left") }
 

@@ -23,8 +23,29 @@ public final class ReaderSpeechController {
 
     // MARK: - 依赖
 
-    /// 合成引擎。默认是设备端实现，二期可换成云端实现而不改本类。
-    private let synthesizer: ReaderSpeechSynthesizing
+    /// 音频渲染器：把句子合成为音频文件，**不出声**。
+    ///
+    /// 默认是设备端实现，二期可换成云端实现而不改本类。
+    private let renderer: ReaderSpeechAudioRendering
+
+    /// 音频播放器。出声的唯一途径。
+    ///
+    /// 之所以不让 `AVSpeechSynthesizer` 直接出声：系统只在自己发起的远程命令得到响应时
+    /// 才刷新 Now Playing UI，写 `nowPlayingInfo` 驱动不了它，于是从 App 内暂停时
+    /// 锁屏状态不跟着变。`AVPlayer` 的状态变化系统能直接观测。
+    /// 详见 `ReaderSpeechPlayer` 的文件头与
+    /// `.kiro/learnings/decisions/2026-09-16_tts-nowplaying-needs-real-player.md`。
+    private let player = ReaderSpeechPlayer()
+
+    /// 合成音频的磁盘缓存。命中时可以立即出声，省掉合成等待。
+    private let audioCache = ReaderSpeechAudioCache()
+
+    /// 单次渲染的超时上限。
+    ///
+    /// 超时是必需的兜底：系统异常时 `AVSpeechSynthesizer.write` 可能永不回调。
+    /// 取 10 秒是折中 —— 实测一段 60 词英文约 1.4 秒，长句与慢设备会更久，
+    /// 定太短会频繁误判成失败。
+    private static let renderTimeout: TimeInterval = 10
 
     /// 音频会话与系统中断。
     private let audioSession: ReaderSpeechAudioSession
@@ -94,7 +115,9 @@ public final class ReaderSpeechController {
 
             return .idle
 
-        case .playing:
+        // 准备中按「播放中」呈现：用户点了播放，意图已经生效，显示成播放中不算假状态，
+        // 而且不需要额外的加载态图标。需要区分出加载动画的接入方可以自己读 `activity`。
+        case .preparing, .playing:
 
             return isSpeakingOnDisplayedPage ? .playing : .offPage
 
@@ -177,29 +200,10 @@ public final class ReaderSpeechController {
     /// 说明这次结果属于上一次会话，必须丢掉，否则会把用户已经放弃的朗读又启动起来。
     private var sessionID = UUID()
 
-    /// 停止完成后要接着做的事。
+    /// 当前交给播放器的片段。
     ///
-    /// 换句（重新指定起点）不能直接提交新片段 —— 引擎只在 idle 状态接受提交。
-    /// 所以流程是「记下待办 → stop() → 等取消回调 → 执行待办」。
-    private var pendingIntent: PendingIntent?
-
-    private enum PendingIntent {
-
-        /// 停止收尾后从指定章内坐标重新开始。
-        case restart(location: NSInteger)
-
-        /// 停止收尾后切到指定章节并从头读。
-        case switchChapter(id: NSNumber)
-
-        /// 单纯停止。
-        case halt
-
-        /// 停在暂停态：保留朗读位置与音频会话，等用户继续。
-        ///
-        /// 「暂停」在引擎侧也是一次 stop（见 `pause()`），所以它同样要经过取消回调，
-        /// 必须能与 `halt` 区分开 —— 后者会清掉位置并释放会话。
-        case pause
-    }
+    /// 播放器的回调不带片段（它只认音频文件），需要在这里记住「现在播的是哪一句」。
+    private var currentFragment: ReaderSpeechFragment?
 
     // MARK: - 构造
 
@@ -207,17 +211,17 @@ public final class ReaderSpeechController {
     ///   - reader: 所属阅读器
     ///   - synthesizer: 合成引擎，默认设备端实现
     public init(reader: ReaderViewController,
-                synthesizer: ReaderSpeechSynthesizing = ReaderSystemSpeechSynthesizer()) {
+                renderer: ReaderSpeechAudioRendering = ReaderSpeechAudioRenderer()) {
 
         self.reader = reader
 
-        self.synthesizer = synthesizer
+        self.renderer = renderer
 
         self.audioSession = ReaderSpeechAudioSession()
 
         self.nowPlaying = ReaderSpeechNowPlaying()
 
-        self.synthesizer.delegate = self
+        self.player.delegate = self
 
         self.audioSession.delegate = self
 
@@ -239,20 +243,63 @@ public final class ReaderSpeechController {
     /// 这里只处理回前台时把正文对齐到朗读位置。
     private func observeAppLifecycle() {
 
+        // **用 didBecomeActive 而不是 willEnterForeground。**
+        //
+        // 后者的时机太早：那一刻 app 只是「即将」回到前台，窗口尚未完成布局，
+        // 容器尺寸不可信。在那时跳页会重建整条章节数据链，`UIPageViewController`
+        // 会停在两页之间 —— 真机上表现为正文整体横向偏移半屏、被截断，
+        // 页码与时间电量挤在一起。用户手动翻一页触发一次正常布局后就恢复正常，
+        // 这也说明分页数据本身是对的，坏的只是那一次的容器状态。
         NotificationCenter.default.addObserver(self,
-                                              selector: #selector(handleWillEnterForeground),
-                                              name: UIApplication.willEnterForegroundNotification,
+                                              selector: #selector(handleDidBecomeActive),
+                                              name: UIApplication.didBecomeActiveNotification,
                                               object: nil)
     }
 
-    /// 回到前台：把正文对齐到当前朗读位置。
+    /// 回到前台并激活：把正文对齐到当前朗读位置。
     ///
     /// 后台听书期间正文视图不跟着走（没必要，也做不了动画），所以回来时可能已经
     /// 隔了好几页甚至好几章。不对齐的话用户看到的是自己离开时那一页，
     /// 与耳朵里听到的内容对不上。
-    @objc private func handleWillEnterForeground() {
+    @objc private func handleDidBecomeActive() {
 
         guard activity != .idle else { return }
+
+        // 退两拍再对齐。
+        //
+        // **从锁屏回来与从控制中心回来不是一回事**：后者 app 只是 `.inactive`、
+        // 从未进 background，窗口布局始终有效，对齐没问题；前者 app 真的进过
+        // background，窗口与容器视图带着一堆待处理的布局回来，此时跳页
+        // （要重建整条章节数据链）会让 `UIPageViewController` 停在两页之间 ——
+        // 表现为两页内容同屏、各自向反方向偏出，且此后每次跟随翻页都在这个坏状态上叠加。
+        //
+        // 一拍不够（上一版试过），所以退两拍，并在真正跳页前强制把布局跑完。
+        DispatchQueue.main.async { [weak self] in
+
+            DispatchQueue.main.async { [weak self] in
+
+                guard let self, self.activity != .idle else { return }
+
+                self.alignAfterLayoutSettled()
+            }
+        }
+    }
+
+    /// 强制完成布局后再对齐，并把关键尺寸打进日志。
+    ///
+    /// 尺寸取证是刻意的：分页（`ReaderTypesetter.pageing`）与正文渲染
+    /// （`ReaderPageView` 的排版尺寸）都依赖 `READER_VIEW_RECT`，而它由安全区推导。
+    /// 若解锁瞬间安全区取到过渡值，分页与排版会一起错且缓存被污染、此后不自愈。
+    /// 这条日志能区分「排版尺寸错」与「容器位置偏移」两种猜测，不必再靠现象推断。
+    private func alignAfterLayoutSettled() {
+
+        guard let reader else { return }
+
+        // 主动跑完待处理的布局，而不是等它自己发生 —— 等的时机无从判断，
+        // 强制完成是确定的。
+        reader.view.layoutIfNeeded()
+
+        ReaderEnvironment.log("[Speech] 回前台对齐 bounds=\(reader.view.bounds.size) viewRect=\(READER_VIEW_RECT?.size ?? .zero) safeTop=\(ReaderScreenMetrics.safeAreaTop) safeBottom=\(ReaderScreenMetrics.safeAreaBottom)")
 
         alignViewToSpeakingSentence()
     }
@@ -320,9 +367,6 @@ public final class ReaderSpeechController {
         // 起点取自用户眼前的内容，之前的挂起随之解除
         isFollowSuspended = false
 
-        // 重新起播，与「恢复暂停」无关，偏移作废
-        resumeOffsetInSentence = 0
-
         // 滚动模式：按可见首行定位，拿不到（书籍首页、布局未就绪）时退回按页
         if ReaderConfiguration.shared().effectType == .scroll,
            let scrollController = reader?.scrollController,
@@ -344,71 +388,43 @@ public final class ReaderSpeechController {
     }
 
     /// 从指定章内绝对坐标开始朗读。
+    ///
+    /// 可以在任何状态下调用。`AVPlayer` 允许随时替换正在播放的内容，
+    /// 不像 `AVSpeechSynthesizer` 那样「只在空闲时接受提交」——
+    /// 所以这里不再需要「记下待办 → 停止 → 等取消回调 → 执行待办」那一套。
     public func start(fromLocation location: NSInteger) {
-
-        // 引擎非空闲时不能直接提交，先停再续（见 pendingIntent 的说明）
-        guard synthesizer.state == .idle else {
-
-            pendingIntent = .restart(location: location)
-
-            synthesizer.stop()
-
-            return
-        }
 
         beginSpeaking(fromLocation: location)
     }
 
     /// 暂停。
     ///
-    /// **暂停在引擎侧实现为「停止 + 记住读到哪」，不用 `pauseSpeaking` / `continueSpeaking`。**
+    /// 就是 `AVPlayer.pause()` —— 同步、幂等、不销毁播放器、不 seek。
+    /// 因此可以放心快速连点，不存在异步往返窗口。
     ///
-    /// 那两个 API 都不可靠，而且它们的不可靠会互相放大：
-    /// `continueSpeaking()` 可能不出声也不投递任何回调（1.7.0 已因此改掉恢复路径），
-    /// 而合成器的 `stop()` 为了让**暂停态**也能可靠收到取消回调，内部又不得不先调一次
-    /// `continueSpeaking()`。于是「暂停 → 继续」这条路上藏着一次可能永不返回的往返：
-    /// 命中时引擎永久停在 `.stopping`，此后所有提交都被拒（`speak` 只接受 `.idle`），
-    /// 朗读彻底哑掉且无法自愈。表现就是「点几下暂停/播放之后再也没声音了」，
-    /// 频繁点击只是提高命中概率，不是另一个缺陷。
-    ///
-    /// 改成停止之后：暂停期间引擎处于 `.idle`，`resume()` 可以直接提交剩余部分、
-    /// 同步出声，那次往返连同它的窗口一起消失。代价只是暂停点退到当前**词首**
-    /// （`spokenPrefixLength` 给的是词起始位置），与此前恢复时的听感一致。
+    /// 曾经这里有一整套复杂机制（记录已读字符数、未决意图、防迟到回调的标记），
+    /// 那些都是为了绕开 `AVSpeechSynthesizer` 的限制 ——「只在空闲时接受提交」
+    /// 与「暂停/继续这对 API 可能永不回调」。换成播放器之后限制消失，机制随之删除。
+    /// 详见 `.kiro/learnings/quality/2026-09-16_unreliable-api-behind-async-roundtrip.md`。
     public func pause() {
 
-        ReaderEnvironment.log("[Speech] pause() 进入 activity=\(activity) engine=\(synthesizer.state) intent=\(String(describing: pendingIntent))")
+        ReaderEnvironment.log("[Speech] pause() 进入 activity=\(activity) player=\(player.state)")
 
-        // 正常情况：确实在播放
-        if activity == .playing {
+        guard activity == .playing || activity == .preparing else { return }
 
-            performPause()
+        // 先结算再写锁屏，顺序不能反 —— 下面的 `publishNowPlaying()` 要用结算后的值
+        settleSpeakingSegment()
 
-            return
-        }
+        // 还在准备阶段（音频没渲染完）就被暂停：撤掉在途的渲染任务。
+        // 已经开始的那一个无法真正中断，但它的结果会被丢弃 ——
+        // 不撤的话渲染回来会自己播起来，用户点的这次暂停就丢了。
+        if activity == .preparing { renderer.cancelAll() }
 
-        // 以下两种都是「`activity` 还没跟上引擎」的过渡态。这些点击此前会被静默丢弃，
-        // 用户以为没生效就继续点，反而更容易撞上时序问题。
+        player.pause()
 
-        // 过渡态一：`resume()` 已发出 stop、取消回调还没到，未决意图是重启。
-        // 引擎已经在停了，改掉意图即可 —— 不改的话取消回调到达后朗读会自己读起来。
-        if case .restart = pendingIntent {
+        activity = .paused
 
-            ReaderEnvironment.log("[Speech] pause() 撤销未决的 restart，改为 pause")
-
-            pendingIntent = .pause
-
-            return
-        }
-
-        // 过渡态二：`resume()` 已把新片段提交给引擎，但 `didStart` 还没到，
-        // `activity` 仍停在 `.paused`。引擎确实在出声（或即将出声），必须真的停下来，
-        // 否则这次点击丢失、声音继续读，用户看到的是「点了暂停没反应」。
-        if pendingIntent == nil, synthesizer.state != .idle {
-
-            ReaderEnvironment.log("[Speech] pause() 处于提交与出声之间，直接停止")
-
-            performPause()
-        }
+        publishNowPlaying()
     }
 
     /// 结算当前这一段出声时长。停止出声的每条路径都要调。
@@ -421,81 +437,39 @@ public final class ReaderSpeechController {
         speakingSegmentStart = nil
     }
 
-    /// 真正执行暂停。
-    private func performPause() {
-
-        // 先结算再写锁屏，顺序不能反 —— 下面的 `publishNowPlaying()` 要用结算后的值
-        settleSpeakingSegment()
-
-        awaitsPauseSettle = true
-
-        pendingIntent = .pause
-
-        synthesizer.stop()
-
-        // 记下本句读到哪，供 `resume()` 只提交剩余部分。
-        //
-        // 必须在这里读：`spokenPrefixLength` 要等到下一次 `speak` 才归零，此刻拿到的
-        // 正是最终进度。放到取消回调里读就晚了 —— 那期间用户可能已经点了「继续」，
-        // 把未决意图覆盖成 `.restart`，这一段就不会执行。
-        resumeOffsetInSentence += synthesizer.spokenPrefixLength
-
-        // 状态立刻置位，不等取消回调：`stopSpeaking(.immediate)` 是同步停声的，
-        // 界面与声音必须一起变，否则点了暂停要等一拍胶囊才切换。
-        activity = .paused
-
-        // 显式再写一次锁屏信息，不能只靠 `activity` 的 didSet。
-        //
-        // didSet 只在值**发生变化**时触发，而过渡态二进来时 `activity` 已经是 `.paused`，
-        // 于是不触发 —— 锁屏会停在上一次写入的 rate=1 上，表现为
-        // 「阅读器内显示已暂停，锁屏还显示播放中」。
-        publishNowPlaying()
-    }
-
     /// 从暂停位置继续。
     public func resume() {
 
-        ReaderEnvironment.log("[Speech] resume() 进入 activity=\(activity) engine=\(synthesizer.state) sessionActive=\(audioSession.isActive)")
+        ReaderEnvironment.log("[Speech] resume() 进入 activity=\(activity) player=\(player.state) sessionActive=\(audioSession.isActive)")
 
         guard activity == .paused else { return }
 
-        // **只在会话确实非激活时才重新配置。**
-        //
-        // 曾经在这里无条件调 `audioSession.activate()`，理由是「中断期间会话被置为非激活」。
-        // 但那条路径（`handleInterruption(.ended)`）自己已经激活过了，这里那一次是多余的，
-        // 而且有害：对处于暂停态的 `AVSpeechSynthesizer` 重新 `setCategory` 会让它丢掉
-        // 当前 utterance 且**不投递任何回调** —— 引擎僵死、界面却停在「播放中」。
-        // 实际表现是「锁屏点播放，出声约一秒就停，状态还显示播放中」。
         if !audioSession.isActive { audioSession.activate() }
 
-        // **不用 `synthesizer.resume()`（即 `continueSpeaking()`）。**
+        // 播放器手里还有内容（暂停在播放中途）：直接继续。
         //
-        // 它从锁屏 / 后台恢复时不可靠：可能不出声，而且**不投递任何回调** ——
-        // 于是引擎僵死，编排层却已经把 activity 置成 .playing，界面显示「播放中」
-        // 却没有声音；系统那侧按「有没有真的输出音频」自己判断，锁屏按钮又显示
-        // 「已暂停」，两边彻底相反。
-        //
-        // 改为把当前句**尚未读完的部分**重新提交一次。每次都是全新的 `speak`，
-        // 有 `didStart` 回调确认，`activity` 只在确认出声后才变 —— 状态必然真实。
-        // 代价是恢复时会重读当前词的开头几个字符，听感上几乎无感。
-        //
-        // 试过两版修补 `continueSpeaking` 的方案（重新激活会话、按引擎状态兜底），
-        // 都没能根治，故不再在那条路上加补丁。
+        // **位置由 `AVPlayer` 自己保留** —— 暂停既不销毁播放器也不 seek，所以续播
+        // 天然接在原处。此前用 `AVSpeechSynthesizer` 时做不到这一点，只能记录已读字符数、
+        // 恢复时重新提交剩余文本，那套机制（连同它引入的时序问题）已随之删除。
+        if player.state == .paused {
+
+            player.resume()
+
+            activity = .playing
+
+            publishNowPlaying()
+
+            return
+        }
+
+        // 播放器是空的：暂停发生在音频还没渲染完的阶段，需要重新走一遍提交。
+        // 音频通常已经落盘（渲染完成后无论是否还要播都会入缓存），所以这次会命中缓存、
+        // 立即出声。
         guard let sentence = currentSentence else { return }
 
-        // 恢复偏移已经在 `pause()` 里累加过了，这里不能再加 —— 否则同一次暂停被算两遍,
-        // 剩余文本会从更靠后的位置开始，听感是「跳掉了一截」。
-        //
-        // 现在暂停态下引擎处于 `.idle`（暂停就是停止），所以 `start()` 里那道
-        // 「引擎必须 idle」的门通常直接放行，**同步提交、立即出声**，不再有
-        // 「先 stop 再等取消回调」的往返窗口。
-        // 唯一的例外是取消回调还在路上（用户在极短时间内点了暂停又点继续），
-        // 那种情况仍走 `start()` 内部的待办机制，由取消回调兜住。
         start(fromLocation: sentence.range.location)
     }
 
-    /// 恢复朗读时，当前句要跳过的前缀字符数。
-    ///
     /// 本章已累计的**实际出声时长**（秒），不含当前正在出声的这一段。
     ///
     /// 锁屏时间轴必须**连续**，这是它存在的唯一理由。
@@ -514,21 +488,6 @@ public final class ReaderSpeechController {
     ///
     /// 暂停 / 停止时结算进 `accumulatedSpeakingTime`。
     private var speakingSegmentStart: Date?
-
-    /// 已请求暂停，且还没有新的提交。用来识别并丢弃**迟到的** `didStart`。
-    ///
-    /// `pendingIntent` 挡不住全部情况：它在取消回调里就被清空了，而迟到的 `didStart`
-    /// 可能比取消回调更晚到达（两者都是异步派发，顺序不保证）。那一条会把 `activity`
-    /// 顶成 `.playing`，于是声音已停、界面与锁屏却显示播放中，且不会自愈。
-    ///
-    /// 这个标记跨越收尾，一直到下一次真正提交（`submitCurrentSentence()`）才清掉。
-    private var awaitsPauseSettle = false
-
-    /// 由 `pause()` 累加、`submitCurrentSentence()` 消费。句子推进或重新起播时清零。
-    ///
-    /// 累加而不是赋值：本句可能已经被暂停过若干次，每次拿到的逐词进度都是相对
-    /// **那一次提交的文本**（即上一次的剩余部分），必须叠起来才是相对整句的偏移。
-    private var resumeOffsetInSentence: Int = 0
 
     /// 切到下一章并从头朗读。锁屏「下一曲」与界面跳章都走这里。
     ///
@@ -551,22 +510,19 @@ public final class ReaderSpeechController {
     }
 
     /// 停止朗读并释放音频会话。
+    ///
+    /// 同步完成，不需要等任何回调 —— 这也是换掉合成器之后消掉的一处复杂度：
+    /// 此前停止要经过「发出停止 → 等取消回调 → 收尾」，而取消回调在某些路径上
+    /// 可能不投递，得额外判断引擎状态兜底。
     public func stop() {
 
         guard activity != .idle else { return }
 
-        pendingIntent = .halt
+        renderer.cancelAll()
 
-        synthesizer.stop()
+        player.stop()
 
-        // 引擎已经是 idle（例如最后一句刚读完还没决定下一步）时，
-        // stop() 不会产生取消回调，需要在这里直接收尾，否则状态永远停在播放中
-        if synthesizer.state == .idle {
-
-            pendingIntent = nil
-
-            finishStop()
-        }
+        finishStop()
     }
 
     // MARK: - 章节准备
@@ -583,6 +539,19 @@ public final class ReaderSpeechController {
         settleSpeakingSegment()
 
         accumulatedSpeakingTime = 0
+
+        // **先校验正文。** `fullContent` 是「标题 + 正文」，正文为空时它仍然非空
+        // （只剩标题），只看它会把「有归档但没正文」的空壳章节当成可读 ——
+        // 分句只得到标题一句，读完立刻跨章，连锁下去就是雪崩式跨章
+        // （详见 `proceed(toChapterID:in:)` 里的说明）。
+        guard Self.hasReadableBody(chapter) else {
+
+            ReaderEnvironment.log("[Speech] 章节 \(chapter.id ?? 0) 无正文，不可朗读")
+
+            presentNotice(ReaderEnvironment.strings.speechFailed)
+
+            return false
+        }
 
         // fullContent 由 reviseFont() 生成，同时也是 pageModels 的排版来源。
         // 它为空说明这一章还没排版，此时分页范围也不存在，无法建立坐标映射。
@@ -646,67 +615,123 @@ public final class ReaderSpeechController {
 
         currentIndex = index
 
-        audioSession.activate()
-
-        nowPlaying.activate()
-
+        // 音频会话与锁屏**不在这里激活**，挪到真正要出声的时刻（`playFragment`）。
+        //
+        // 未命中缓存时这里到出声之间隔着一到两秒的渲染，提前激活会让用户
+        // 「点了播放，背景音乐立刻停，却要等两秒才听到朗读」。
         submitCurrentSentence()
     }
 
-    /// 把当前句交给引擎。
+    /// 把当前句变成声音：命中缓存直接播，否则先渲染再播。
     private func submitCurrentSentence() {
 
         guard let currentIndex, sentences.indices.contains(currentIndex) else { return }
 
-        // 新的提交开始，此前那次暂停的收尾已经无关了。放在这里而不是 `resume()` 里：
-        // 提交是「引擎将要投递新回调」的唯一时点，早于它清掉标记，仍可能把上一次的
-        // 迟到 didStart 当成本次的。
-        awaitsPauseSettle = false
-
         let sentence = sentences[currentIndex]
 
-        // 翻页放在提交之前：翻页有动画耗时，等出声了再翻会出现「声音已经在读下一页、
-        // 画面还停在上一页」。高亮则相反，挂在 didStart（见该回调的说明）。
+        // 翻页放在出声之前：翻页有动画耗时，等出声了再翻会出现「声音已经在读下一页、
+        // 画面还停在上一页」。高亮则相反，挂在播放开始（见 `speechPlayerDidStart`）。
         alignPage(to: sentence)
 
-        // 恢复朗读时只提交本句剩余的部分（见 `resume()`）。
-        // `range` 仍然是**整句**范围 —— 高亮与翻页跟随都靠它，不能跟着截断。
-        let text = spokenText(of: sentence)
+        let fragment = ReaderSpeechFragment(text: sentence.text,
+                                            range: sentence.range,
+                                            voiceIdentifier: voiceIdentifier,
+                                            language: language)
 
-        let fragment = ReaderSpeechFragment(text: text,
-                                           range: sentence.range,
-                                           voiceIdentifier: voiceIdentifier,
-                                           language: language)
+        // 命中缓存：无需等待，直接出声。第二次听同一段就走这条路。
+        if let cached = audioCache.url(for: fragment) {
 
-        synthesizer.speak(fragment)
-    }
+            playFragment(fragment, url: cached)
 
-    /// 本次要提交给引擎的文本：整句，或恢复朗读时的剩余部分。
-    private func spokenText(of sentence: ReaderSentence) -> String {
-
-        let offset = resumeOffsetInSentence
-
-        // 偏移只对紧接着的那一次提交生效，用完即清
-        resumeOffsetInSentence = 0
-
-        guard offset > 0 else { return sentence.text }
-
-        // 偏移按 UTF-16 计（`willSpeakRangeOfSpeechString` 给的是 NSRange），
-        // 所以要走 NSString 而不是 Swift String 的字符索引，否则 emoji
-        // 与组合字符会把偏移算歪
-        let source = sentence.text as NSString
-
-        guard offset < source.length else { return sentence.text }
-
-        let remainder = source.substring(from: offset)
-
-        // 剩下的只有空白时退回整句：提交空串会被引擎拒绝，反而卡住恢复
-        guard !remainder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-
-            return sentence.text
+            return
         }
 
-        return remainder
+        // 未命中：进入「准备中」并开始渲染。
+        //
+        // 状态必须立刻置位 —— 渲染要一到两秒，这期间界面没有反馈的话用户会以为
+        // 没点上、反复点击。
+        activity = .preparing
+
+        let session = sessionID
+
+        let started = Date()
+
+        renderer.render(fragment, timeout: Self.renderTimeout) { [weak self] result in
+
+            guard let self else { return }
+
+            // 会话已作废（用户停止了朗读、或换了章）：结果丢弃。
+            // `sessionID` 是既有机制，本来就用于让在途的异步结果失效。
+            guard self.sessionID == session else { return }
+
+            switch result {
+
+            case .success(let data):
+
+                ReaderEnvironment.log("[Speech] 渲染完成 \(data.count / 1024)KB 耗时 \(String(format: "%.1f", Date().timeIntervalSince(started)))s")
+
+                // 无论接下来是否要播，音频都先入缓存 —— 用户在渲染期间暂停了的话，
+                // 这份音频等他继续时正好命中，不必重新渲染
+                let stored = self.audioCache.store(data, for: fragment)
+
+                // 渲染期间用户暂停或停止了：不要自己播起来。
+                // 暂停的话音频已落盘，`resume()` 会命中缓存。
+                guard self.activity == .preparing else { return }
+
+                guard let url = stored else {
+
+                    // 落盘失败（磁盘满等）。音频数据还在手里但播放器只收 URL，
+                    // 这一句只能放弃 —— 阶段三接降级后会改为直接出声。
+                    self.handleRenderFailure(.renderFailed)
+
+                    return
+                }
+
+                self.playFragment(fragment, url: url)
+
+            case .failure(let error):
+
+                ReaderEnvironment.log("[Speech] 渲染失败 \(error) 耗时 \(String(format: "%.1f", Date().timeIntervalSince(started)))s")
+
+                guard self.activity == .preparing else { return }
+
+                self.handleRenderFailure(error)
+            }
+        }
+    }
+
+    /// 把已经渲染好的音频交给播放器。
+    private func playFragment(_ fragment: ReaderSpeechFragment, url: URL) {
+
+        currentFragment = fragment
+
+        // 会话与锁屏在**即将出声**时才激活，不在起播时 —— 渲染阶段不出声，
+        // 提前激活会过早打断其它 App 的音频
+        audioSession.activate()
+
+        nowPlaying.activate()
+
+        player.play(url: url)
+    }
+
+    /// 渲染失败的处理。
+    ///
+    /// 阶段三会在这里接降级路径（退回 `AVSpeechSynthesizer` 直接出声，
+    /// 保证「还能听书」）。当前先提示并停止。
+    private func handleRenderFailure(_ error: ReaderSpeechRenderError) {
+
+        switch error {
+
+        case .voiceUnavailable:
+
+            presentNotice(ReaderEnvironment.strings.speechVoiceUnavailable)
+
+        case .emptyText, .timedOut, .renderFailed:
+
+            presentNotice(ReaderEnvironment.strings.speechFailed)
+        }
+
+        stop()
     }
 
     /// 推进到下一句；本章读完则交给章节衔接。
@@ -725,10 +750,15 @@ public final class ReaderSpeechController {
 
         self.currentIndex = next
 
-        // 换句了，上一句的恢复偏移作废
-        resumeOffsetInSentence = 0
-
         submitCurrentSentence()
+    }
+
+    /// 本章读完，交给章节衔接。加一条日志，便于发现异常的跨章节奏
+    /// （正常一章要读几分钟；若日志里出现一秒一章，说明章节正文没真正加载，
+    ///   见 `proceed(toChapterID:in:)`）。
+    private func logChapterConclusion() {
+
+        ReaderEnvironment.log("[Speech] 本章读完 句数=\(sentences.count) chapter=\(speakingChapterID ?? 0)")
     }
 
     /// 停止收尾。
@@ -736,9 +766,7 @@ public final class ReaderSpeechController {
 
         currentIndex = nil
 
-        resumeOffsetInSentence = 0
-
-        awaitsPauseSettle = false
+        currentFragment = nil
 
         speakingSegmentStart = nil
 
@@ -1022,6 +1050,8 @@ public final class ReaderSpeechController {
     /// 不看 `chapterModel.nextChapterID` —— 后者可能过期或被污染，书里已有权威判定。
     private func concludeChapter() {
 
+        logChapterConclusion()
+
         guard let reader, let book = reader.readModel else {
 
             stop()
@@ -1057,14 +1087,45 @@ public final class ReaderSpeechController {
     /// 切到下一章并续读。
     private func proceed(toChapterID chapterID: NSNumber, in book: ReaderBookModel) {
 
+        // **先让在途的异步结果全部作废。**
+        //
+        // `renderer.cancelAll()` 不够：它只递增渲染器的世代号，拦得住「还没开始」和
+        // 「正在渲染」的，拦不住**已经通过世代检查、派发到主线程、还没执行**的那一个。
+        // 那个 completion 执行时若 `sessionID` 尚未更新（它要等章节加载回来、走到
+        // `beginSpeaking` 才换），就会通过会话检查，把**上一章的句子**播出去。
+        //
+        // 真机上表现为章节索引在两章之间来回跳、反复重播已经读过的音频（都是缓存命中，
+        // 所以日志里只有「播放器提交音频」而没有「渲染完成」）。
+        //
+        // 放在这里而不是各个调用点：跨章有两条路径（用户点上/下一章、本章自然读完），
+        // 都必经此处。
+        sessionID = UUID()
+
         let storyID = book.storyID
 
-        // 已缓存直接切，不必走网络
+        // 已缓存直接切，不必走网络。
+        //
+        // ⚠️ **「归档存在」不等于「有正文」。** 目录加载会为每一章建立归档，里面只有 id
+        // 与标题，`content` 是空的。拿这种空壳去分句，只会得到标题那一句 ——
+        // 读完立刻 `concludeChapter()` 跨到下一章，而下一章同样是空壳，于是**雪崩式跨章**：
+        // 真机上表现为一秒跳一章、每章 timeline 都停在 0，最后停在一个「只有标题、
+        // 正文全空」的页面上。
+        //
+        // 旧架构下这个缺陷被朗读速度掩盖了（`AVSpeechSynthesizer` 读一句要好几秒，
+        // 足够章节加载完成）；换成「渲染 + 播放」后单句只要 0.2 秒、命中缓存几乎瞬时，
+        // 朗读推进远快于网络加载，缺陷就暴露出来。
         if ReaderChapterModel.isExist(storyID: storyID, chapterID: chapterID) {
 
-            beginChapter(ReaderChapterModel.model(storyID: storyID, chapterID: chapterID))
+            let cached = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID)
 
-            return
+            if Self.hasReadableBody(cached) {
+
+                beginChapter(cached)
+
+                return
+            }
+
+            ReaderEnvironment.log("[Speech] 章节 \(chapterID) 有归档但无正文，改走网络加载")
         }
 
         guard let loader = reader?.chapterLoader else {
@@ -1097,17 +1158,36 @@ public final class ReaderSpeechController {
         if !dispatched { stop() }
     }
 
+    /// 章节是否有可朗读的正文。
+    ///
+    /// 判据是 `content`（正文纯文本）而**不是** `fullContent` —— 后者是「标题 + 正文」，
+    /// 正文为空时它仍然非空（只剩标题），用它判断会把空壳章节当成可读。
+    private static func hasReadableBody(_ chapter: ReaderChapterModel) -> Bool {
+
+        guard let body = chapter.content else { return false }
+
+        return !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// 换章后从该章开头续读。
     private func beginChapter(_ chapter: ReaderChapterModel) {
 
-        guard prepare(chapter: chapter) else { return }
+        guard prepare(chapter: chapter) else {
+
+            // 准备失败（正文缺失、无可用音色）。**必须收尾** ——
+            // 不 stop 的话 `activity` 会停在 `.playing` / `.preparing`，
+            // 界面与锁屏显示「正在读」而实际什么都没发生，且不会自愈。
+            ReaderEnvironment.log("[Speech] 章节准备失败，停止朗读 chapter=\(chapter.id ?? 0)")
+
+            stop()
+
+            return
+        }
 
         // 先把正文带到新章节，再开口读。顺序反过来的话，第一句的 didStart 回调
         // 可能落在旧视图上，高亮会写到即将被销毁的页上、看起来是「高亮没出现」。
         alignViewToChapterStart(chapter)
 
-        // 走到这里时引擎必然是 idle（本方法只由 didFinish 链路与其异步续接触发），
-        // 所以 start 会直接提交而不是排待办
         start(fromLocation: 0)
 
         // 章节变了但 activity 没变（还是 playing），不会触发 activity 的 didSet，
@@ -1122,9 +1202,22 @@ public final class ReaderSpeechController {
     /// 朗读照常进行，界面靠三态按钮呈现为「从这里开始读」。
     private func alignViewToChapterStart(_ chapter: ReaderChapterModel) {
 
-        // 后台不导航：视图不可见，重建纯属浪费，且部分容器在后台布局会拿到错误尺寸。
-        // 回前台时 handleWillEnterForeground 会统一对齐，不会漏。
-        guard UIApplication.shared.applicationState != .background else { return }
+        // **只在前台激活时导航。**
+        //
+        // 判据必须是 `.active`，不能只排除 `.background` —— 锁屏过渡、来电、
+        // 下拉控制中心这些情况下 `applicationState` 是 `.inactive`，窗口不可见、
+        // 布局同样不可信，此时跳页会让容器停在错误状态（详见 `observeAppLifecycle`）。
+        //
+        // 这个判据与 `ReaderScreenMetrics` 取安全区时的 `.foregroundActive` 保持一致；
+        // 两处口径不同曾经就是缺陷的来源。
+        //
+        // 跳过之后不会漏：回到前台激活时 `handleDidBecomeActive` 会统一对齐。
+        guard UIApplication.shared.applicationState == .active else {
+
+            ReaderEnvironment.log("[Speech] 非前台激活，跳过跨章导航，等回前台统一对齐")
+
+            return
+        }
 
         guard let reader, let chapterID = chapter.id else { return }
 
@@ -1140,19 +1233,24 @@ public final class ReaderSpeechController {
         }
     }
 
-    /// 请求切章。引擎在忙时先停再切。
+    /// 请求切章。
+    ///
+    /// 不必像以前那样「先停下来等取消回调再切」（播放器允许随时替换内容），
+    /// 但**必须先把当前播放停掉**，见下方说明。
     private func requestChapterSwitch(to chapterID: NSNumber) {
 
         guard let book = reader?.readModel else { return }
 
-        guard synthesizer.state == .idle else {
+        // 在途的渲染属于旧章节，撤掉。
+        // 注意这一步不足以拦住已派发到主线程的 completion，那个由 `proceed` 里的
+        // `sessionID` 更新负责作废。
+        renderer.cancelAll()
 
-            pendingIntent = .switchChapter(id: chapterID)
-
-            synthesizer.stop()
-
-            return
-        }
+        // **当前播放也要停。** 新章的首句要先渲染，这期间旧句仍在播，
+        // 它播完会投递「播放结束」，而那个回调会走 `advanceToNextSentence()` ——
+        // 此时 `currentIndex` 已经被新章覆盖成 0，于是直接推进到第 2 句，
+        // 新章第一句被跳掉。
+        player.stop()
 
         proceed(toChapterID: chapterID, in: book)
     }
@@ -1319,29 +1417,11 @@ public final class ReaderSpeechController {
     }
 }
 
-// MARK: - ReaderSpeechSynthesizingDelegate
+// MARK: - ReaderSpeechPlayerDelegate
 
-extension ReaderSpeechController: ReaderSpeechSynthesizingDelegate {
+extension ReaderSpeechController: ReaderSpeechPlayerDelegate {
 
-    public func speechSynthesizer(_ synthesizer: ReaderSpeechSynthesizing, didStart fragment: ReaderSpeechFragment) {
-
-        // 已经有未决意图（暂停 / 停止 / 换句 / 换章）时，这条 didStart 属于**正在被丢弃**
-        // 的那次提交，不能据它把状态改成播放中。
-        //
-        // 回调是异步派发的，而引擎侧的过滤只看 utterance 身份、`clearCurrent()` 要到取消
-        // 回调里才执行 —— 所以 `stop()` 发出之后、取消回调到达之前，上一次提交的 didStart
-        // 仍会到达。漏掉这道判断的后果是：用户点了暂停，声音确实停了，`activity` 却被这条
-        // 迟到的回调顶回 `.playing`，于是胶囊显示「暂停中」、锁屏也显示播放中，全都与
-        // 实际不符，且此后不会自愈（取消回调只负责收尾，不会再纠正状态）。
-        // `awaitsPauseSettle` 与 `pendingIntent` 各挡一段：前者跨越暂停收尾（取消回调会
-        // 清空 `pendingIntent`，而迟到的 didStart 可能比取消回调更晚到），后者覆盖
-        // 换句 / 换章 / 停止这些还没收尾的意图。
-        guard pendingIntent == nil, !awaitsPauseSettle else {
-
-            ReaderEnvironment.log("[Speech] 忽略迟到的 didStart intent=\(String(describing: pendingIntent)) awaitsPauseSettle=\(awaitsPauseSettle)")
-
-            return
-        }
+    func speechPlayerDidStart(_ player: ReaderSpeechPlayer) {
 
         // 出声计时开始。已经在计时中就不动 —— 连续朗读时句与句之间不该断开，
         // 否则每次换句都会丢掉一小段，时间轴会越走越慢。
@@ -1359,105 +1439,44 @@ extension ReaderSpeechController: ReaderSpeechSynthesizingDelegate {
         // 单次失准最多晚半秒，不会拖累整句。已经对齐时本调用是空操作。
         alignPage(to: sentences[currentIndex])
 
-        // 高亮挂在真正出声之后：引擎从收到请求到出声之间有延迟，
+        // 高亮挂在真正出声之后：从提交音频到出声之间有就绪耗时，
         // 提前高亮会让画面比声音快一截，看起来像高亮跑到了下一句
         reviseSpeechPresentation(for: sentences[currentIndex])
     }
 
-    public func speechSynthesizer(_ synthesizer: ReaderSpeechSynthesizing, didFinish fragment: ReaderSpeechFragment) {
+    func speechPlayerDidFinish(_ player: ReaderSpeechPlayer) {
+
+        // 用户已经暂停或停止时不要推进。
+        //
+        // 通知是异步派发的，所以「音频即将播完」那一瞬间的暂停，可能排在这条通知之前 ——
+        // 漏掉这道判断就会推进到下一句并播起来，用户看到的是「点了暂停，声音停了一下
+        // 又自己读下去」。
+        guard activity == .playing else {
+
+            ReaderEnvironment.log("[Speech] 播放结束但已不在播放态（\(activity)），不推进")
+
+            return
+        }
 
         advanceToNextSentence()
     }
 
-    public func speechSynthesizer(_ synthesizer: ReaderSpeechSynthesizing, didCancel fragment: ReaderSpeechFragment) {
+    func speechPlayerDidFail(_ player: ReaderSpeechPlayer, error: Error?) {
 
-        // 取消回调是「待办」的执行时机：引擎此刻确认回到 idle，可以安全提交新片段
-        guard let intent = pendingIntent else {
+        // 播放失败最常见的原因是音频文件损坏 —— 比如上一次写盘被系统杀掉，
+        // 留下一个截断文件，而它的文件名（内容哈希）看起来完全有效。
+        // 所以先把这份缓存删掉，避免下次又命中它、陷入每次到这句就失败的循环。
+        if let fragment = currentFragment { audioCache.remove(for: fragment) }
 
-            finishStop()
-
-            return
-        }
-
-        pendingIntent = nil
-
-        switch intent {
-
-        case .restart(let location):
-
-            beginSpeaking(fromLocation: location)
-
-        case .switchChapter(let chapterID):
-
-            guard let book = reader?.readModel else {
-
-                finishStop()
-
-                return
-            }
-
-            proceed(toChapterID: chapterID, in: book)
-
-        case .halt:
-
-            finishStop()
-
-        case .pause:
-
-            // 暂停的收尾：朗读位置、高亮、音频会话全部保留，**不能**走上面那条
-            // `finishStop()` —— 那会清掉位置并释放会话，暂停就变成了停止。
-
-            // 状态在这里**重新确认**，不能假设 `pause()` 里那次置位仍然成立：
-            // 那之后到取消回调之间，上一次提交的迟到回调可能把它改回过 `.playing`
-            // （`didStart` 已加了防守，但状态的终点定在这里才可靠 —— 取消回调是
-            //   暂停真正完成的时刻）。
-            activity = .paused
-
-            // 显式写一次锁屏信息，不依赖 `activity` 的 didSet。
-            //
-            // didSet 只在**值发生变化**时才触发，而这里 `activity` 往往已经是 `.paused`
-            // （`pause()` 里同步置过），于是不会触发、锁屏可能仍停在上一次写入的
-            // rate=1 上 —— 表现就是「阅读器内显示已暂停，锁屏还显示播放中」。
-            publishNowPlaying()
-
-            ReaderEnvironment.log("[Speech] 暂停收尾完成，位置与会话保留 activity=\(activity)")
-        }
-    }
-
-    public func speechSynthesizer(_ synthesizer: ReaderSpeechSynthesizing, didFailWith error: ReaderSpeechError) {
-
-        switch error {
-
-        case .voiceUnavailable:
-
-            presentNotice(ReaderEnvironment.strings.speechVoiceUnavailable)
-
-        case .engineRejected:
-
-            // 引擎拒收提交（唯一原因是它此刻不在 `.idle`）。
-            //
-            // 此前的处理是提示 + `stop()`，但那会把朗读位置一并清掉 —— 用户想接着听
-            // 得重新翻回去点一次。而被拒基本都是**暂时**的（上一次的取消回调还在路上），
-            // 所以改为退回暂停态：位置、高亮、音频会话全部保留，用户再点一次「继续」就行。
-            //
-            // 也不再弹提示：那更像是出了故障，而这里通常只是抢跑了一下。
-            ReaderEnvironment.log("[Speech] 提交被拒，退回暂停态等用户重试 engine=\(synthesizer.state)")
-
-            guard currentSentence != nil else {
-
-                presentNotice(ReaderEnvironment.strings.speechFailed)
-
-                stop()
-
-                return
-            }
-
-            activity = .paused
-
-            return
-        }
+        presentNotice(ReaderEnvironment.strings.speechFailed)
 
         stop()
+    }
+
+    func speechPlayerDidLoadDuration(_ player: ReaderSpeechPlayer) {
+
+        // 时长可能晚于开始出声才解析出来，补写一次锁屏时间轴
+        publishNowPlaying()
     }
 }
 
@@ -1499,7 +1518,8 @@ extension ReaderSpeechController: ReaderSpeechRemoteCommandDelegate {
 
         switch activity {
 
-        case .playing: pause()
+        // 准备中也当作「正在播」处理：用户此刻按下的意思是「停下」
+        case .playing, .preparing: pause()
 
         case .paused: resume()
 
