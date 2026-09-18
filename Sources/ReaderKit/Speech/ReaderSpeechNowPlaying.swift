@@ -189,13 +189,16 @@ final class ReaderSpeechNowPlaying {
         // 命令可用性与播放信息一起更新，两路信号必须同步
         reviseTransportCommandAvailability(isPlaying: activity == .playing)
 
+        reviseChapterCommandAvailability(hasPrevious: context.hasPreviousChapter,
+                                         hasNext: context.hasNextChapter)
+
         // 时间轴一栏要能看出「这次到底写没写」——「暂停时不写」正是当前方案的关键，
         // 只打印数值的话无从确认它生效了
         let timeline = info[MPNowPlayingInfoPropertyElapsedPlaybackTime] == nil
             ? "omitted"
             : "\(Int(context.estimatedElapsed))/\(Int(context.estimatedDuration))s"
 
-        ReaderEnvironment.log("[Speech] 写锁屏信息 activity=\(activity) rate=\(info[MPNowPlayingInfoPropertyPlaybackRate] ?? "nil") timeline=\(timeline) queue=\(context.queueIndex)/\(context.queueCount) artwork=\(artwork != nil)")
+        ReaderEnvironment.log("[Speech] 写锁屏信息 activity=\(activity) rate=\(info[MPNowPlayingInfoPropertyPlaybackRate] ?? "nil") timeline=\(timeline) queue=\(context.queueIndex)/\(context.queueCount) prev=\(context.hasPreviousChapter) next=\(context.hasNextChapter) artwork=\(artwork != nil)")
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
@@ -259,6 +262,25 @@ final class ReaderSpeechNowPlaying {
         center.pauseCommand.isEnabled = isPlaying
 
         center.togglePlayPauseCommand.isEnabled = true
+    }
+
+    /// 按章节边界开关「上一章 / 下一章」两个命令。
+    ///
+    /// 置 `isEnabled = false` 后系统会把对应按钮画成灰色且点不动，比「亮着但点了没反应」
+    /// 清楚 —— 后者在首章反复点上一曲时会让人以为是卡住了。
+    ///
+    /// 判据来自 `ReaderSpeechController` 的跳章目标解析（与 `skipToNextChapter()` /
+    /// `skipToPreviousChapter()` 同一个），所以「按钮可用」与「点了真的会跳」不可能发散。
+    ///
+    /// 目录分页未加载完时「下一章」会短暂置灰，等目录补齐后自动恢复 ——
+    /// 本方法在每次写播放信息时都会重算（即每句一次），不需要额外的刷新时机。
+    private func reviseChapterCommandAvailability(hasPrevious: Bool, hasNext: Bool) {
+
+        let center = MPRemoteCommandCenter.shared()
+
+        center.previousTrackCommand.isEnabled = hasPrevious
+
+        center.nextTrackCommand.isEnabled = hasNext
     }
 
     /// 注册单个命令。

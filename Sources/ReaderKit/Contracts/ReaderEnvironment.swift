@@ -199,6 +199,12 @@ public struct ReaderImages {
     /// 朗读控制条 - 继续
     public var speechResume: () -> UIImage? = { symbol("play.fill") }
 
+    /// 呼出菜单上朗读 dock 的入口图标（入口态那个 32×32 的耳机）。
+    ///
+    /// 与 `speechPlay` 分开而不是复用：页脚胶囊里那个图标只有 16pt，接入方的切图通常
+    /// 就按 16pt 出（48px @3x），放到 32pt 会明显发虚。两处尺寸差一倍，各给一个槽。
+    public var speechDockEntry: () -> UIImage? = { symbol("headphones") }
+
     /// 回到朗读位置（朗读中但用户已翻到别页时出现在控制胶囊最左侧）
     public var speechReturnToPlaying: () -> UIImage? = { symbol("arrow.uturn.left") }
 

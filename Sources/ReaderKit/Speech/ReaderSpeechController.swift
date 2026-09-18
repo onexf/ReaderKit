@@ -103,6 +103,24 @@ public final class ReaderSpeechController {
     /// 当前朗读所属的章节 ID。跨章判断用。
     public private(set) var speakingChapterID: NSNumber?
 
+    /// 当前章节的朗读进度，取值 0...1。
+    ///
+    /// 口径是「已读字符数 / 本章全文长度」—— 当前句**句首**在本章全文（标题 + 正文）里的
+    /// 偏移除以全文长度。刻意不用时间比例：时长是按字符数估算的（见 `makeContext()`），
+    /// 拿估算值去算进度等于绕一圈还是字符比例，中间还多一层误差。
+    ///
+    /// 因此这个值**按句跳变**而非连续增长。用它画进度环时不必追求逐帧平滑，
+    /// 语义上「读到第几个字」本身就是离散的。
+    public var chapterProgress: Double {
+
+        guard let total = speakingChapter?.fullContent?.length, total > 0,
+              let sentence = currentSentence else { return 0 }
+
+        let spoken = min(total, max(0, sentence.range.location))
+
+        return Double(spoken) / Double(total)
+    }
+
     /// 朗读控制胶囊该显示成哪一态。
     ///
     /// 把「活动状态」与「朗读位置是否在当前展示页」两件事收敛成一个枚举，
@@ -489,13 +507,36 @@ public final class ReaderSpeechController {
     /// 暂停 / 停止时结算进 `accumulatedSpeakingTime`。
     private var speakingSegmentStart: Date?
 
+    /// 下一章的跳转目标。为 nil 表示此刻跳不过去。
+    ///
+    /// nil 有两种成因，对「能不能跳」而言等价，所以刻意不区分：
+    /// 全书真末章，或下一章尚未加载进目录。后者会随目录补齐自行恢复，
+    /// 而锁屏按钮的可用性每句都会重算一次，所以不需要为它单独处理。
+    ///
+    /// 抽成属性是为了让 `skipToNextChapter()` 与锁屏「下一曲」按钮的可用性读**同一个**
+    /// 判断 —— 两处各写一遍迟早发散成「按钮是亮的但点了没反应」或反之。
+    private var followingChapterIDForSkip: NSNumber? {
+
+        guard let book = reader?.readModel else { return nil }
+
+        return book.resolvedFollowingChapterID(forChapterID: speakingChapterID)
+    }
+
+    /// 上一章的跳转目标。为 nil 表示已是首章。口径同上。
+    private var precedingChapterIDForSkip: NSNumber? {
+
+        guard let book = reader?.readModel else { return nil }
+
+        return precedingChapterID(of: speakingChapterID, in: book)
+    }
+
     /// 切到下一章并从头朗读。锁屏「下一曲」与界面跳章都走这里。
     ///
     /// 已是末章时静默忽略 —— 锁屏按钮点了没反应比读出错误内容好。
+    /// （该按钮现已按 `hasNextChapter` 置灰，正常情况下点不到这里。）
     public func skipToNextChapter() {
 
-        guard let book = reader?.readModel,
-              let target = book.resolvedFollowingChapterID(forChapterID: speakingChapterID) else { return }
+        guard let target = followingChapterIDForSkip else { return }
 
         requestChapterSwitch(to: target)
     }
@@ -503,8 +544,7 @@ public final class ReaderSpeechController {
     /// 切到上一章并从头朗读。已是首章时静默忽略。
     public func skipToPreviousChapter() {
 
-        guard let book = reader?.readModel,
-              let target = precedingChapterID(of: speakingChapterID, in: book) else { return }
+        guard let target = precedingChapterIDForSkip else { return }
 
         requestChapterSwitch(to: target)
     }
@@ -1392,7 +1432,9 @@ public final class ReaderSpeechController {
                                    estimatedDuration: duration,
                                    estimatedElapsed: elapsed,
                                    queueCount: queueCount,
-                                   queueIndex: queueIndex)
+                                   queueIndex: queueIndex,
+                                   hasPreviousChapter: precedingChapterIDForSkip != nil,
+                                   hasNextChapter: followingChapterIDForSkip != nil)
     }
 
     /// 按语言估算每秒朗读的字符数。

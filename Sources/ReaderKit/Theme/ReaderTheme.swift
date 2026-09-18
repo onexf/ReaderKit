@@ -77,6 +77,8 @@ public protocol ReaderThemeColors {
     var speechCapsuleFill: UIColor { get }    // 朗读控制胶囊底色
     var speechCapsuleText: UIColor { get }    // 朗读控制胶囊的图标与文字色
     var speechCapsuleDivider: UIColor { get } // 朗读控制胶囊内的分隔线色
+    var fillSpeechDock: UIColor { get }       // 呼出菜单上朗读 dock 的底色
+    var textSpeechDock: UIColor { get }       // 朗读 dock 内的图标色
 }
 
 // MARK: - 朗读高亮色的默认实现
@@ -115,6 +117,16 @@ public extension ReaderThemeColors {
 
     /// 胶囊内分隔线色。默认在图文色基础上压透明度，弱于图文但仍可见。
     var speechCapsuleDivider: UIColor { speechCapsuleText.withAlphaComponent(0.5) }
+
+    /// 呼出菜单上朗读 dock 的底色。
+    ///
+    /// 与页脚胶囊不同，dock 在设计稿里是**六套主题统一的深色块**（`#222222`）——
+    /// 它浮在菜单遮罩之上，遮罩本身已经把正文压暗，dock 再跟着主题变浅反而会糊进遮罩里。
+    /// 所以默认值不从主题色派生，而是固定深色；接入方要改再覆盖。
+    var fillSpeechDock: UIColor { UIColor(white: 0.133, alpha: 1) }
+
+    /// dock 内图标色。固定近白色，与固定深底配对。
+    var textSpeechDock: UIColor { UIColor(white: 0.973, alpha: 1) }
 }
 
 // MARK: - 主题颜色结构体

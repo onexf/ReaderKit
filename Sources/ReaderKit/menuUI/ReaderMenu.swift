@@ -205,6 +205,13 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         
         if let bottomCatalogView, touchedView.isDescendant(of: bottomCatalogView) { return false }
         
+        // 朗读 dock：整块吞掉点击，不唤起也不收起菜单。
+        //
+        // 三种情况都靠这一条覆盖：书封（点了本该什么都不做）、进度环与关闭按钮
+        // （它们是带 tap 手势的普通 UIView，不是 UIControl，下面那条 UIControl 判断兜不住，
+        // 否则点暂停会顺带把菜单收起）。
+        if let dock = vc?.installedSpeechDock, touchedView.isDescendant(of: dock) { return false }
+        
         if touchedView is UIControl { return false }
         
         // On END page, only allow menu tap in the top blank area (above recommend content)
@@ -462,7 +469,13 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         contentView.bringSubviewToFront(menuBackdrop)
         contentView.bringSubviewToFront(topView)
         contentView.bringSubviewToFront(bottomView)
+        
+        // 朗读 dock 排在最后：它只在菜单呼出期间出现，且必须浮在遮罩之上才看得见。
+        // 与页脚胶囊的层级要求正好相反（那个要被遮罩压住），所以不能放进上面那组。
+        vc?.liftSpeechDockIfInstalled()
     }
+    
+
     
     // MARK: 菜单展示
     
@@ -490,6 +503,11 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         UIApplication.shared.setStatusBarHidden(!isMenuShow, with: .fade)
         
         presentMenuBackdrop(isShow: isShow)
+        
+        // 朗读 dock 只在菜单呼出期间可见（菜单收起后由页脚胶囊接手）。
+        // 呼出时设置面板恒为收起态（presentBaseView 里会 restoreForMenuDismissed），
+        // 所以这里无条件放出来即可，不必判面板状态。
+        vc?.presentSpeechDock(isShow: isShow)
         
         presentBaseView(isShow: isShow)
         

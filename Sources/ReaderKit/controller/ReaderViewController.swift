@@ -330,6 +330,12 @@ open class ReaderViewController: ReaderScreenController {
         // 用 engagedSpeechController：未启用朗读时按 .idle 渲染即可，
         // 不该为了刷新一个按钮把整套朗读设施创建出来
         button.apply(engagedSpeechController?.actionState ?? .idle, animated: animated)
+
+        // 朗读状态变化会走到这里（`notifyActivityAlter` 每次都调），所以可见性也在此结算，
+        // 不必让接入方在朗读状态变化时再补一次调用
+        reviseSpeechActionButtonVisibility()
+
+        reviseSpeechDock(animated: animated)
     }
 
     /// 通报「正文展示位置变了」。
@@ -366,22 +372,240 @@ open class ReaderViewController: ReaderScreenController {
         reviseSpeechActionButton(animated: false)
     }
 
+    /// 接入方要求的胶囊隐藏意图。真实可见性还要叠加「是否在朗读」，见下。
+    private var isSpeechActionButtonHiddenByHost = true
+
     /// 胶囊是否隐藏。
     ///
     /// 读写都不会触发创建：未装胶囊时读到 `true`（等价于不可见），写入被忽略。
     /// 供接入方把胶囊的可见性挂到页脚那条信息带上 —— 书末页、菜单展开等页脚让位的场景，
     /// 胶囊也该一起收起。
+    ///
+    /// **注意读到的是接入方的意图，不是屏幕上的实际状态。** 实际可见性由两个条件相乘：
+    /// 接入方没要求隐藏，**且**当前确实在朗读（见 `reviseSpeechActionButtonVisibility()`）。
+    /// 这样接入方不必自己跟踪朗读状态，仍按「页脚让位就隐藏」这一条逻辑写即可。
     open var isSpeechActionButtonHidden: Bool {
 
-        get { createdSpeechActionButton?.isHidden ?? true }
+        get { isSpeechActionButtonHiddenByHost }
 
-        set { createdSpeechActionButton?.isHidden = newValue }
+        set {
+
+            isSpeechActionButtonHiddenByHost = newValue
+
+            reviseSpeechActionButtonVisibility()
+        }
+    }
+
+    /// 结算胶囊的实际可见性。
+    ///
+    /// 胶囊**只在朗读中（含暂停）出现**。未朗读时入口在呼出菜单的 dock 上，
+    /// 页脚不该常驻一个「从这里开始读」——那会和 dock 上的入口重复，
+    /// 且页脚那条信息带本来就窄，常驻一个控件挤占页码与时间电量的空间。
+    ///
+    /// 所以 `.idle` 一律隐藏；`.preparing` / `.playing` / `.paused` 才交给接入方的意图决定。
+    private func reviseSpeechActionButtonVisibility() {
+
+        guard let button = createdSpeechActionButton else { return }
+
+        let isIdle = (engagedSpeechController?.activity ?? .idle) == .idle
+
+        button.isHidden = isSpeechActionButtonHiddenByHost || isIdle
     }
 
     /// 胶囊换肤。接入方在主题切换时调用。
     open func adoptSpeechActionButtonTheme(_ colors: ReaderThemeColors) {
 
         createdSpeechActionButton?.adoptThemeColors(colors)
+
+        createdSpeechDock?.adoptThemeColors(colors)
+    }
+
+    // MARK: - 朗读 dock（呼出菜单上的入口 / 迷你播放器）
+
+    /// 呼出菜单上的朗读 dock。首次访问时创建。
+    public var speechDock: ReaderSpeechDock {
+
+        if let createdSpeechDock { return createdSpeechDock }
+
+        let dock = ReaderSpeechDock()
+
+        createdSpeechDock = dock
+
+        return dock
+    }
+
+    private var createdSpeechDock: ReaderSpeechDock?
+
+    /// 已装上的 dock，未装时为 nil。**查询不触发创建**。
+    ///
+    /// 供菜单做手势拦截判断用（落在 dock 里的触摸不该唤起/收起菜单），
+    /// 那种场合不能用 `speechDock` —— 一次判断就把整个控件建出来了。
+    public var installedSpeechDock: ReaderSpeechDock? { createdSpeechDock }
+
+    /// 把朗读 dock 装到阅读器上。
+    ///
+    /// **必须在 `ReaderMenu` 初始化之后调用**，与 `installSpeechActionButton()` 正好相反：
+    /// dock 只在菜单呼出期间可见，需要浮在菜单遮罩**之上**；页脚胶囊只在菜单收起时可见，
+    /// 需要被遮罩压住。两者层级要求相反，所以装的时机也相反。
+    ///
+    /// 光靠 addSubview 顺序还不够 —— `ReaderMenu` 每次呼出都会重排菜单层级
+    /// （`liftMenuHierarchy()`），dock 已加入那个序列的末尾，所以呼出后仍在最前。
+    open func installSpeechDock() {
+
+        let dock = speechDock
+
+        var container: UIView = view
+
+        if let contentView { container = contentView }
+
+        if dock.superview !== container { container.addSubview(dock) }
+
+        dock.onStartAction = { [weak self] in self?.handleSpeechDockStart() }
+
+        dock.onToggleAction = { [weak self] in self?.handleSpeechDockToggle() }
+
+        dock.onCloseAction = { [weak self] in self?.speechController.stop() }
+
+        reviseSpeechDockAnchor()
+
+        dock.adoptThemeColors(ReaderConfiguration.shared().currentThemeColors)
+
+        // 默认藏着：只有菜单呼出时才出现，由 `ReaderMenu` 驱动
+        dock.isHidden = true
+
+        reviseSpeechDock(animated: false)
+    }
+
+    /// 重算 dock 的锚点。
+    ///
+    /// 底边落在**菜单面板收起态的顶边**上方 `bottomGap`。取收起态高度而不是
+    /// `bottomView.getCurrentHeight()`：设置面板展开时 dock 本来就要隐藏（见
+    /// `reviseSpeechDockVisibility(settingsPanelShown:)`），所以不存在「跟着面板长高上移」
+    /// 这种状态，锚点是个常量，不必跟踪动画中间值。
+    open func reviseSpeechDockAnchor() {
+
+        guard let dock = createdSpeechDock else { return }
+
+        dock.containerWidth = READER_CONTENT_VIEW_WIDTH
+
+        dock.anchorBottomY = READER_CONTENT_VIEW_HEIGHT
+            - READER_MENU_BOTTOM_VIEW_BASE_HEIGHT
+            - ReaderSpeechDock.bottomGap
+    }
+
+    /// 按当前朗读状态刷新 dock 的形态与进度。
+    open func reviseSpeechDock(animated: Bool) {
+
+        guard let dock = createdSpeechDock else { return }
+
+        let activity = engagedSpeechController?.activity ?? .idle
+
+        dock.isPlaying = activity != .paused
+
+        dock.progress = engagedSpeechController?.chapterProgress ?? 0
+
+        dock.apply(activity == .idle ? .entry : .playing, animated: animated)
+    }
+
+    /// dock 是否隐藏。
+    ///
+    /// 由菜单驱动：呼出时放出、收起时藏起。点开设置面板 / 目录时也要藏
+    /// （设计稿：展示更多设置内容时 dock 让位）。
+    open var isSpeechDockHidden: Bool {
+
+        get { createdSpeechDock?.isHidden ?? true }
+
+        set {
+
+            // 放出来之前先对齐形态与进度，避免上一次朗读留下的旧形态闪一下
+            if newValue == false { reviseSpeechDock(animated: false) }
+
+            createdSpeechDock?.isHidden = newValue
+        }
+    }
+
+    /// 显隐 dock，带淡入淡出。
+    ///
+    /// **未装 dock 时什么都不做**，也不会触发懒建 —— 没提供朗读入口的接入方不该因为
+    /// 菜单呼出就凭空多出一个游离视图。
+    ///
+    /// 只做淡入淡出、不做位移：位移留给「入口态 ⇄ 播放态」那次形态切换，
+    /// 两种动画叠在同一个视图上会互相打断。
+    open func presentSpeechDock(isShow: Bool, animated: Bool = true) {
+
+        guard let dock = createdSpeechDock else { return }
+
+        guard animated else {
+
+            dock.alpha = isShow ? 1 : 0
+
+            isSpeechDockHidden = !isShow
+
+            return
+        }
+
+        if isShow {
+
+            // 每次展示时重取书封：装 dock 的时机可能早于书籍数据到位（走接口加载那条路径时
+            // `readModel` 还是 nil），而菜单只可能在正文就位之后呼出。
+            // 重复调用的代价由接入方的图片缓存吸收。
+            dock.adoptCover(url: readModel?.cover)
+
+            isSpeechDockHidden = false
+
+            dock.alpha = 0
+        }
+
+        UIView.animate(withDuration: READER_MENU_MOTION_TIME,
+                       delay: 0,
+                       options: READER_MENU_MOTION_OPTIONS) {
+
+            dock.alpha = isShow ? 1 : 0
+
+        } completion: { [weak self] _ in
+
+            if !isShow { self?.isSpeechDockHidden = true }
+        }
+    }
+
+    /// 把 dock 提到同层最前。
+    ///
+    /// 供 `ReaderMenu` 在重排菜单层级时调用 —— 目录/辅视图的遮盖会被
+    /// `bringSubviewToFront` 提到最前且不还原，不跟着复位一次 dock 就会被压在遮盖下面。
+    /// 未装 dock 时什么都不做（不触发创建）。
+    open func liftSpeechDockIfInstalled() {
+
+        guard let dock = createdSpeechDock, let container = dock.superview else { return }
+
+        container.bringSubviewToFront(dock)
+    }
+
+    /// 点击 dock 入口：从当前可见位置开始朗读。
+    private func handleSpeechDockStart() {
+
+        speechController.startFromCurrentPage()
+    }
+
+    /// 点击 dock 中央：暂停 / 继续。
+    private func handleSpeechDockToggle() {
+
+        let controller = speechController
+
+        switch controller.activity {
+
+        case .paused:
+
+            controller.resume()
+
+        case .preparing, .playing:
+
+            controller.pause()
+
+        case .idle:
+
+            // 理论到不了（idle 时 dock 是入口态、中央控件不存在），兜底按开始处理
+            controller.startFromCurrentPage()
+        }
     }
 
     /// 点击胶囊主区域。

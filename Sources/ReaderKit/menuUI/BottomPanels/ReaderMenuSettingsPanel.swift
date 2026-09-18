@@ -696,6 +696,13 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         let newY = READER_CONTENT_VIEW_HEIGHT - newHeight
         let expanded = isSettingPanelExpanded
         
+        // 面板展开时朗读 dock 让位（设计稿：展示更多设置内容时隐藏），收起时回来。
+        //
+        // 这是面板高度变化的唯一出口，挂在这里就覆盖了「点 Setting 展开 / 再点收起 /
+        // 关目录」全部路径。dock 的锚点按收起态算死，所以不是「跟着面板上移」而是直接隐藏，
+        // 省掉一条需要跟踪动画中间值的链路。
+        readMenu?.vc?.presentSpeechDock(isShow: !expanded, animated: animated)
+        
         if animated {
             UIView.animate(withDuration: READER_MENU_MOTION_TIME, delay: 0, options: READER_MENU_MOTION_OPTIONS, animations: {
                 bottomView.frame = CGRect(x: 0, y: newY, width: READER_CONTENT_VIEW_WIDTH, height: newHeight)

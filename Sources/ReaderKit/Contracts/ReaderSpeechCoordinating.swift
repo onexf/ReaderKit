@@ -97,6 +97,21 @@ public struct ReaderSpeechContext {
     /// 当前项在播放队列中的索引（0 起）。口径同 `queueCount`。
     public let queueIndex: Int
 
+    /// 是否还有上一章可跳。
+    ///
+    /// 用来置灰锁屏 / 控制中心的「上一曲」按钮。
+    ///
+    /// **不要用 `queueIndex > 0` 自己推**：那个只在首章这一种情况下等价，而本字段的口径是
+    /// 「跳章动作此刻是否真的会生效」，与 `skipToPreviousChapter()` 取同一个解析结果。
+    public let hasPreviousChapter: Bool
+
+    /// 是否还有下一章可跳。口径同上，对应 `skipToNextChapter()`。
+    ///
+    /// **尤其不能用 `queueIndex < queueCount - 1` 推**：`queueCount` 是当前**已知**章节数，
+    /// 目录分页加载未完成时（实测出现过 `queue=239/1560`）会把中间章判成末章，
+    /// 于是「下一章」按钮在整本书的大部分位置都是灰的。
+    public let hasNextChapter: Bool
+
     public init(bookTitle: String,
                 chapterTitle: String,
                 sentenceText: String,
@@ -104,7 +119,9 @@ public struct ReaderSpeechContext {
                 estimatedDuration: TimeInterval = 0,
                 estimatedElapsed: TimeInterval = 0,
                 queueCount: Int = 0,
-                queueIndex: Int = 0) {
+                queueIndex: Int = 0,
+                hasPreviousChapter: Bool = true,
+                hasNextChapter: Bool = true) {
         self.bookTitle = bookTitle
         self.chapterTitle = chapterTitle
         self.sentenceText = sentenceText
@@ -113,6 +130,8 @@ public struct ReaderSpeechContext {
         self.estimatedElapsed = estimatedElapsed
         self.queueCount = queueCount
         self.queueIndex = queueIndex
+        self.hasPreviousChapter = hasPreviousChapter
+        self.hasNextChapter = hasNextChapter
     }
 }
 

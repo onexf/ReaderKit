@@ -14,7 +14,7 @@
 ### SPM
 
 ```swift
-.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.9.0")
+.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.10.0")
 // 本地开发也可用路径引用：.package(path: "../ReaderKit")
 ```
 
@@ -98,13 +98,25 @@ reader.placeholderProvider = myPlaceholderProvider // 加载失败空态
 | `ReaderSpeechCoordinating` | `reader.speechCoordinator` | 朗读仍完整可用（库内自管音频会话与锁屏），只是锁屏没有封面图 |
 | `advanceToNextPageHandler` | `reader.advanceToNextPageHandler` | 左右翻页模式下朗读不自动翻页；朗读本身照常推进，只是正文停在原页 |
 | `presentPositionHandler` | `reader.presentPositionHandler` | 后台听完回到前台时正文不对齐到朗读位置 |
+| `installSpeechDock()` | 由接入方调用一次 | 呼出菜单上没有朗读入口；朗读仍可由接入方自己的入口发起 |
+| `ReaderImages.speechDockEntry` | `ReaderEnvironment.images` | dock 入口图标回落到 SF Symbol `headphones` |
 
 ### 语音朗读（TTS）
 
-朗读是**开箱可用**的：不实现上表最后三项也能正常朗读、高亮、跨章续读、后台播放与锁屏控制。
+朗读是**开箱可用**的：不实现上表那几项也能正常朗读、高亮、跨章续读、后台播放与锁屏控制。
 
 唯一的必做项在接入方工程侧 —— `Info.plist` 声明 `UIBackgroundModes` 含 `audio`，
 否则切后台或锁屏后朗读会被系统挂起。
+
+#### 两个朗读控件的分工
+
+| 控件 | 位置 | 何时可见 | 装法 |
+|---|---|---|---|
+| `ReaderSpeechDock` | 呼出菜单上（未朗读在右下、朗读中在左下） | **仅菜单呼出期间** | `installSpeechDock()`，**在 `ReaderMenu` 初始化之后** |
+| `ReaderSpeechActionButton` | 页脚信息带正中 | 仅朗读中（含暂停）且菜单收起 | `installSpeechActionButton()`，**在 `ReaderMenu` 初始化之前** |
+
+两者装的时机相反不是笔误：dock 要浮在菜单遮罩**之上**才看得见，页脚胶囊要被遮罩压住。
+层级要求相反，所以 addSubview 的顺序也相反。
 
 ```swift
 // 从当前展示页开始朗读
