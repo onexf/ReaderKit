@@ -42,6 +42,25 @@ public enum ReaderSpeechRenderError: Error {
     case renderFailed
 }
 
+public extension ReaderSpeechRenderError {
+
+    /// 是否属于「再试一次可能就好了」的瞬时性失败。
+    ///
+    /// 超时与渲染失败多半是系统侧 TTS 服务一时抽风（`write` 偶发不回调、返回空数据），
+    /// 同一句重提一次通常就成了。
+    ///
+    /// 音色不可用与空文本不在此列：重试一万次结果都一样，只会白等一个超时周期。
+    var isTransient: Bool {
+
+        switch self {
+
+        case .timedOut, .renderFailed: return true
+
+        case .voiceUnavailable, .emptyText: return false
+        }
+    }
+}
+
 /// 把文本渲染成音频数据。
 public protocol ReaderSpeechAudioRendering: AnyObject {
 

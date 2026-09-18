@@ -202,6 +202,22 @@ public final class ReaderSpeechController {
     /// 当前章节切好的句。
     private var sentences: [ReaderSentence] = []
 
+    /// 预合成深度：当前句出声后，再往后预渲染几句。
+    ///
+    /// 取 2 而不是 1：一句通常播几秒、一次渲染 0.2~1 秒，理论上 1 句的余量就够，
+    /// 但短句（「他笑了。」）播完只要一秒多，余量太薄容易被追上。2 句的代价只是缓存里
+    /// 多一个文件（百来 KB），而缓存本来就有 LRU 上限兜着。
+    private static let prefetchDepth = 2
+
+    /// 已提交过预合成的句下标。
+    ///
+    /// 只用来防重复提交 —— 光看缓存判断不了「正在渲染但还没落盘」那段窗口，
+    /// 会导致同一句被反复提交。换章时随 `sentences` 一起清空。
+    private var prefetchedIndices: Set<Int> = []
+
+    /// 已为哪一句重试过渲染。每句只重试一次。
+    private var renderRetriedIndex: Int?
+
     /// 当前句下标。
     private var currentIndex: Int?
 
@@ -624,6 +640,11 @@ public final class ReaderSpeechController {
 
         sentences = parsed
 
+        // 下标的含义随 `sentences` 整体失效，两份按下标记事的状态必须一起清
+        prefetchedIndices.removeAll()
+
+        renderRetriedIndex = nil
+
         language = detected
 
         voiceIdentifier = voice.identifier
@@ -653,6 +674,13 @@ public final class ReaderSpeechController {
 
         sessionID = UUID()
 
+        // 撤掉在途的预合成。渲染是**串行**的，不撤的话这一句要排在最多两个
+        // 预合成任务之后，起播白等一两秒 —— 而用户刚点的这一句才是最急的。
+        // 已落盘的预合成音频不受影响（`cancelAll` 只作废在途结果）。
+        renderer.cancelAll()
+
+        renderRetriedIndex = nil
+
         currentIndex = index
 
         // 音频会话与锁屏**不在这里激活**，挪到真正要出声的时刻（`playFragment`）。
@@ -665,9 +693,9 @@ public final class ReaderSpeechController {
     /// 把当前句变成声音：命中缓存直接播，否则先渲染再播。
     private func submitCurrentSentence() {
 
-        guard let currentIndex, sentences.indices.contains(currentIndex) else { return }
+        guard let index = currentIndex, sentences.indices.contains(index) else { return }
 
-        let sentence = sentences[currentIndex]
+        let sentence = sentences[index]
 
         // 翻页放在出声之前：翻页有动画耗时，等出声了再翻会出现「声音已经在读下一页、
         // 画面还停在上一页」。高亮则相反，挂在播放开始（见 `speechPlayerDidStart`）。
@@ -735,6 +763,20 @@ public final class ReaderSpeechController {
 
                 guard self.activity == .preparing else { return }
 
+                // 瞬时性失败重试一次再放弃。系统侧 TTS 偶发不回调 / 返回空数据，
+                // 同一句重提通常就成了；直接放弃会让用户看到一次莫名的「朗读失败」。
+                // 每句只重试一次，避免在真的坏了的时候反复白等超时周期。
+                if error.isTransient, self.renderRetriedIndex != index {
+
+                    self.renderRetriedIndex = index
+
+                    ReaderEnvironment.log("[Speech] 渲染失败重试一次 句序=\(index)")
+
+                    self.submitCurrentSentence()
+
+                    return
+                }
+
                 self.handleRenderFailure(error)
             }
         }
@@ -752,6 +794,71 @@ public final class ReaderSpeechController {
         nowPlaying.activate()
 
         player.play(url: url)
+
+        // 当前句已经在播了，渲染队列此刻空闲，正好拿来预合成后面几句。
+        // 这是消掉句间停顿的关键：不预合成的话每句之间都要等一次渲染。
+        prefetchUpcoming()
+    }
+
+    /// 预渲染当前句之后的若干句，只入缓存、不播放。
+    ///
+    /// 为什么放在「当前句开始播」之后而不是更早：渲染是串行的，提前提交只会跟当前句
+    /// 抢队列，把起播拖慢。等当前句进了播放器再排预合成，队列必然是空的。
+    ///
+    /// 结果只写缓存，靠 `submitCurrentSentence()` 的缓存命中分支自然生效 ——
+    /// 不需要把预合成的产物交接给播放链路，少一条容易出错的路径。
+    private func prefetchUpcoming() {
+
+        guard let currentIndex else { return }
+
+        let session = sessionID
+
+        for offset in 1...Self.prefetchDepth {
+
+            let index = currentIndex + offset
+
+            guard sentences.indices.contains(index) else { break }
+
+            guard !prefetchedIndices.contains(index) else { continue }
+
+            let sentence = sentences[index]
+
+            let fragment = ReaderSpeechFragment(text: sentence.text,
+                                                range: sentence.range,
+                                                voiceIdentifier: voiceIdentifier,
+                                                language: language)
+
+            // 已经渲染过（听第二遍、或往回跳又读回来）：记下来别再提交
+            if audioCache.url(for: fragment) != nil {
+
+                prefetchedIndices.insert(index)
+
+                continue
+            }
+
+            prefetchedIndices.insert(index)
+
+            renderer.render(fragment, timeout: Self.renderTimeout) { [weak self] result in
+
+                guard let self else { return }
+
+                // 会话已变（停止 / 换章 / 用户另起一处朗读）：结果无用
+                guard self.sessionID == session else { return }
+
+                switch result {
+
+                case .success(let data):
+
+                    _ = self.audioCache.store(data, for: fragment)
+
+                case .failure:
+
+                    // 预合成失败不提示、不打断朗读 —— 用户根本不知道有这件事。
+                    // 只把标记撤掉，真正播到这一句时会走正常渲染路径（那时才该报错）。
+                    self.prefetchedIndices.remove(index)
+                }
+            }
+        }
     }
 
     /// 渲染失败的处理。
@@ -807,6 +914,10 @@ public final class ReaderSpeechController {
         currentIndex = nil
 
         currentFragment = nil
+
+        prefetchedIndices.removeAll()
+
+        renderRetriedIndex = nil
 
         speakingSegmentStart = nil
 
