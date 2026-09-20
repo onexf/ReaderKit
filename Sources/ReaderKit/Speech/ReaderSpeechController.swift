@@ -103,6 +103,15 @@ public final class ReaderSpeechController {
     /// 当前朗读所属的章节 ID。跨章判断用。
     public private(set) var speakingChapterID: NSNumber?
 
+    /// 朗读中章节的全文纯文本（标题 + 正文）。未在朗读时为 nil。
+    ///
+    /// 只给纯文本而不是富文本：取用方（朗读播放器页）要用**自己的固定字号**重新排版，
+    /// 拿到带阅读器属性的富文本反而要先剥属性。章节名另有 `speakingChapterTitle`。
+    public var speakingChapterText: String? { speakingChapter?.fullContent?.string }
+
+    /// 朗读中章节的章节名。未在朗读时为 nil。
+    public var speakingChapterTitle: String? { speakingChapter?.name }
+
     /// 当前章节的朗读进度，取值 0...1。
     ///
     /// 口径是「已读字符数 / 本章全文长度」—— 当前句**句首**在本章全文（标题 + 正文）里的
@@ -522,6 +531,15 @@ public final class ReaderSpeechController {
     ///
     /// 暂停 / 停止时结算进 `accumulatedSpeakingTime`。
     private var speakingSegmentStart: Date?
+
+    /// 此刻是否还有上一章可跳。
+    ///
+    /// 与锁屏「上一曲」按钮的可用性、播放器页上一章按钮的置灰读**同一个**判断，
+    /// 保证「按钮可用」与「点了真的会跳」不发散。
+    public var hasPreviousChapterForSkip: Bool { precedingChapterIDForSkip != nil }
+
+    /// 此刻是否还有下一章可跳。口径同上。
+    public var hasNextChapterForSkip: Bool { followingChapterIDForSkip != nil }
 
     /// 下一章的跳转目标。为 nil 表示此刻跳不过去。
     ///

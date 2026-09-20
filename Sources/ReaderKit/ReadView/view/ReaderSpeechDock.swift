@@ -96,6 +96,9 @@ open class ReaderSpeechDock: UIView {
     /// 点击关闭（停止朗读，回到入口态）。
     open var onCloseAction: (() -> Void)?
 
+    /// 点击书封（打开朗读播放器页）。仅播放态下可触发。
+    open var onCoverAction: (() -> Void)?
+
     /// 进度环取值，0...1。
     open var progress: Double = 0 {
 
@@ -141,8 +144,9 @@ open class ReaderSpeechDock: UIView {
 
         view.layer.masksToBounds = true
 
-        // 设计稿里书封是纯展示，不接任何手势（「回到朗读位置」已由页脚胶囊的返回箭头承担）
-        view.isUserInteractionEnabled = false
+        view.isUserInteractionEnabled = true
+
+        view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(clickCover)))
 
         return view
     }()
@@ -443,6 +447,8 @@ open class ReaderSpeechDock: UIView {
     // MARK: - 动作
 
     @objc private func clickEntry() { onStartAction?() }
+
+    @objc private func clickCover() { onCoverAction?() }
 }
 
 // MARK: - 进度环 + 中央图标

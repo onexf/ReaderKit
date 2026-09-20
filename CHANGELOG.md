@@ -1,5 +1,59 @@
 # Changelog
 
+## 1.12.0
+
+新增整屏朗读播放器页。无破坏性变更，全部是追加。
+
+### 新增：`ReaderSpeechScreenController`
+
+入口只有一处 —— 呼出菜单上 `ReaderSpeechDock` 播放态里的那个小书封。
+接入方无需接线，引擎自行 present。
+
+页面结构：放大书封铺底 + 高斯模糊 + 主题色罩 → 向下箭头 → 书名 / 章节名 →
+156×208 书封 → 3 行正文窗口（当前朗读句居中并高亮）→ 上一章 / 播放暂停 / 下一章。
+
+**它依附阅读器存在**：朗读状态、章节全文、跨章能力都来自 `ReaderSpeechController`，
+而后者与 `ReaderViewController` 强绑定（26 处依赖）。所以只能由阅读器 present，
+当不了「书架上继续听书」那种独立入口 —— 那需要先把朗读从阅读器解耦，属另一件事。
+
+几处实现上的取舍：
+
+- **正文窗口用固定 20 号排版**，不跟随阅读器的字号设置。窗口只有 3 行高，
+  跟随大字号会退化成只看得见一行。
+- **按整行显示，不露半行**。窗口高度不写死，而是按 CTFrame 的真实行边界
+  （ascent / descent）取连续 3 行、目标行居中，高度收成这 3 行的实际高度。
+  写死高度时行边界对不上，底部会露出下一行的上半截。
+  为此把「版位」（固定 123，只用于给书封与控件定位）与「窗口」（实际高度）拆开 ——
+  不拆的话段间距带来的几 pt 差异会把书封和控件位置带着晃。
+- **窗口内容取「当前句所在段落 + 前后各一段」**。按段落而不是按字符数截取，
+  否则窗口第一行会以半个词开头。
+- **纵向布局是「上固定 + 下固定 + 中间弹性」**：导航与标题自上而下、控件与正文窗口
+  自下而上，剩余空隙给书封居中。照设计稿绝对 y 摆会在非 812 高的屏幕上失准。
+- **背景拆成模糊 + 色罩两层**：`UIVisualEffectView` 的 `backgroundColor` 会被自己的
+  材质盖掉，压不住色。色罩取 `colors.page`，所以六套主题各自成立。
+- **下拉关闭跟手**，用 `transform` 而非改 `frame`（后者每帧触发 `layoutSubviews`，
+  正文窗口会跟着重排）。阈值为屏高 22% 或速度 1000pt/s，向上**不位移** ——
+  本页是 `.overFullScreen`，向上挪一点底边就露出下层阅读器。
+  松手关闭时顺着当前速度自己推出屏幕再无动画 dismiss，
+  直接 `dismiss(animated: true)` 会先跳回原位再滑下去。
+
+### 新增：`ReaderPageView.adoptContent(_:typesetSize:)`
+
+允许调用方指定 CoreText 版面尺寸。既有的 `content` setter 把尺寸写死取
+`READER_VIEW_RECT.size`（阅读区域），播放器页用固定字号、宽度也不是阅读区域宽，
+但仍要复用本类的高亮绘制与 `rect(forRange:)` —— 另写一份必然与阅读页跑偏。
+
+### 新增：`ReaderSpeechController` 的四个只读属性
+
+- `speakingChapterText` / `speakingChapterTitle`：朗读中章节的全文纯文本与章节名。
+  只给纯文本是因为取用方要用自己的固定字号重排，拿富文本反而要先剥属性。
+- `hasPreviousChapterForSkip` / `hasNextChapterForSkip`：此刻能否跳章。
+  播放器页的按钮置灰、锁屏命令可用性、跳章动作三处读同一个判断，不会发散。
+
+### 变更：`ReaderSpeechDock` 的书封可点
+
+新增 `onCoverAction`。此前书封是 `isUserInteractionEnabled = false` 的纯展示。
+
 ## 1.11.0
 
 消掉句与句之间的渲染停顿，并让偶发的渲染失败自愈。无破坏性变更。

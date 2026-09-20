@@ -336,6 +336,10 @@ open class ReaderViewController: ReaderScreenController {
         reviseSpeechActionButtonVisibility()
 
         reviseSpeechDock(animated: animated)
+
+        // 播放器页也挂在这里：本方法是朗读状态变化的共同出口（逐句推进、暂停、继续、
+        // 跨章都会走到），一处覆盖，不必让播放器页自己订阅或轮询
+        reviseSpeechScreen()
     }
 
     /// 通报「正文展示位置变了」。
@@ -466,6 +470,8 @@ open class ReaderViewController: ReaderScreenController {
 
         dock.onCloseAction = { [weak self] in self?.speechController.stop() }
 
+        dock.onCoverAction = { [weak self] in self?.presentSpeechScreen() }
+
         reviseSpeechDockAnchor()
 
         dock.adoptThemeColors(ReaderConfiguration.shared().currentThemeColors)
@@ -566,6 +572,38 @@ open class ReaderViewController: ReaderScreenController {
 
             if !isShow { self?.isSpeechDockHidden = true }
         }
+    }
+
+    // MARK: - 朗读播放器页
+
+    /// 正在展示的朗读播放器页。未展示时为 nil。
+    ///
+    /// 用弱引用持有：页面的生命周期归 present/dismiss 管，这里只是为了在朗读状态变化时
+    /// 能找到它刷新一下。强持有会让它 dismiss 之后还活着。
+    private weak var presentedSpeechScreen: ReaderSpeechScreenController?
+
+    /// 打开朗读播放器页。
+    ///
+    /// 由 dock 播放态的书封点击触发。未在朗读时不开 —— 那个书封只在播放态才存在，
+    /// 正常路径到不了这里，这条只兜极端时序。
+    open func presentSpeechScreen() {
+
+        guard isSpeechEngaged, engagedSpeechController?.activity != .idle else { return }
+
+        // 已经开着就不重复 present（连点）
+        guard presentedSpeechScreen == nil else { return }
+
+        let screen = ReaderSpeechScreenController(speech: speechController, book: readModel)
+
+        presentedSpeechScreen = screen
+
+        present(screen, animated: true)
+    }
+
+    /// 刷新正在展示的播放器页。未展示时什么都不做。
+    private func reviseSpeechScreen() {
+
+        presentedSpeechScreen?.revise()
     }
 
     /// 把 dock 提到同层最前。

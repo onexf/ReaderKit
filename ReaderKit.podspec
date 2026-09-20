@@ -14,7 +14,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'ReaderKit'
-  s.version          = '1.11.0'
+  s.version          = '1.12.0'
   s.summary          = '小说阅读器引擎：排版分页、翻页与滚动、阅读菜单、目录书签、主题换肤'
   s.description      = <<-DESC
                        小说阅读器内核，库内零业务代码。

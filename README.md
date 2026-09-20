@@ -14,7 +14,7 @@
 ### SPM
 
 ```swift
-.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.11.0")
+.package(url: "https://github.com/onexf/ReaderKit.git", from: "1.12.0")
 // 本地开发也可用路径引用：.package(path: "../ReaderKit")
 ```
 
@@ -100,6 +100,7 @@ reader.placeholderProvider = myPlaceholderProvider // 加载失败空态
 | `presentPositionHandler` | `reader.presentPositionHandler` | 后台听完回到前台时正文不对齐到朗读位置 |
 | `installSpeechDock()` | 由接入方调用一次 | 呼出菜单上没有朗读入口；朗读仍可由接入方自己的入口发起 |
 | `ReaderImages.speechDockEntry` | `ReaderEnvironment.images` | dock 入口图标回落到 SF Symbol `headphones` |
+| `ReaderImages.loadRemoteImage` | `ReaderEnvironment.images` | 播放器页与 dock 的书封只显示占位图 |
 
 ### 语音朗读（TTS）
 
@@ -114,9 +115,14 @@ reader.placeholderProvider = myPlaceholderProvider // 加载失败空态
 |---|---|---|---|
 | `ReaderSpeechDock` | 呼出菜单上（未朗读在右下、朗读中在左下） | **仅菜单呼出期间** | `installSpeechDock()`，**在 `ReaderMenu` 初始化之后** |
 | `ReaderSpeechActionButton` | 页脚信息带正中 | 仅朗读中（含暂停）且菜单收起 | `installSpeechActionButton()`，**在 `ReaderMenu` 初始化之前** |
+| `ReaderSpeechScreenController` | 整屏播放器页 | 点 dock 播放态的书封时 | 无需接入方操作，由引擎自行 present |
 
-两者装的时机相反不是笔误：dock 要浮在菜单遮罩**之上**才看得见，页脚胶囊要被遮罩压住。
+前两者装的时机相反不是笔误：dock 要浮在菜单遮罩**之上**才看得见，页脚胶囊要被遮罩压住。
 层级要求相反，所以 addSubview 的顺序也相反。
+
+播放器页**依附阅读器存在**（朗读状态与章节全文都来自 `ReaderSpeechController`，
+而后者与 `ReaderViewController` 强绑定），所以它只能由阅读器 present，
+不能当作「书架上继续听书」这类独立入口。
 
 ```swift
 // 从当前展示页开始朗读

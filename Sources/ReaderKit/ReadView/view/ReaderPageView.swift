@@ -127,6 +127,31 @@ open class ReaderPageView: UIView {
         }
     }
     
+    /// 按**指定排版尺寸**装载内容。
+    ///
+    /// 与 `content` setter 的区别只在排版尺寸：那个写死取 `READER_VIEW_RECT.size`
+    /// （阅读区域），适用于「一页 = 一屏」的正文页；本方法允许调用方自己给尺寸。
+    ///
+    /// 存在的理由是朗读播放器页（`ReaderSpeechScreenController`）：它用**固定字号**排版、
+    /// 宽度也不是阅读区域宽，但仍要复用本类的 CoreText 绘制与朗读高亮
+    /// （高亮样式、主题色、`rect(forRange:)` 全在这里，另写一份必然与阅读页跑偏）。
+    ///
+    /// - Parameters:
+    ///   - text: 已经排好属性的富文本。本类不改它的字体与段落样式，原样排版。
+    ///   - typesetSize: CoreText 的版面尺寸。高度不足会截掉排不下的行，
+    ///     所以调用方应先量高（`ReaderCoreText.attributedStringHeight`）再给足。
+    open func adoptContent(_ text: NSAttributedString, typesetSize: CGSize) {
+
+        sourceAttributedText = text
+
+        sourceRect = CGRect(origin: .zero, size: typesetSize)
+
+        // 换内容即清高亮，理由同两个 setter：高亮范围是相对上一份文本的
+        highlightRange = nil
+
+        rebuildFrameRef()
+    }
+
     /// CTFrame
     open var frameRef: CTFrame? {
         
