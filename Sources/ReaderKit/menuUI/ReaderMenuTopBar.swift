@@ -69,35 +69,24 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
     /// 点击返回
     @objc private func clickBack() {
         
-        readMenu?.delegate?.readMenuClickBack?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidTapBack(readMenu)
     }
     
     /// 点击加入书架
     @objc private func clickAddToBookshelf() {
         
-        readMenu?.delegate?.readMenuClickAddToBookshelf?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidTapAddToBookshelf(readMenu)
     }
     
     /// 点击反馈
     @objc private func clickFeedback() {
         
-        readMenu?.delegate?.readMenuClickFeedback?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidTapFeedback(readMenu)
     }
     
-    // MARK: - 书签状态（顶部栏已无书签入口）
-    
-    /// 检查是否存在书签
-    /// 设计改版后顶部栏只保留 返回 / 反馈 / 加入书架，书签入口已移除，
-    /// 书签的增删改查改由侧栏书签 tab 承载。此处保留空实现，
-    /// 是为了不改动阅读器翻页、书签增删等多处既有调用链。
-    open func verifyForMark() {
-        
-    }
-    
-    /// 刷新书签按钮显示状态（顶部栏已无书签按钮，空实现）
-    open func reviseMarkBtn() {
-        
-    }
+    // 顶部栏曾有书签入口，设计改版后只保留 返回 / 反馈 / 加入书架，书签改由侧栏书签 tab
+    // 承载。`verifyForMark()` / `reviseMarkBtn()` 两个空实现一并删除 —— 留着空方法让
+    // 宿主继续调，读代码的人会以为「这里刷新了书签状态」，实际什么都没发生。
     
     // MARK: - 加入书架状态
     

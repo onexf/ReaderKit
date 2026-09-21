@@ -78,6 +78,38 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         internalScrollView?.panGestureRecognizer.require(toFail: gesture)
     }
     
+    /// 暂停 / 恢复【滑动】翻页。菜单呼出期间由 `ReaderMenu.presentDropdown` 调用。
+    ///
+    /// 只关内部 pan 手势，**不动 `isScrollEnabled`、也不动 `isUserInteractionEnabled`**：
+    /// 菜单开着时上一章 / 下一章 / 拖进度条都会走 `setViewControllers(animated:)`，
+    /// 那条路径依赖内部 scrollView 的偏移动画，把 scrollView 整体关掉会一起废掉它。
+    /// 关 pan 只拦用户拖动，程序驱动的翻页不受影响。
+    ///
+    /// 点击翻页不在这里管 —— 它是本类自己的 `customTapGestureRecognizer`，
+    /// 在 `gestureRecognizer(_:shouldReceive:)` 里按菜单状态拒掉。
+    open func suspendPageTurn(_ isSuspended: Bool) {
+        ensurePrivateScrollView()
+        internalScrollView?.panGestureRecognizer.isEnabled = !isSuspended
+    }
+    
+    /// 菜单是否正呼出。
+    ///
+    /// 向上问宿主而不是自己存一个标志位：`isMenuShow` 是唯一事实来源，
+    /// 存副本就要考虑两边什么时候同步，菜单被别的路径收起时副本就脏了。
+    private var isReaderMenuShowing: Bool {
+        (parent as? ReaderViewController)?.readMenu?.isMenuShow == true
+    }
+    
+    open override func didMove(toParent parent: UIViewController?) {
+        
+        super.didMove(toParent: parent)
+        
+        // 这个容器会【在菜单呼出期间被重建】—— 改字号、改行距、换主题、换阅读模式都会重建。
+        // 新建出来的内部 pan 默认是开的，不在这里补一次的话：改完字号菜单还开着，
+        // 却又能滑动翻页了。`viewDidLoad` 里做不了，那时 parent 还没挂上。
+        suspendPageTurn(isReaderMenuShowing)
+    }
+    
     /// Override to track animation completion for tap-triggered transitions
     open override func setViewControllers(_ viewControllers: [UIViewController]?, direction: UIPageViewController.NavigationDirection, animated: Bool, completion: ((Bool) -> Void)? = nil) {
         
@@ -169,6 +201,12 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     /// Prevent tap gesture from recognizing on END page recommend content area so touches pass through
     open func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         if gestureRecognizer.isEqual(customTapGestureRecognizer) {
+            // 菜单呼出期间不点击翻页 —— 这一下点击归菜单，语义是「先收起菜单」。
+            //
+            // 拦在这里而不是让遮罩吃掉触摸：遮罩铺满整屏，一旦参与命中测试就会连带
+            // 掐掉这块区域上的其他手势。这里只拒本类的点击手势，其余照常。
+            if isReaderMenuShowing { return false }
+            
             if let endVC = viewControllers?.first as? ReaderTerminalPageController {
                 // Allow tap in top blank area (above recommend list), block in recommend content area
                 let touchPoint = touch.location(in: endVC.view)

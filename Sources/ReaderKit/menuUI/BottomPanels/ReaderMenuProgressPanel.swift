@@ -104,13 +104,13 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
     /// 上一章
     @objc open func clickPreviousChapter() {
         
-        readMenu?.delegate?.readMenuClickPreviousChapter?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidTapPreviousChapter(readMenu)
     }
     
     /// 下一章
     @objc open func clickNextChapter() {
         
-        readMenu?.delegate?.readMenuClickNextChapter?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidTapNextChapter(readMenu)
     }
     
     // MARK: 气泡文案
@@ -154,13 +154,18 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
                 // 页码
                 let toPage = (index == count) ? READER_LAST_PAGE : 0
                 
-                // 传递
-                readMenu?.delegate?.readMenuDraggingProgress?(readMenu: readMenu, toChapterID: chapterListModel.id, toPage: toPage)
+                // 传递。章节 id 缺失就不回调 —— 过去这里把 NSNumber! 原样递出去,
+                // 宿主侧再 .intValue 才崩,崩的地方离成因很远。
+                if let readMenu, let chapterID = chapterListModel.id?.intValue {
+                    readMenu.delegate?.readerMenu(readMenu, didSeekToChapter: chapterID, page: toPage)
+                }
             }
             
         }else{ // 分页进度
             
-            readMenu?.delegate?.readMenuDraggingProgress?(readMenu: readMenu, toPage: NSInteger(sliderValue - 1))
+            if let readMenu {
+                readMenu.delegate?.readerMenu(readMenu, didSeekToPage: Int(sliderValue - 1))
+            }
         }
     }
     

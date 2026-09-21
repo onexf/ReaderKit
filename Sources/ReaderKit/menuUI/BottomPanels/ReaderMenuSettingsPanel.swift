@@ -324,7 +324,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     // MARK: - ReaderMenuTabRailDelegate
     
     open func bottomTabBarDidClickCatalogue(_ tabBar: ReaderMenuTabRail) {
-        readMenu?.delegate?.readMenuClickCatalogue?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidTapCatalogue(readMenu)
     }
     
     open func bottomTabBarDidClickNightMode(_ tabBar: ReaderMenuTabRail) {
@@ -349,7 +349,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         bottomTabBar.isNightMode = config.isNightMode
         
         // 通知阅读控制器刷新
-        readMenu?.delegate?.readMenuClickBGColor?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidChangeTheme(readMenu)
         
         // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
     }
@@ -435,7 +435,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
             fontSizeLabel.text = "\(size.intValue)"
             ReaderConfiguration.shared().fontSize = size
             ReaderConfiguration.shared().save()
-            readMenu?.delegate?.readMenuClickFontSize?(readMenu: readMenu)
+            readMenu?.delegate?.readerMenuDidChangeFontSize(readMenu)
             
             // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
         }
@@ -451,7 +451,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
             fontSizeLabel.text = "\(size.intValue)"
             ReaderConfiguration.shared().fontSize = size
             ReaderConfiguration.shared().save()
-            readMenu?.delegate?.readMenuClickFontSize?(readMenu: readMenu)
+            readMenu?.delegate?.readerMenuDidChangeFontSize(readMenu)
             
             // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
         }
@@ -506,7 +506,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         let now = CACurrentMediaTime()
         guard now - lastLiveLineHeightRelayout >= 0.1 else { return }
         lastLiveLineHeightRelayout = now
-        readMenu?.delegate?.readMenuClickLineHeight?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidChangeLineHeight(readMenu)
     }
     
     /// 抬手/轻点提交行高：落库 + 权威重排 + 埋点
@@ -517,7 +517,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         lineHeightSlider.setValue(value)
         reviseBtnStates()
         // 抬手必做一次重排：拖动节流可能把最后一帧丢了，这里保证正文停在最终行距上
-        readMenu?.delegate?.readMenuClickLineHeight?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidChangeLineHeight(readMenu)
         
         // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
     }
@@ -534,7 +534,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         
         config.lineHeightMultipleValue = NSNumber(value: newValue)
         config.save()
-        readMenu?.delegate?.readMenuClickLineHeight?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidChangeLineHeight(readMenu)
         
         // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
     }
@@ -562,7 +562,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         
         reviseReadingVariantSelection()
         
-        readMenu?.delegate?.readMenuClickEffect?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidChangeReadingMode(readMenu)
         
         // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
     }
@@ -582,7 +582,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         // 更新所有按钮的选中状态
         reviseBgColorSelection()
         
-        readMenu?.delegate?.readMenuClickBGColor?(readMenu: readMenu)
+        readMenu?.delegate?.readerMenuDidChangeTheme(readMenu)
         
         // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
     }

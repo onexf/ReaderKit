@@ -1,5 +1,82 @@
 # Changelog
 
+## 1.14.0
+
+`ReaderMenuDelegate` 从 Obj-C 形状改成原生 Swift 协议，并修「菜单呼出时还能翻页」。
+**有破坏性变更，接入方必须改代码。**
+
+### 破坏性变更（三项）
+
+1. **`ReaderMenuDelegate` 不再是 `@objc` 协议**，改为 `public protocol ReaderMenuDelegate:
+   AnyObject`。`@objc optional` 换成协议扩展里的空默认实现 —— 行为等价（不实现就没反应），
+   但不再经 Obj-C 运行时，参数去掉了 IUO，`NSInteger` / `NSNumber` 换成 `Int`。
+
+   方法按 Swift API 设计指南改名，第一个参数不再带标签：
+
+   | 旧 | 新 |
+   |---|---|
+   | `readMenuWillDisplay(readMenu:)` | `readerMenuWillPresent(_:)` |
+   | `readMenuDidDisplay(readMenu:)` | `readerMenuDidPresent(_:)` |
+   | `readMenuWillEndDisplay(readMenu:)` | `readerMenuWillDismiss(_:)` |
+   | `readMenuDidEndDisplay(readMenu:)` | `readerMenuDidDismiss(_:)` |
+   | `readMenuClickBack(readMenu:)` | `readerMenuDidTapBack(_:)` |
+   | `readMenuClickAddToBookshelf(readMenu:)` | `readerMenuDidTapAddToBookshelf(_:)` |
+   | `readMenuClickFeedback(readMenu:)` | `readerMenuDidTapFeedback(_:)` |
+   | `readMenuClickCatalogue(readMenu:)` | `readerMenuDidTapCatalogue(_:)` |
+   | `readMenuClickPreviousChapter(readMenu:)` | `readerMenuDidTapPreviousChapter(_:)` |
+   | `readMenuClickNextChapter(readMenu:)` | `readerMenuDidTapNextChapter(_:)` |
+   | `readMenuDraggingProgress(readMenu:toPage:)` | `readerMenu(_:didSeekToPage:)` |
+   | `readMenuDraggingProgress(readMenu:toChapterID:toPage:)` | `readerMenu(_:didSeekToChapter:page:)` |
+   | `readMenuClickBGColor(readMenu:)` | `readerMenuDidChangeTheme(_:)` |
+   | `readMenuClickFontSize(readMenu:)` | `readerMenuDidChangeFontSize(_:)` |
+   | `readMenuClickLineHeight(readMenu:)` | `readerMenuDidChangeLineHeight(_:)` |
+   | `readMenuClickEffect(readMenu:)` | `readerMenuDidChangeReadingMode(_:)` |
+
+   `readerMenuDidChangeTheme` 换名是因为它从来就不只管背景色：日夜切换由库内自己改主题
+   索引，改完回调的也是这一个方法，接入方在这一处做整套主题重刷。
+
+   ⚠️ **默认实现和过去的 `@objc optional` 有同一个坑**：签名写错不报错，静默走默认实现。
+   迁移时对照上表逐项核，不要靠「点了没反应」来发现漏改。
+
+2. **删除五个从未被库内调用的回调**：`readMenuClickMark`、`readMenuClickDayAndNight`、
+   `readMenuClickFont`、`readMenuClickSpacing`、`readMenuClickDisplayProgress`。
+   前两个是历史残留（顶栏书签入口已随设计改版移除；日夜切换由库内处理、回调的是
+   `readerMenuDidChangeTheme`），后三个在设置面板里没有对应控件。
+   留着没人调的回调会让接入方以为自己接好了，实际是死代码。
+
+   ⚠️ 接入方若把**加书签**的逻辑挂在 `readMenuClickMark` 上，那段逻辑此前就已经不会执行 ——
+   库里没有任何加书签的 UI 入口（侧栏书签 tab 只能查看和删除）。删这个回调会让它变成编译
+   错误，正好暴露问题。需要入口请自行在菜单或长按正文上加。
+
+3. **删除 `ReaderMenuTopBar.verifyForMark()` 与 `reviseMarkBtn()`**。顶栏去掉书签按钮后
+   这两个就是空实现，保留它们让调用方以为「这里刷新了书签状态」。
+
+### 修复：菜单呼出时仍能左右翻页
+
+呼出遮罩 `menuBackdrop` 不参与命中测试（这是对的，否则会把整块区域上的所有手势一起吃掉），
+于是触摸穿透到下层的 `ReaderSheetController`，点击翻页手势照常识别 ——
+症状是点半透明区域菜单收起的同时翻了一页。分三处治：
+
+- **点击翻页**：`ReaderSheetController.gestureRecognizer(_:shouldReceive:)` 在菜单呼出时
+  拒掉 `customTapGestureRecognizer`。只拒这一个手势。
+- **滑动翻页**：新增 `ReaderSheetController.suspendPageTurn(_:)`，由
+  `ReaderMenu.presentDropdown` 调用，只关内部 scrollView 的 pan。
+  **不动 `isScrollEnabled` / `isUserInteractionEnabled`** —— 菜单开着时上一章 / 下一章 /
+  拖进度条都走 `setViewControllers(animated:)`，那条路径依赖内部 scrollView 的偏移动画，
+  整体关掉会一起废掉它。
+  容器会在菜单呼出期间被重建（改字号 / 主题 / 阅读模式都会重建），新建的 pan 默认是开的，
+  所以 `didMove(toParent:)` 里按当前菜单状态补一次。
+- **滑动也要能收起菜单**：新增 `ReaderMenu.dismissPan`，装在 `contentView` 上，
+  只在 `isMenuShow` 为真时允许开始，在 `.began` 那一下收菜单（不跟手）。
+  `cancelsTouchesInView = false` 且对所有配对放开并存 —— 它只是个观察者，
+  不吞触摸也不抢识别权，否则会把侧滑返回和滚动模式的正文滚动一起挤掉。
+
+  排除区沿用 `shouldReceive` 那套（顶栏 / 底栏 / 目录面板 / 朗读 dock / UIControl），
+  所以在底部面板上拖动不会把菜单收掉。
+
+另外 `touchSingleTap` 里「滚动模式只有中间 1/3 响应」加了 `!isMenuShow` 前置：
+那条限制只管**唤起**，菜单已呼出时点哪儿都该收起，再判位置会让点两侧毫无反应。
+
 ## 1.13.0
 
 修页脚电量指示「填充两边顶满、看不出电池轮廓」。无破坏性变更。

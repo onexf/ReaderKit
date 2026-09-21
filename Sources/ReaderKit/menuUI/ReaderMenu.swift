@@ -7,71 +7,75 @@
 
 import UIKit
 
-@objc public protocol ReaderMenuDelegate: NSObjectProtocol {
-    
-    /// 菜单将要显示
-    @objc optional func readMenuWillDisplay(readMenu: ReaderMenu!)
-    
-    /// 菜单完成显示
-    @objc optional func readMenuDidDisplay(readMenu: ReaderMenu!)
-    
-    /// 菜单将要隐藏
-    @objc optional func readMenuWillEndDisplay(readMenu: ReaderMenu!)
-    
-    /// 菜单完成隐藏
-    @objc optional func readMenuDidEndDisplay(readMenu: ReaderMenu!)
-    
-    /// 点击返回
-    @objc optional func readMenuClickBack(readMenu: ReaderMenu!)
-    
-    /// 点击加入书架
-    @objc optional func readMenuClickAddToBookshelf(readMenu: ReaderMenu!)
-    
-    /// 点击反馈
-    @objc optional func readMenuClickFeedback(readMenu: ReaderMenu!)
-    
-    /// 点击书签
-    @objc optional func readMenuClickMark(readMenu: ReaderMenu!, topView: ReaderMenuTopBar!, markButton: UIButton!)
-    
-    /// 点击目录
-    @objc optional func readMenuClickCatalogue(readMenu: ReaderMenu!)
-    
-    /// 点击切换日夜间
-    @objc optional func readMenuClickDayAndNight(readMenu: ReaderMenu!)
-    
-    /// 点击上一章
-    @objc optional func readMenuClickPreviousChapter(readMenu: ReaderMenu!)
-    
-    /// 点击下一章
-    @objc optional func readMenuClickNextChapter(readMenu: ReaderMenu!)
-    
-    /// 拖拽章节进度(分页进度)
-    @objc optional func readMenuDraggingProgress(readMenu: ReaderMenu!, toPage: NSInteger)
-    
-    /// 拖拽章节进度(总文章进度,网络文章也可以使用)
-    @objc optional func readMenuDraggingProgress(readMenu: ReaderMenu!, toChapterID: NSNumber, toPage: NSInteger)
-    
-    /// 点击切换背景颜色
-    @objc optional func readMenuClickBGColor(readMenu: ReaderMenu)
-    
-    /// 点击切换字体
-    @objc optional func readMenuClickFont(readMenu: ReaderMenu)
-    
-    /// 点击切换字体大小
-    @objc optional func readMenuClickFontSize(readMenu: ReaderMenu)
-    
-    /// 点击切换行高
-    @objc optional func readMenuClickLineHeight(readMenu: ReaderMenu)
-    
-    /// 切换进度显示(分页 || 总进度)
-    @objc optional func readMenuClickDisplayProgress(readMenu: ReaderMenu)
-    
-    /// 点击切换间距
-    @objc optional func readMenuClickSpacing(readMenu: ReaderMenu)
-    
-    /// 点击切换翻页效果
-    @objc optional func readMenuClickEffect(readMenu: ReaderMenu)
-  
+/// 阅读菜单的宿主回调。
+///
+/// 菜单的界面全在库内，宿主只回答「点了之后做什么」。
+///
+/// 所有方法都在协议扩展里给了空默认实现，按需覆盖即可 —— 代价和过去的
+/// `@objc optional` 一样：**签名写错不会报错，只会静默走默认实现**。接入时对照本协议
+/// 逐项确认，不要靠「点了没反应」来发现漏接。
+public protocol ReaderMenuDelegate: AnyObject {
+
+    // MARK: 菜单显隐
+
+    func readerMenuWillPresent(_ menu: ReaderMenu)
+    func readerMenuDidPresent(_ menu: ReaderMenu)
+    func readerMenuWillDismiss(_ menu: ReaderMenu)
+    func readerMenuDidDismiss(_ menu: ReaderMenu)
+
+    // MARK: 顶栏
+
+    func readerMenuDidTapBack(_ menu: ReaderMenu)
+    func readerMenuDidTapAddToBookshelf(_ menu: ReaderMenu)
+    func readerMenuDidTapFeedback(_ menu: ReaderMenu)
+
+    // MARK: 章节导航
+
+    func readerMenuDidTapCatalogue(_ menu: ReaderMenu)
+    func readerMenuDidTapPreviousChapter(_ menu: ReaderMenu)
+    func readerMenuDidTapNextChapter(_ menu: ReaderMenu)
+
+    /// 进度条拖到本章某一页。
+    func readerMenu(_ menu: ReaderMenu, didSeekToPage page: Int)
+
+    /// 进度条跨章拖动（全书进度模式）。
+    func readerMenu(_ menu: ReaderMenu, didSeekToChapter chapterID: Int, page: Int)
+
+    // MARK: 排版与主题
+
+    /// 阅读主题变更。**日夜切换最终也走这里** —— 库内自己改主题索引，改完回调本方法，
+    /// 所以宿主只需要在这一处做主题重刷。
+    func readerMenuDidChangeTheme(_ menu: ReaderMenu)
+
+    func readerMenuDidChangeFontSize(_ menu: ReaderMenu)
+    func readerMenuDidChangeLineHeight(_ menu: ReaderMenu)
+
+    /// 阅读模式变更（左右翻页 ↔ 上下滚动）。
+    func readerMenuDidChangeReadingMode(_ menu: ReaderMenu)
+}
+
+public extension ReaderMenuDelegate {
+
+    func readerMenuWillPresent(_ menu: ReaderMenu) {}
+    func readerMenuDidPresent(_ menu: ReaderMenu) {}
+    func readerMenuWillDismiss(_ menu: ReaderMenu) {}
+    func readerMenuDidDismiss(_ menu: ReaderMenu) {}
+
+    func readerMenuDidTapBack(_ menu: ReaderMenu) {}
+    func readerMenuDidTapAddToBookshelf(_ menu: ReaderMenu) {}
+    func readerMenuDidTapFeedback(_ menu: ReaderMenu) {}
+
+    func readerMenuDidTapCatalogue(_ menu: ReaderMenu) {}
+    func readerMenuDidTapPreviousChapter(_ menu: ReaderMenu) {}
+    func readerMenuDidTapNextChapter(_ menu: ReaderMenu) {}
+
+    func readerMenu(_ menu: ReaderMenu, didSeekToPage page: Int) {}
+    func readerMenu(_ menu: ReaderMenu, didSeekToChapter chapterID: Int, page: Int) {}
+
+    func readerMenuDidChangeTheme(_ menu: ReaderMenu) {}
+    func readerMenuDidChangeFontSize(_ menu: ReaderMenu) {}
+    func readerMenuDidChangeLineHeight(_ menu: ReaderMenu) {}
+    func readerMenuDidChangeReadingMode(_ menu: ReaderMenu) {}
 }
 
 open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
@@ -87,13 +91,20 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     public private(set) weak var contentView: ReaderContentView!
     
     /// 代理
-    public private(set) weak var delegate: ReaderMenuDelegate!
+    public private(set) weak var delegate: ReaderMenuDelegate?
     
     /// 菜单显示状态
     open var isMenuShow: Bool = false
     
     /// 单击手势
     public private(set) var singleTap: UITapGestureRecognizer!
+    
+    /// 收起菜单的滑动手势。
+    ///
+    /// 菜单呼出期间在半透明区域**拖动**也要能收起菜单，不只是点一下。
+    /// 只在 `isMenuShow` 为真时才允许开始（见 `gestureRecognizerShouldBegin`），
+    /// 菜单没呼出时它立刻失败，不参与正常的翻页 / 滚动。
+    public private(set) var dismissPan: UIPanGestureRecognizer!
     
     /// TopView
     public private(set) var topView: ReaderMenuTopBar!
@@ -117,7 +128,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     private override init() { super.init() }
     
     /// 初始化
-    public convenience init(vc: ReaderViewController!, delegate: ReaderMenuDelegate!) {
+    public convenience init(vc: ReaderViewController!, delegate: ReaderMenuDelegate?) {
         
         self.init()
         
@@ -161,6 +172,14 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         singleTap.numberOfTapsRequired = 1
         singleTap.delegate = self
         vc.contentView.addGestureRecognizer(singleTap)
+        
+        // 收起菜单的滑动手势
+        dismissPan = UIPanGestureRecognizer(target: self, action: #selector(touchDismissPan))
+        dismissPan.delegate = self
+        // 只负责"发现有人在这块区域拖动",不吞触摸 —— 侧滑返回、滚动模式的正文滚动
+        // 都还要照常收到这一串触摸。
+        dismissPan.cancelsTouchesInView = false
+        vc.contentView.addGestureRecognizer(dismissPan)
     }
     
     // 触发单击手势
@@ -173,7 +192,11 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         }
         
         // 滚动模式下，只有屏幕中间1/3区域点击才唤起菜单
-        if ReaderConfiguration.shared().effectType == .scroll {
+        //
+        // 这条限制只管【唤起】。菜单已经呼出时任意位置点一下都要能收起 ——
+        // 此时正文被遮罩盖着，用户点的是遮罩，语义就是「关掉菜单」，
+        // 再按左右 1/3 判一次的话点两侧会毫无反应。
+        if !isMenuShow, ReaderConfiguration.shared().effectType == .scroll {
             let tapLocation = singleTap.location(in: vc.contentView)
             let viewWidth = vc.contentView.bounds.width
             let leftBoundary = viewWidth / 3.0
@@ -188,7 +211,41 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         presentDropdown(isShow: !isMenuShow)
     }
     
+    /// 触发收起菜单的滑动手势
+    ///
+    /// 只在**开始**拖动的那一下收菜单，不跟手 —— 这是「先收起菜单」而不是「跟着手指拉」。
+    /// 收完菜单本次拖动就不再有别的效果：左右翻页的 pan 在菜单呼出时已经被
+    /// `suspendPageTurn(true)` 关掉，中途重新打开也不会接管已经开始的这串触摸。
+    @objc private func touchDismissPan() {
+        
+        guard dismissPan.state == .began, isMenuShow else { return }
+        
+        presentDropdown(isShow: false)
+    }
+    
     // MARK: -- UIGestureRecognizerDelegate
+    
+    /// 收菜单的滑动手势只在菜单呼出时才允许开始。
+    ///
+    /// 菜单没呼出时返回 false，它立刻进入 failed，不会延迟或干扰翻页 / 滚动手势。
+    open func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        
+        if gestureRecognizer === dismissPan { return isMenuShow }
+        
+        return true
+    }
+    
+    /// 收菜单的滑动手势和谁都能并存。
+    ///
+    /// 它只是个观察者：不吞触摸、不抢识别权。要是不放开并存，它一旦识别就会把侧滑返回、
+    /// 滚动模式的正文滚动一起挤掉 —— 那又变成「整块区域没手势」了。
+    open func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        
+        return gestureRecognizer === dismissPan || otherGestureRecognizer === dismissPan
+    }
     
     /// 手势拦截
     ///
@@ -213,6 +270,13 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         if let dock = vc?.installedSpeechDock, touchedView.isDescendant(of: dock) { return false }
         
         if touchedView is UIControl { return false }
+        
+        // 菜单已经呼出 —— 放行，此时一次点击的语义固定是「收起菜单」。
+        //
+        // 必须排在下面那些按位置/按页型的判断之前：那些规则是为【唤起】菜单定的
+        // （书末页只让顶部空白区的中间 1/3 唤起），拿来管收起会留下死区 ——
+        // 点了既不收菜单、又因为翻页已被掐掉而什么都不发生。
+        if isMenuShow { return true }
         
         // On END page, only allow menu tap in the top blank area (above recommend content)
         if let endVC = vc.pageViewController?.viewControllers?.first as? ReaderTerminalPageController {
@@ -361,7 +425,13 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         menuBackdrop.backgroundColor = .black
         menuBackdrop.alpha = isMenuShow ? menuBackdropAlpha : 0
         menuBackdrop.isHidden = !isMenuShow
+        
         // 不拦截手势,点击仍由 contentView 的单击手势统一处理
+        //
+        // **不要为了「菜单呼出时别翻页」把这里改成 true。** 遮罩铺满整个 contentView,
+        // 一旦参与命中测试就会把落在这块区域的触摸全部吃掉 —— 不只是翻页,滚动模式的
+        // 正文滚动、以后加在这一层的任何手势都会一起没掉,而且没法只放过其中一个。
+        // 翻页要单独掐,见 `suspendPageTurn(_:)`。
         menuBackdrop.isUserInteractionEnabled = false
         contentView.addSubview(menuBackdrop)
         
@@ -489,15 +559,22 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         isAnimateComplete = false
         
         if isShow {
-            delegate?.readMenuWillDisplay?(readMenu: self)
+            delegate?.readerMenuWillPresent(self)
             
         }else{ 
-            delegate?.readMenuWillEndDisplay?(readMenu: self)
+            delegate?.readerMenuWillDismiss(self)
             // 隐藏目录遮罩
             presentCatalogBackdrop(isShow: false)
         }
         
         isMenuShow = isShow
+        
+        // 菜单呼出期间不许滑动翻页。
+        //
+        // 点击翻页由 `ReaderSheetController` 自己按 `isMenuShow` 拒掉，不需要在这里管；
+        // 滑动那条是 UIPageViewController 内部的 pan,只能从外面显式开关。
+        // 滚动模式没有这个容器（`pageViewController` 为 nil）,可选链直接跳过。
+        vc?.pageViewController?.suspendPageTurn(isShow)
         
         // 更新状态栏
         UIApplication.shared.setStatusBarHidden(!isMenuShow, with: .fade)
@@ -513,11 +590,15 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         
         presentPeakView(isShow: isShow) { [weak self] () in
             
-            self?.isAnimateComplete = true
+            guard let self else { return }
             
-            if isShow { self?.delegate?.readMenuDidDisplay?(readMenu: self!)
-                
-            }else{ self?.delegate?.readMenuDidEndDisplay?(readMenu: self!) }
+            self.isAnimateComplete = true
+            
+            if isShow {
+                self.delegate?.readerMenuDidPresent(self)
+            } else {
+                self.delegate?.readerMenuDidDismiss(self)
+            }
         }
     }
     
