@@ -96,6 +96,9 @@ public struct ReaderStrings {
         "Failed to load \(name), please try again"
     }
 
+    /// 目录分页补全失败时列表末尾的提示，整条可点重试。
+    public var catalogueLoadFailed: String = "Failed to load. Tap to retry"
+
     // MARK: - 朗读
 
     /// 朗读入口按钮标题

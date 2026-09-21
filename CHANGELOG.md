@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.15.0
+
+目录列表的加载态：修转圈跑到列表顶部，并补上失败态。**无破坏性变更，全部是追加。**
+
+### 修复：目录列表的转圈会跑到列表顶部，压在前几行章节上
+
+`ReaderCatalogueView.layoutLoadingFooter()` 把 footer 的 frame 整个重设成
+`CGRect(x: 0, y: 0, width:, height:)` —— **连 origin 一起写了**。
+
+`tableFooterView` 的位置本该由 UITableView 按 contentSize 计算。手动把 origin 写成
+(0, 0) 之后，只有在表格下一次重新布局时才会被纠正；而 `layoutSubviews` 里那条
+「宽度跟随列表」的复位又会把它重新按回原点（只改 origin 不改 size，表格不会因此重新
+布局）。于是转圈停在列表坐标系的原点，视觉上浮在第 1~2 行章节上。
+
+改成只设 `frame.size`，位置交给表格。高度确实变化时（转圈 44 ↔ 失败态 56）重新赋一次
+`tableFooterView`，因为表格只在挂载时读一次 footer 高度，光改 frame 它不会给 contentSize
+重新留位。
+
+### 新增：目录 footer 的失败态
+
+原先 footer 只有两态，判据是 `!readModel.isChapterListComplete` —— 它表达不了
+「还没补完、但已经失败了」。后果是补页失败后转圈永久转，用户既看不出失败也没有重试入口。
+
+- `ReaderCatalogueView.isCatalogueSupplyFailed`（`open var`，默认 `false`）：
+  宿主在补页彻底失败时置 `true`，重新开始补页时置回 `false`。置位即刷新 footer。
+- `ReaderCatalogueDelegate.catalogViewDidRequestRetry(catalogView:)`（`@objc optional`）：
+  用户点了失败提示。与 `catalogViewDidReachBottomEdge` 分开 —— 那条是滚动自动触发、
+  可以静默失败，这条是用户明确要求重试，宿主应当绕开失败计数一类的节流。
+- `ReaderStrings.catalogueLoadFailed`：失败提示文案，默认
+  `"Failed to load. Tap to retry"`。
+
+三态由此闭合：目录完整 → 不挂 footer；未完整且未失败 → 转圈；未完整且已失败 →
+可点重试的文案。**不设这个属性的接入方行为与 1.14.0 完全一致。**
+
 ## 1.14.0
 
 `ReaderMenuDelegate` 从 Obj-C 形状改成原生 Swift 协议，并修「菜单呼出时还能翻页」。

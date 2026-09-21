@@ -14,6 +14,12 @@ import UIKit
     
     /// 目录列表滚动到接近底部、且目录尚未加载完整时触发（用于自动补目录 / 上拉加载更多）
     @objc optional func catalogViewDidReachBottomEdge(catalogView: ReaderCatalogueView)
+    
+    /// 目录补页失败后，用户点了列表末尾的失败提示。
+    ///
+    /// 与 `catalogViewDidReachBottomEdge` 分开：那条是滚动自动触发、可以静默失败，
+    /// 这条是用户明确要求重试，宿主应当绕开失败计数一类的节流。
+    @objc optional func catalogViewDidRequestRetry(catalogView: ReaderCatalogueView)
 }
 
 open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSource {
@@ -23,8 +29,23 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     /// 加载中 footer 高度（设计稿「阅读器-目录加载」：列表末尾 32 的转圈 + 上方 12 间距）
     private let loadingFooterHeight: CGFloat = 44
 
+    /// 失败态 footer 高度：一行文案，比转圈略高一点好点中
+    private let failureFooterHeight: CGFloat = 56
+
     /// 代理
     open weak var delegate: ReaderCatalogueDelegate!
+    
+    /// 宿主报告的「补页失败」。
+    ///
+    /// 目录完整性（`isChapterListComplete`）只能表达「补完了没有」，表达不了
+    /// 「还没补完但已经失败了」—— 只看它的话失败之后转圈会一直转，用户既看不出失败
+    /// 也没有重试入口。宿主在补页彻底失败时置 `true`，重新开始补页时置回 `false`。
+    open var isCatalogueSupplyFailed: Bool = false {
+        didSet {
+            guard oldValue != isCatalogueSupplyFailed else { return }
+            reviseLoadingFooter()
+        }
+    }
     
     /// 数据源
     open var readModel: ReaderBookModel! {
@@ -46,10 +67,13 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     
     public private(set) var tableView: ReaderTableView!
 
-    /// 目录未加载完整时挂在列表末尾的加载指示器
+    /// 目录未加载完整时挂在列表末尾的 footer（转圈或失败提示共用这一个容器）
     private var loadingFooter: UIView!
 
     private var loadingIndicator: UIActivityIndicatorView!
+
+    /// 失败态的提示文案，整块可点重试
+    private var failureLabel: UILabel!
     
     public override init(frame: CGRect) {
         
@@ -103,12 +127,31 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         tableView.showsVerticalScrollIndicator = false
         addSubview(tableView)
 
-        // 加载中 footer
+        // 加载中 / 失败 footer（同一个容器，按状态切换里面显示哪个）
         loadingFooter = UIView()
+
         loadingIndicator = UIActivityIndicatorView(style: .medium)
         loadingIndicator.color = ReaderConfiguration.shared().currentThemeColors.textT3
         loadingIndicator.hidesWhenStopped = true
         loadingFooter.addSubview(loadingIndicator)
+
+        failureLabel = UILabel()
+        failureLabel.font = ReaderEnvironment.fonts.uiRegular(13)
+        failureLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textT3
+        failureLabel.textAlignment = .center
+        failureLabel.numberOfLines = 2
+        failureLabel.isHidden = true
+        // 整块可点：转圈那一小团太小，点不中
+        failureLabel.isUserInteractionEnabled = true
+        failureLabel.addGestureRecognizer(
+            UITapGestureRecognizer(target: self, action: #selector(touchRetry))
+        )
+        loadingFooter.addSubview(failureLabel)
+    }
+    
+    @objc private func touchRetry() {
+        
+        delegate?.catalogViewDidRequestRetry?(catalogView: self)
     }
     
     /// 滚动到阅读记录
@@ -147,33 +190,56 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
 
     // MARK: - 加载态
 
-    /// 目录尚未加载完整时在列表末尾展示转圈，加载完成后移除
+    /// 按目录完整性与宿主报告的失败态渲染列表末尾的 footer。
+    ///
+    /// 三态：目录完整 → 不挂 footer；未完整且未失败 → 转圈；未完整且已失败 → 可点重试的文案。
     open func reviseLoadingFooter() {
 
-        let isLoading = (readModel != nil) && !readModel.isChapterListComplete
-
-        guard isLoading else {
+        guard let readModel, !readModel.isChapterListComplete else {
             loadingIndicator.stopAnimating()
             if tableView.tableFooterView === loadingFooter { tableView.tableFooterView = nil }
             return
         }
 
-        layoutLoadingFooter()
-        loadingIndicator.startAnimating()
+        let isFailed = isCatalogueSupplyFailed
 
-        // 同一个 footer 实例不重复赋值，避免触发多余的表格布局
-        if tableView.tableFooterView !== loadingFooter { tableView.tableFooterView = loadingFooter }
+        // 文案在这里取而不是在 addSubviews 里取：本视图是懒建的，但注入点的配置时机
+        // 由宿主决定，现取才保证拿到的是宿主设过的那份。
+        failureLabel.text = ReaderEnvironment.strings.catalogueLoadFailed
+        failureLabel.isHidden = !isFailed
+        if isFailed {
+            loadingIndicator.stopAnimating()
+        } else {
+            loadingIndicator.startAnimating()
+        }
+
+        let targetHeight = isFailed ? failureFooterHeight : loadingFooterHeight
+        // 高度变了必须重新赋值 —— UITableView 只在挂载时读一次 footer 高度，
+        // 光改 frame 它不会重新给 contentSize 留位置。
+        let needsRemount = tableView.tableFooterView !== loadingFooter
+            || abs(loadingFooter.frame.height - targetHeight) > 0.5
+
+        layoutLoadingFooter(height: targetHeight)
+
+        if needsRemount { tableView.tableFooterView = loadingFooter }
     }
 
-    /// footer 自身的尺寸与转圈位置（宽度跟随列表）
-    private func layoutLoadingFooter() {
+    /// footer 的尺寸与内部元素位置（宽度跟随列表）。
+    ///
+    /// ⚠️ **只改 size，不要动 origin。** `tableFooterView` 的位置由 UITableView 按
+    /// contentSize 算，这里把 origin 写成 (0, 0) 的话，在表格下一次重新布局之前它就
+    /// 一直停在列表坐标原点 —— 症状是转圈跑到列表顶部、压在前几行章节上。
+    private func layoutLoadingFooter(height: CGFloat) {
 
-        loadingFooter.frame = CGRect(x: 0, y: 0, width: bounds.width, height: loadingFooterHeight)
+        loadingFooter.frame.size = CGSize(width: bounds.width, height: height)
 
-        // 上方留出与章节行一致的 20 间距，转圈居中在剩余区域
-        let indicatorTop = ReaderCatalogueCell.rowSpacing
-        loadingIndicator.center = CGPoint(x: bounds.width / 2,
-                                         y: indicatorTop + (loadingFooterHeight - indicatorTop) / 2)
+        // 上方留出与章节行一致的 20 间距，内容居中在剩余区域
+        let contentTop = ReaderCatalogueCell.rowSpacing
+        let centerY = contentTop + (height - contentTop) / 2
+
+        loadingIndicator.center = CGPoint(x: bounds.width / 2, y: centerY)
+
+        failureLabel.frame = CGRect(x: 0, y: contentTop, width: bounds.width, height: height - contentTop)
     }
 
     // MARK: - 标题处理
@@ -211,6 +277,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     open func adoptThemeColors(_ colors: ReaderThemeColors) {
 
         loadingIndicator.color = colors.textT3
+        failureLabel.textColor = colors.textT3
 
         tableView.reloadData()
     }
@@ -222,7 +289,9 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         tableView.frame = bounds
 
         // footer 宽度跟随列表宽度变化（不重新挂载，避免布局递归）
-        if tableView.tableFooterView === loadingFooter { layoutLoadingFooter() }
+        if tableView.tableFooterView === loadingFooter {
+            layoutLoadingFooter(height: loadingFooter.frame.height)
+        }
     }
     
     // MARK: UITableViewDelegate,UITableViewDataSource
