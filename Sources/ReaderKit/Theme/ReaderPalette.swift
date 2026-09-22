@@ -24,17 +24,9 @@ final public class ReaderPalette {
         return provider.colors(for: theme)
     }
 
-    /// 根据索引获取颜色集（兼容持久化里的 bgColorIndex）
-    public func colors(forIndex index: Int) -> ReaderThemeColors {
-        let all = ReaderThemeType.allCases
-        let safeIndex = max(0, min(index, all.count - 1))
-        return provider.colors(for: all[safeIndex])
-    }
-
     /// 获取当前阅读器配置对应的主题颜色
     public func activeColors() -> ReaderThemeColors {
-        let index = ReaderConfiguration.shared().bgColorIndex.intValue
-        return colors(forIndex: index)
+        return colors(for: ReaderConfiguration.shared().themeType)
     }
 
     /// 获取某个主题在设置面板色块里的展示样式

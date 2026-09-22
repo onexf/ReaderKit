@@ -67,7 +67,24 @@ public let READER_THEME_LEGACY_INDEX_MAP: [Int] = [
 /// 单利对象
 private var configure: ReaderConfiguration?
 
-open class ReaderConfiguration: NSObject {
+//  阅读配置 —— 用户在设置面板里选的那些：主题、字号、行高、翻页方式。
+//
+//  ## 存储属性就是配置本身
+//
+//  这里**没有「索引」层**：主题就是 `ReaderThemeType`，翻页方式就是 `ReaderEffectType`。
+//  1.24.0 之前是十个 `@objc open var xxxIndex: NSNumber!`，落盘走 `setValuesForKeys`
+//  的 KVC 回路。那套有三个毛病，而且**都不报错**：
+//
+//  - `setValue(_:forUndefinedKey:)` 是空实现 —— 键名写错、类型不对都被吞掉，
+//    表现是用户的阅读设置每次启动静默回到默认值。
+//  - 十个 IUO。每个读取点都要 `.intValue` / `.boolValue`，每个写入点都要 `NSNumber(value:)`。
+//  - `effectType` 这类访问器是 `ReaderEffectType!`（从 Int 反查枚举），
+//    也就是把「这个 Int 是不是合法枚举值」推到了运行时。
+//
+//  现在每个键都在 `load(from:)` 里显式读一次，读不出来就保留属性声明处的默认值。
+//  漏一个键是看得见的（那一行不存在），不再是静默回落。
+
+open class ReaderConfiguration {
     
     // MARK: 阅读页面配置
     
@@ -77,62 +94,46 @@ open class ReaderConfiguration: NSObject {
     
     // MARK: 阅读内容配置
     
-    /// 背景颜色索引
-    @objc open var bgColorIndex: NSNumber!
+    /// 当前阅读主题。
+    open var themeType: ReaderThemeType = .lightDefault
     
-    /// 字体类型索引
-    @objc open var fontIndex: NSNumber!
+    /// 翻页方式。只有左右翻页与上下滚动两种。
+    open var effectType: ReaderEffectType = .scroll
     
-    /// 翻页类型索引
-    @objc open var effectIndex: NSNumber!
+    /// 字体档位。设置面板目前没有入口，正文字体走 `ReaderEnvironment.fonts`。
+    open var fontType: ReaderFontType = .system
     
-    /// 间距类型索引
-    @objc open var spacingIndex: NSNumber!
+    /// 行间距档位。设置面板目前没有入口。
+    open var spacingType: ReaderSpacingType = .small
     
-    /// 进度显示索引
-    @objc open var progressIndex: NSNumber!
+    /// 底部进度的显示方式：分页进度 or 全书进度。
+    ///
+    /// 全书进度需要整本书的章节总数、以及当前章节带有从 0 开始的排序索引。
+    /// 想在拖动进度条时显示章节名，改 `ReaderMenuProgressPanel.bubbleText(for:)`。
+    open var progressType: ReaderProgressType = .page
     
-    /// 字体大小
-    @objc open var fontSize: NSNumber!
+    /// 正文字号（pt）。范围 `READER_FONT_SIZE_MIN`…`READER_FONT_SIZE_MAX`。
+    open var fontSize: Int = READER_FONT_SIZE_DEFAULT
     
-    /// 行高倍数（如 1.0, 1.2, 1.6, 2.0），存储为整数百分比（120, 160, 200）
-    @objc open var lineHeightMultipleValue: NSNumber!
+    /// 行高百分比：`160` 表示 1.6 倍字号。
+    ///
+    /// 用整数百分比而不是 `CGFloat` 倍数：这个值要进分页签名做相等比较
+    /// （见 `ReaderChapterModel.activePagingSignature()`），浮点数没法判相等。
+    open var lineHeightPercent: Int = 160
     
-    /// 用户是否手动选择过阅读主题（选择过则不再跟随系统深色模式）
-    @objc open var hasUserSelectedTheme: NSNumber!
+    /// 用户是否手动选择过阅读主题。选过之后就不再跟随系统深色模式。
+    open var hasUserSelectedTheme = false
     
-    /// 阅读模式是否已确定（首次由第一本小说的 novelLengthType 决定，或用户手动切换后标记为 true）
-    @objc open var hasUserSelectedEffect: NSNumber!
+    /// 阅读方式是否已确定（首次由第一本小说的篇幅决定，或用户手动切过）。
+    open var hasUserSelectedEffect = false
     
-    /// 主题方案版本号，用于 bgColorIndex 的历史索引迁移，见 READER_THEME_SCHEMA_VERSION
-    @objc open var themeSchemaVersion: NSNumber!
+    /// 磁盘上那份配置的主题方案版本号，只用于一次性索引迁移。对外没有意义。
+    private var themeSchemaVersion = READER_THEME_SCHEMA_VERSION
     
     
     // MARK: 快捷获取
     
-    /// 使用分页进度 || 总文章进度(网络文章也可以使用)
-    /// 总文章进度注意: 总文章进度需要有整本书的章节总数,以及当前章节带有从0开始排序的索引。
-    /// 如果还需要在拖拽底部功能条上进度条过程中展示章节名,则需要带上章节列表数据,并去 ReaderMenuProgressPanel 文件中找到 bubbleText(for:) 修改返回数据源为章节名。
-    open var progressType: ReaderProgressType! { return ReaderProgressType(rawValue: progressIndex.intValue) }
-    
-    /// 翻页类型
-    open var effectType: ReaderEffectType! { return ReaderEffectType(rawValue: effectIndex.intValue) }
-    
-    /// 字体类型
-    open var fontType: ReaderFontType! { return ReaderFontType(rawValue: fontIndex.intValue) }
-    
-    /// 间距类型
-    open var spacingType: ReaderSpacingType! { return ReaderSpacingType(rawValue: spacingIndex.intValue) }
-    
-    /// 当前主题槽位。
-    ///
-    /// `initData()` 已保证 `bgColorIndex` 落在合法范围（越界会回落浅色基准主题），
-    /// 这里的 `?? .lightDefault` 只是不做强解包的兜底。
-    open var themeType: ReaderThemeType {
-        return ReaderThemeType(rawValue: bgColorIndex.intValue) ?? .lightDefault
-    }
-    
-    /// 当前主题颜色集（根据 bgColorIndex 从 ReaderPalette 获取）
+    /// 当前主题颜色集
     open var currentThemeColors: ReaderThemeColors {
         return ReaderPalette.shared.activeColors()
     }
@@ -154,7 +155,7 @@ open class ReaderConfiguration: NSObject {
     
     /// 是否为夜间模式
     open var isNightMode: Bool {
-        return bgColorIndex.intValue == ReaderThemeType.night.rawValue
+        return themeType == .night
     }
     
     /// 如果用户未手动选择过主题，根据系统深色模式同步阅读器主题
@@ -165,16 +166,14 @@ open class ReaderConfiguration: NSObject {
     /// 接入方的 AppDelegate 可能强制为 .light，传进来的值同样无法反映系统设置。
     @discardableResult
     open func syncWithSystemDarkVariantIfRequired() -> Bool {
-        guard !hasUserSelectedTheme.boolValue else { return false }
+        guard !hasUserSelectedTheme else { return false }
         
-        let isDark = Self.detectSystemDarkVariant()
-        let targetIndex = isDark ? ReaderThemeType.night.rawValue : ReaderThemeType.lightDefault.rawValue
-        if bgColorIndex.intValue != targetIndex {
-            bgColorIndex = NSNumber(value: targetIndex)
-            save()
-            return true
-        }
-        return false
+        let target: ReaderThemeType = Self.detectSystemDarkVariant() ? .night : .lightDefault
+        guard themeType != target else { return false }
+        
+        themeType = target
+        save()
+        return true
     }
     
     /// 检测系统真实的深色模式设置
@@ -229,7 +228,7 @@ open class ReaderConfiguration: NSObject {
     /// 阅读字体
     open func font(isTitle: Bool = false) ->UIFont {
         
-        let size = readerScaled(CGFloat(fontSize.intValue + (isTitle ? READER_FONT_SIZE_SPACE_TITLE : 0)))
+        let size = readerScaled(CGFloat(fontSize + (isTitle ? READER_FONT_SIZE_SPACE_TITLE : 0)))
         
         // 标题使用 Newsreader SemiBold，正文使用 Newsreader Medium（标题字号已在上方叠加 READER_FONT_SIZE_SPACE_TITLE）
         if isTitle {
@@ -275,7 +274,7 @@ open class ReaderConfiguration: NSObject {
         
         // 行高 = 字体大小 × 行高百分比 / 100（160% = 1.6倍字体行高）
         let currentFont = font(isTitle: isTitle)
-        let lineHeightMultiplier = CGFloat(lineHeightMultipleValue.intValue) / 100.0
+        let lineHeightMultiplier = CGFloat(lineHeightPercent) / 100.0
         let targetLineHeight = currentFont.pointSize * lineHeightMultiplier
         
         if isTitle {
@@ -321,27 +320,130 @@ open class ReaderConfiguration: NSObject {
     }
     
     
-    // MARK: 辅助
+    // MARK: - 持久化
     
-    /// 保存(使用 ReaderDefaults 存储是方便配置修改)
+    /// 磁盘上的键名。
+    ///
+    /// **和属性名刻意不一致**：属性名是现在的命名，这几个字符串是已经写进用户
+    /// `UserDefaults` 的历史格式。一经发布就不要再改 —— 改了读不到旧键，用户的阅读设置
+    /// 会静默回到默认值。
+    private enum StoreKey {
+        static let theme = "bgColorIndex"
+        static let effect = "effectIndex"
+        static let font = "fontIndex"
+        static let spacing = "spacingIndex"
+        static let progress = "progressIndex"
+        static let fontSize = "fontSize"
+        static let lineHeight = "lineHeightMultipleValue"
+        static let userSelectedTheme = "hasUserSelectedTheme"
+        static let userSelectedEffect = "hasUserSelectedEffect"
+        static let schemaVersion = "themeSchemaVersion"
+    }
+    
+    /// 写盘。整份配置存成 `UserDefaults` 里的一个字典。
+    ///
+    /// 布尔也存成 0/1：读回来时 plist 的布尔与整数都能用同一个 `as? NSNumber` 取，
+    /// 少一条分支。
     open func save() {
         
-        let dict = ["fontIndex": fontIndex,
-                    "effectIndex": effectIndex,
-                    "spacingIndex": spacingIndex,
-                    "progressIndex": progressIndex,
-                    "fontSize": fontSize,
-                    "lineHeightMultipleValue": lineHeightMultipleValue,
-                    "bgColorIndex": bgColorIndex,
-                    "hasUserSelectedTheme": hasUserSelectedTheme,
-                    "hasUserSelectedEffect": hasUserSelectedEffect,
-                    "themeSchemaVersion": themeSchemaVersion]
-    
+        let dict: [String: Int] = [
+            StoreKey.theme: themeType.rawValue,
+            StoreKey.effect: effectType.rawValue,
+            StoreKey.font: fontType.rawValue,
+            StoreKey.spacing: spacingType.rawValue,
+            StoreKey.progress: progressType.rawValue,
+            StoreKey.fontSize: fontSize,
+            StoreKey.lineHeight: lineHeightPercent,
+            StoreKey.userSelectedTheme: hasUserSelectedTheme ? 1 : 0,
+            StoreKey.userSelectedEffect: hasUserSelectedEffect ? 1 : 0,
+            StoreKey.schemaVersion: themeSchemaVersion,
+        ]
+        
         ReaderDefaults.setObject(dict, READER_KEY_CONFIGURE)
     }
     
+    /// 逐键读回。
+    ///
+    /// 每一项的语义都一样：**读不出来、或者不是合法值，就保留属性声明处的默认值。**
+    /// 所以这里没有「补默认值」的代码 —— 默认值只写在属性声明上一处。
+    ///
+    /// - Returns: 是否需要立刻回写（只有主题方案迁移会要求）。
+    private func load(from stored: [String: Any]?) -> Bool {
+        
+        guard let stored else { return false }
+        
+        if let raw = Self.storedInt(stored, StoreKey.effect),
+           let value = ReaderEffectType(rawValue: raw) {
+            // 解不出枚举就留默认（滚动）。历史配置里可能存着已经移除的
+            // 仿真(0) / 覆盖(1) / 无效果(4)，它们现在没有对应的 case。
+            effectType = value
+        }
+        if let raw = Self.storedInt(stored, StoreKey.font),
+           let value = ReaderFontType(rawValue: raw) {
+            fontType = value
+        }
+        if let raw = Self.storedInt(stored, StoreKey.spacing),
+           let value = ReaderSpacingType(rawValue: raw) {
+            spacingType = value
+        }
+        if let raw = Self.storedInt(stored, StoreKey.progress),
+           let value = ReaderProgressType(rawValue: raw) {
+            progressType = value
+        }
+        if let raw = Self.storedInt(stored, StoreKey.fontSize),
+           raw >= READER_FONT_SIZE_MIN, raw <= READER_FONT_SIZE_MAX {
+            fontSize = raw
+        }
+        if let raw = Self.storedInt(stored, StoreKey.lineHeight), raw > 0 {
+            lineHeightPercent = raw
+        }
+        if let raw = Self.storedInt(stored, StoreKey.userSelectedTheme) {
+            hasUserSelectedTheme = raw != 0
+        }
+        if let raw = Self.storedInt(stored, StoreKey.userSelectedEffect) {
+            hasUserSelectedEffect = raw != 0
+        }
+        
+        return loadTheme(from: stored)
+    }
     
-    // MARK: 构造
+    /// 主题单独读：它有一次跨方案的索引迁移。
+    ///
+    /// - Returns: 是否发生了迁移（需要回写，否则每次启动都要从旧值重算一遍）。
+    private func loadTheme(from stored: [String: Any]) -> Bool {
+        
+        guard let raw = Self.storedInt(stored, StoreKey.theme) else { return false }
+        
+        let storedVersion = Self.storedInt(stored, StoreKey.schemaVersion) ?? 0
+        
+        if storedVersion >= READER_THEME_SCHEMA_VERSION {
+            // 越界（例如将来主题数量收缩）时回落浅色基准主题。
+            themeType = ReaderThemeType(rawValue: raw) ?? .lightDefault
+            themeSchemaVersion = storedVersion
+            return false
+        }
+        
+        // 旧方案 5 套主题 → 新方案 6 套的一次性索引迁移。
+        if raw >= 0, raw < READER_THEME_LEGACY_INDEX_MAP.count {
+            themeType = ReaderThemeType(rawValue: READER_THEME_LEGACY_INDEX_MAP[raw]) ?? .lightDefault
+        } else {
+            themeType = .lightDefault
+        }
+        themeSchemaVersion = READER_THEME_SCHEMA_VERSION
+        return true
+    }
+    
+    /// 从存下来的字典里取一个整数。
+    ///
+    /// 走 `NSNumber` 而不是 `as? Int`：plist 里的布尔读回来是 `__NSCFBoolean`，
+    /// `as? Int` 会失败，而 `NSNumber` 能同时接住布尔与整数 —— 历史配置里
+    /// `hasUserSelected*` 两个键存的就是布尔。
+    private static func storedInt(_ stored: [String: Any], _ key: String) -> Int? {
+        return (stored[key] as? NSNumber)?.intValue
+    }
+    
+    
+    // MARK: - 构造
     
     /// 获取对象
     public class func shared() ->ReaderConfiguration {
@@ -351,93 +453,8 @@ open class ReaderConfiguration: NSObject {
         return configure!
     }
     
-    public init(_ dict: Any? = nil) {
+    public init(_ stored: Any? = nil) {
         
-        super.init()
-  
-        if dict != nil { setValuesForKeys(dict as! [String : Any]) }
-        
-        initData()
+        if load(from: stored as? [String: Any]) { save() }
     }
-    
-    /// 初始化配置数据,以及处理初始化数据的增删
-    private func initData() {
-        
-        /// 主题索引迁移后需要立即回写，避免每次启动都从旧值重算
-        var needsPersist = false
-        
-        // 背景 - 用户未手动选择过主题时，跟随系统深色模式（在阅读控制器 viewWillAppear 中同步）
-        if hasUserSelectedTheme == nil {
-            hasUserSelectedTheme = NSNumber(value: false)
-        }
-        
-        // 阅读模式是否已确定（首次打开小说后即标记为 true）
-        if hasUserSelectedEffect == nil {
-            hasUserSelectedEffect = NSNumber(value: false)
-        }
-        
-        if bgColorIndex == nil {
-            // 全新安装：直接落在当前方案的浅色基准主题上
-            bgColorIndex = NSNumber(value: ReaderThemeType.lightDefault.rawValue)
-            themeSchemaVersion = NSNumber(value: READER_THEME_SCHEMA_VERSION)
-        }
-        
-        // 主题方案升级：把旧 5 套主题的索引迁移到新 6 套主题的对应索引
-        if themeSchemaVersion == nil || themeSchemaVersion.intValue < READER_THEME_SCHEMA_VERSION {
-            let legacyIndex = bgColorIndex.intValue
-            if legacyIndex >= 0 && legacyIndex < READER_THEME_LEGACY_INDEX_MAP.count {
-                bgColorIndex = NSNumber(value: READER_THEME_LEGACY_INDEX_MAP[legacyIndex])
-            } else {
-                bgColorIndex = NSNumber(value: ReaderThemeType.lightDefault.rawValue)
-            }
-            themeSchemaVersion = NSNumber(value: READER_THEME_SCHEMA_VERSION)
-            needsPersist = true
-        }
-        
-        // 兜底：索引越界（例如后续主题数量收缩）时回落到浅色基准主题
-        if ReaderThemeType(rawValue: bgColorIndex.intValue) == nil {
-            bgColorIndex = NSNumber(value: ReaderThemeType.lightDefault.rawValue)
-        }
-        
-        // 行高百分比 - 默认 160（即 160%）
-        if lineHeightMultipleValue == nil {
-            lineHeightMultipleValue = NSNumber(value: 160)
-        }
-        
-        // 字体类型
-        if (fontIndex == nil) || (ReaderFontType(rawValue: fontIndex.intValue) == nil) {
-            
-            fontIndex = NSNumber(value: ReaderFontType.system.rawValue)
-        }
-        
-        // 间距类型
-        if (spacingIndex == nil) || (ReaderSpacingType(rawValue: spacingIndex.intValue) == nil) {
-            
-            spacingIndex = NSNumber(value: ReaderSpacingType.small.rawValue)
-        }
-        
-        // 翻页类型 - 仅支持滚动（Up&Down）与平移（Left&Right）两种
-        // 老用户归档里可能存着已移除的仿真(0)/覆盖(1)/无效果(4)，这些 rawValue 现在解不出枚举，统一归一为滚动
-        if (effectIndex == nil) || (ReaderEffectType(rawValue: effectIndex.intValue) == nil) {
-            effectIndex = NSNumber(value: ReaderEffectType.scroll.rawValue)
-        }
-        
-        // 字体大小
-        if (fontSize == nil) || (fontSize.intValue > READER_FONT_SIZE_MAX || fontSize.intValue < READER_FONT_SIZE_MIN) {
-            
-            fontSize = NSNumber(value: READER_FONT_SIZE_DEFAULT)
-        }
-        
-        // 显示进度类型
-        if (progressIndex == nil) || (ReaderProgressType(rawValue: progressIndex.intValue) == nil) {
-            
-            progressIndex = NSNumber(value: ReaderProgressType.page.rawValue)
-        }
-        
-        if needsPersist { save() }
-    }
-    
-    public class func model(_ dict: Any?) ->ReaderConfiguration  { return ReaderConfiguration(dict) }
-    
-    open override func setValue(_ value: Any?, forUndefinedKey key: String) { }
 }

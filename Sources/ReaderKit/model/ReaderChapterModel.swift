@@ -85,7 +85,7 @@ open class ReaderChapterModel: NSObject, NSCoding {
         // 将影响分页的所有参数拼成一个字符串
         // titleGap / paraGap 必须在签名里：它们参与 CoreText 排版，改了却不进签名的话，
         // 已归档章节反序列化后签名不变、不会重排，线上表现就是「改了间距没生效」
-        return "\(font.fontName)_\(font.pointSize)_\(titleFont.fontName)_\(titleFont.pointSize)_\(configure.lineHeightMultipleValue.intValue)_\(configure.spacingType.rawValue)_\(isEnglish)_\(rect.width)_\(rect.height)_leftAlign_indent\(Int(READER_FIRST_LINE_HEAD_INDENT))_titleGap\(Int(READER_TITLE_BOTTOM_SPACING))_paraGap\(Int(READER_PARAGRAPH_SPACING))"
+        return "\(font.fontName)_\(font.pointSize)_\(titleFont.fontName)_\(titleFont.pointSize)_\(configure.lineHeightPercent)_\(configure.spacingType.rawValue)_\(isEnglish)_\(rect.width)_\(rect.height)_leftAlign_indent\(Int(READER_FIRST_LINE_HEAD_INDENT))_titleGap\(Int(READER_TITLE_BOTTOM_SPACING))_paraGap\(Int(READER_PARAGRAPH_SPACING))"
     }
     
     /// 更新字体

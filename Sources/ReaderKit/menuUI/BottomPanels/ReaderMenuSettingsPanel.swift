@@ -182,7 +182,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         
         // 字体大小显示
         fontSizeLabel = UILabel()
-        fontSizeLabel.text = "\(ReaderConfiguration.shared().fontSize.intValue)"
+        fontSizeLabel.text = "\(ReaderConfiguration.shared().fontSize)"
         fontSizeLabel.font = ReaderEnvironment.fonts.uiRegular(12)
         fontSizeLabel.textColor = themeColors.textT1
         fontSizeLabel.textAlignment = .center
@@ -225,7 +225,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         lineHeightSlider = ReaderLineHeightSlider()
         lineHeightSlider.minimumValue = kLineHeightPercentMin
         lineHeightSlider.maximumValue = kLineHeightPercentMax
-        lineHeightSlider.setValue(ReaderConfiguration.shared().lineHeightMultipleValue.intValue)
+        lineHeightSlider.setValue(ReaderConfiguration.shared().lineHeightPercent)
         lineHeightSlider.adoptThemeColors(themeColors)
         // 拖动过程中实时把行距应用到正文（节流重排，见 applyLineHeightLive）
         lineHeightSlider.onValueChanging = { [weak self] value in
@@ -251,7 +251,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         
         for theme in ReaderThemeType.swatchOrder {
             let button = UIButton(type: .custom)
-            // tag 存主题的 rawValue，点击时直接用作 bgColorIndex
+            // tag 存主题的 rawValue，点击时由它反查 ReaderThemeType
             button.tag = theme.rawValue
             button.layer.cornerRadius = kBgColorSwatchSize / 2
             button.layer.masksToBounds = true
@@ -329,17 +329,10 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     
     open func bottomTabBarDidClickNightMode(_ tabBar: ReaderMenuTabRail) {
         let config = ReaderConfiguration.shared()
-        let currentIndex = config.bgColorIndex.intValue
         
         // 日/夜间切换：夜间 ↔ 浅色基准主题
-        if currentIndex == ReaderThemeType.night.rawValue {
-            // 当前夜间 → 切回浅色基准主题
-            config.bgColorIndex = NSNumber(value: ReaderThemeType.lightDefault.rawValue)
-        } else {
-            // 当前非夜间 → 切到夜间
-            config.bgColorIndex = NSNumber(value: ReaderThemeType.night.rawValue)
-        }
-        config.hasUserSelectedTheme = NSNumber(value: true)
+        config.themeType = config.isNightMode ? .lightDefault : .night
+        config.hasUserSelectedTheme = true
         config.save()
         
         // 更新背景色按钮选中状态
@@ -401,7 +394,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     /// 换图只换到了被 tint 覆盖掉的预置色，纯冗余；而两套图一旦留白不一致，禁用瞬间图标
     /// 还会跟着变形。
     private func reviseBtnStates() {
-        let currentFontSize = ReaderConfiguration.shared().fontSize.intValue
+        let currentFontSize = ReaderConfiguration.shared().fontSize
         let themeColors = ReaderConfiguration.shared().currentThemeColors
         
         let canDecrease = currentFontSize > READER_FONT_SIZE_MIN
@@ -429,10 +422,10 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     /// 减小字体
     @objc private func clickDecreaseFont() {
         guard decreaseButton.tag == 1 else { return }
-        let size = NSNumber(value: ReaderConfiguration.shared().fontSize.intValue - READER_FONT_SIZE_SPACE)
+        let size = ReaderConfiguration.shared().fontSize - READER_FONT_SIZE_SPACE
         
-        if !(size.intValue < READER_FONT_SIZE_MIN) {
-            fontSizeLabel.text = "\(size.intValue)"
+        if !(size < READER_FONT_SIZE_MIN) {
+            fontSizeLabel.text = "\(size)"
             ReaderConfiguration.shared().fontSize = size
             ReaderConfiguration.shared().save()
             readMenu?.delegate?.readerMenuDidChangeFontSize(readMenu)
@@ -445,10 +438,10 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     /// 增大字体
     @objc private func clickIncreaseFont() {
         guard increaseButton.tag == 1 else { return }
-        let size = NSNumber(value: ReaderConfiguration.shared().fontSize.intValue + READER_FONT_SIZE_SPACE)
+        let size = ReaderConfiguration.shared().fontSize + READER_FONT_SIZE_SPACE
         
-        if !(size.intValue > READER_FONT_SIZE_MAX) {
-            fontSizeLabel.text = "\(size.intValue)"
+        if !(size > READER_FONT_SIZE_MAX) {
+            fontSizeLabel.text = "\(size)"
             ReaderConfiguration.shared().fontSize = size
             ReaderConfiguration.shared().save()
             readMenu?.delegate?.readerMenuDidChangeFontSize(readMenu)
@@ -499,8 +492,8 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     /// 抬手时 finalizeLineHeightDrag 会再补一次权威重排，补上被节流丢掉的最后一帧。
     private func applyLineHeightLive(_ value: Int) {
         let config = ReaderConfiguration.shared()
-        guard config.lineHeightMultipleValue.intValue != value else { return }
-        config.lineHeightMultipleValue = NSNumber(value: value)
+        guard config.lineHeightPercent != value else { return }
+        config.lineHeightPercent = value
         reviseBtnStates()
         
         let now = CACurrentMediaTime()
@@ -512,7 +505,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     /// 抬手/轻点提交行高：落库 + 权威重排 + 埋点
     private func finalizeLineHeightDrag(_ value: Int) {
         let config = ReaderConfiguration.shared()
-        config.lineHeightMultipleValue = NSNumber(value: value)
+        config.lineHeightPercent = value
         config.save()
         lineHeightSlider.setValue(value)
         reviseBtnStates()
@@ -525,14 +518,14 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     /// 提交行高改动：落库 + 触发重排版 + 埋点（供两侧 +/- 图标调用）
     private func commitLineHeight(_ newValue: Int, buttonType: String) {
         let config = ReaderConfiguration.shared()
-        let current = config.lineHeightMultipleValue.intValue
+        let current = config.lineHeightPercent
         
         lineHeightSlider.setValue(newValue)
         reviseBtnStates()
         
         guard newValue != current else { return }
         
-        config.lineHeightMultipleValue = NSNumber(value: newValue)
+        config.lineHeightPercent = newValue
         config.save()
         readMenu?.delegate?.readerMenuDidChangeLineHeight(readMenu)
         
@@ -556,8 +549,8 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         let config = ReaderConfiguration.shared()
         guard config.effectType != mode else { return }
         
-        config.effectIndex = NSNumber(value: mode.rawValue)
-        config.hasUserSelectedEffect = NSNumber(value: true)
+        config.effectType = mode
+        config.hasUserSelectedEffect = true
         config.save()
         
         reviseReadingVariantSelection()
@@ -571,13 +564,14 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     
     /// 点击背景色按钮
     @objc private func clickBgColor(_ sender: UIButton) {
-        let index = sender.tag
-        let currentIndex = ReaderConfiguration.shared().bgColorIndex.intValue
-        guard index != currentIndex else { return }
+        // tag 存的是主题的 rawValue，见色块初始化处。
+        guard let theme = ReaderThemeType(rawValue: sender.tag) else { return }
+        let config = ReaderConfiguration.shared()
+        guard theme != config.themeType else { return }
         
-        ReaderConfiguration.shared().bgColorIndex = NSNumber(value: index)
-        ReaderConfiguration.shared().hasUserSelectedTheme = NSNumber(value: true)
-        ReaderConfiguration.shared().save()
+        config.themeType = theme
+        config.hasUserSelectedTheme = true
+        config.save()
         
         // 更新所有按钮的选中状态
         reviseBgColorSelection()
@@ -593,7 +587,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     /// 一套填充且不描边。两种情况下「当前选中」都用当前主题的 textT1 描 1pt。
     private func reviseBgColorSelection() {
         let config = ReaderConfiguration.shared()
-        let currentIndex = config.bgColorIndex.intValue
+        let currentTheme = config.themeType
         let themeProvider = ReaderPalette.shared
         let isNight = config.isNightMode
         let selectedBorderColor = config.currentThemeColors.textT1
@@ -605,7 +599,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
             
             button.backgroundColor = isNight ? style.nightFill : style.lightFill
             
-            if theme.rawValue == currentIndex {
+            if theme == currentTheme {
                 button.layer.borderWidth = 1
                 button.layer.borderColor = selectedBorderColor.cgColor
             } else if isNight {
@@ -639,8 +633,8 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         isSettingPanelExpanded = true
         
         // 刷新显示数据
-        fontSizeLabel.text = "\(ReaderConfiguration.shared().fontSize.intValue)"
-        lineHeightSlider.setValue(ReaderConfiguration.shared().lineHeightMultipleValue.intValue)
+        fontSizeLabel.text = "\(ReaderConfiguration.shared().fontSize)"
+        lineHeightSlider.setValue(ReaderConfiguration.shared().lineHeightPercent)
         reviseBgColorSelection()
         reviseReadingVariantSelection()
         reviseBtnStates()

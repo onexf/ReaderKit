@@ -1,5 +1,78 @@
 # Changelog
 
+## 1.24.0
+
+`ReaderConfiguration` 从「十个 `@objc NSNumber!` 索引 + KVC 落盘」改成普通 Swift 存储属性 +
+逐键读写。**破坏性变更**，接入方读写阅读配置的地方要跟着改（对照表在下面）。
+至此库内再无 `@objc` 属性。
+
+### 原来的设计有三个毛病，而且都不报错
+
+```swift
+@objc open var bgColorIndex: NSNumber!            // ← 十个这样的
+…
+if dict != nil { setValuesForKeys(dict as! [String : Any]) }   // ← KVC 读回
+open override func setValue(_ value: Any?, forUndefinedKey key: String) { }   // ← 空实现
+```
+
+- **那个空实现把一切失败都吞了。** 键名写错、值类型不对、属性忘了标 `@objc` —— 全都不报错，
+  表现是用户的阅读设置每次启动静默回到默认值。
+- **十个 IUO。** 每个读取点 `.intValue` / `.boolValue`，每个写入点 `NSNumber(value:)`。
+- **`effectType` 这类访问器是 `ReaderEffectType!`**（从 `Int` 反查枚举），
+  也就是把「这个 Int 是不是合法枚举值」推到了运行时。
+
+### 现在
+
+存储属性直接就是配置本身，**没有「索引」这一层**：
+
+```swift
+open var themeType: ReaderThemeType = .lightDefault
+open var effectType: ReaderEffectType = .scroll
+open var fontType: ReaderFontType = .system
+open var spacingType: ReaderSpacingType = .small
+open var progressType: ReaderProgressType = .page
+open var fontSize: Int = READER_FONT_SIZE_DEFAULT
+open var lineHeightPercent: Int = 160
+open var hasUserSelectedTheme = false
+open var hasUserSelectedEffect = false
+```
+
+读回来在 `load(from:)` 里逐键显式取，**读不出来或不是合法值就保留属性声明处的默认值**。
+所以「补默认值」的代码没有了 —— 默认值只写在属性声明上一处。漏一个键是看得见的
+（那一行不存在），不再是静默回落。
+
+磁盘上的键名**保持原样**（`bgColorIndex`、`lineHeightMultipleValue` …），登记在
+`StoreKey` 里，所以已有的用户设置照旧读得出来。那几个字符串一经发布不要再改。
+
+### 迁移对照表
+
+| 1.23.0 | 1.24.0 |
+| --- | --- |
+| `config.bgColorIndex.intValue` | `config.themeType`（是枚举，不是 Int） |
+| `config.bgColorIndex = NSNumber(value: t.rawValue)` | `config.themeType = t` |
+| `config.effectIndex = NSNumber(value: m.rawValue)` | `config.effectType = m` |
+| `config.fontIndex` / `spacingIndex` / `progressIndex` | `config.fontType` / `spacingType` / `progressType` |
+| `config.fontSize.intValue` | `config.fontSize`（`Int`） |
+| `config.lineHeightMultipleValue.intValue` | `config.lineHeightPercent`（`Int`） |
+| `config.hasUserSelectedTheme.boolValue` | `config.hasUserSelectedTheme`（`Bool`） |
+| `config.hasUserSelectedEffect = NSNumber(value: true)` | `config.hasUserSelectedEffect = true` |
+| `config.themeSchemaVersion` | 不再对外，迁移用，已转为 private |
+| `ReaderPalette.colors(forIndex:)` | `ReaderPalette.colors(for:)`（传枚举） |
+
+`effectType` / `fontType` / `spacingType` / `progressType` 从 `Xxx!` 变成非可选，
+`== .scroll` 一类的判断写法不变。
+
+`lineHeightMultipleValue` → `lineHeightPercent`：原名说是「倍数」而存的是整数百分比
+（160 = 1.6 倍），名字一直在说反话。用整数而不是 `CGFloat` 倍数是刻意的 ——
+这个值要进分页签名做相等比较，浮点数没法判相等。
+
+### 顺带
+
+- `ReaderConfiguration` 不再继承 `NSObject`（KVC 没了就不需要了），
+  `class func model(_:)` 与 `setValue(_:forUndefinedKey:)` 一并删除。
+- `ReaderPalette.colors(forIndex:)` 删除。它是 `ReaderThemeType.allCases[index]` 的
+  下标查表，依赖「rawValue 等于声明顺序」这个隐含约定；现在配置里存的就是枚举，不需要它了。
+
 ## 1.23.0
 
 归档类名从 6 个类上的 `@objc(名字)` 挪进 `ReaderArchiver` 的一张映射表。
