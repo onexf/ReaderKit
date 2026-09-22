@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.19.0
+
+`onPageDragEnded` 改为**只报方向**，「容器接手了没有」交给接入方判。
+签名没变，但 1.17 / 1.18 的接入方必须跟着改判断方式，否则会漏触发或误触发。
+
+### 用几何量判「翻不过去」是错的，两版都不成立
+
+1.16.0 用「位移超过 20pt」就回调 —— 会在章内正常翻页时也回调。
+1.17.0 改成「内部 scrollView 越出 contentSize 范围（橡皮筋）」，真机数据推翻了它：
+
+```
+内部 scrollView: offset=393.0 contentSize=1179.0 bounds=393.0   ← 3 页窗口，静止居中
+回调触发 direction=backward     ← 在 page 10 / 9 / 8 / 7 / 6 / 5 / 3 / 2 上每次都触发
+```
+
+也就是往前拖时那个条件恒为真，而这些位置前面明明有页、容器也确实翻过去了。
+
+容器内部怎么摆放那三页、什么时候重新居中，都是**未文档化**的，靠它反推状态不可靠。
+所以这一版彻底不看几何量，回到按 `translation.x` 报方向。
+
+### 接入方要怎么判
+
+用 `UIPageViewControllerDelegate` 的 `pageViewController(_:willTransitionTo:)` ——
+**容器一旦开始转场就会调它，从没调过就说明那个方向真的没有页**：
+
+```swift
+private var didBeginPageTransition = false
+
+func pageViewController(_ pvc: UIPageViewController,
+                        willTransitionTo pending: [UIViewController]) {
+    didBeginPageTransition = true
+}
+
+sheet.onPageDragEnded = { [weak self] direction in
+    guard let self else { return }
+    let handled = self.didBeginPageTransition
+    self.didBeginPageTransition = false
+    guard !handled else { return }   // 容器自己在翻，别插手
+    self.fallback(forward: direction == .forward)
+}
+```
+
+这是文档化的回调，也是唯一能确定性回答「容器接手了没有」的信号。
+
+### 另外提醒一次（1.18.0 已写过）
+
+兜底里要换页时，**不要用 `setViewControllers` 复用容器** —— 那一刻内部 scrollView
+还在回弹，复用会把它留在半页位置（正文被裁掉一截、画在页上的页码跑出屏幕）。
+整个重建容器是安全的。
+
 ## 1.18.0
 
 修 `onPageDragEnded`（1.16.0 新增）**一次都不会回调**。接口没变，1.16 / 1.17 的接入方
