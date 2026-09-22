@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.20.0
+
+目录列表的「加载中」指示视图改成注入点。**无破坏性变更**，不注入的行为与 1.19.0 一致。
+
+### 新增 `ReaderEnvironment.makeLoadingIndicator`
+
+```swift
+nonisolated(unsafe) public static var makeLoadingIndicator: (_ tintColor: UIColor) -> UIView
+```
+
+此前目录 footer 里硬编码 `UIActivityIndicatorView`，是库内唯一一处「外观没法被接入方覆盖」
+的控件 —— 而 `images` / `fonts` / `strings` / `themeProvider` 都早就开成注入点了，
+转圈的样式同样属接入方的设计体系（系统菊花、Lottie、自绘）。默认实现仍是系统菊花。
+
+约定三条：
+
+- **返回的视图自己会动。** 库不会调 `startAnimating()` 一类的方法，它不知道你给的是什么。
+  收起时库把整个 footer 从 `tableFooterView` 摘下来，视图跟着离屏。
+- **返回的视图要能自己决定大小**（有固有尺寸，或自带宽高约束）。库用**约束**把它居中、
+  不设它的尺寸 —— 否则像 `LottieAnimationView` 这种没有固有尺寸的会是 0×0，
+  表现为「loading 出现了但什么都看不到」。
+- 主题切换时库会**重建**这个视图（`adoptThemeColors` 里），所以实现只需按传入的颜色
+  一次性配置好。重建而不是改色，是因为接入方给的可能是 Lottie 那种配色烤在文件里的东西，
+  库无从得知该改哪个属性。
+
+`tintColor` 传的是当前阅读主题的次要文字色（`textT3`），用不上可以忽略。
+
 ## 1.19.0
 
 `onPageDragEnded` 改为**只报方向**，「容器接手了没有」交给接入方判。

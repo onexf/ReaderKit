@@ -74,6 +74,30 @@ public enum ReaderEnvironment {
     ///   - container: 触发提示的视图，接入方可据此决定挂载位置
     ///   - message: 已本地化的提示文案
     nonisolated(unsafe) public static var presentErrorNotice: (_ container: UIView, _ message: String) -> Void = { _, _ in }
+    /// 造一个「加载中」指示视图。目前用在目录列表末尾（分页补全期间）。
+    ///
+    /// 转圈长什么样属接入方的设计体系 —— 系统菊花、Lottie、自绘都行 —— 所以由接入方造，
+    /// 库只负责摆位置与显隐。和 `images` / `fonts` 同一个路子。
+    ///
+    /// 约定三条：
+    ///
+    /// - **返回的视图自己会动。** 库不会调 `startAnimating()` 一类的方法，
+    ///   因为它不知道你给的是什么。
+    /// - **返回的视图要能自己决定大小**（有固有尺寸，或自带宽高约束）。库用约束把它居中、
+    ///   不设它的尺寸 —— 否则像 `LottieAnimationView` 这种没有固有尺寸的会是 0×0，
+    ///   表现为「loading 出现了但什么都看不到」。
+    /// - `tintColor` 是当前阅读主题的次要文字色。用不上可以忽略（Lottie 的配色烤在文件里）。
+    ///
+    /// 主题切换时库会**重建**这个视图，所以实现里只需按传入的颜色一次性配置好，
+    /// 不必考虑后续换色。
+    ///
+    /// 默认实现是系统菊花，不注入也能用。
+    nonisolated(unsafe) public static var makeLoadingIndicator: (_ tintColor: UIColor) -> UIView = { tintColor in
+        let indicator = UIActivityIndicatorView(style: .medium)
+        indicator.color = tintColor
+        indicator.startAnimating()
+        return indicator
+    }
 
     /// 诊断日志出口。默认丢弃。
     ///

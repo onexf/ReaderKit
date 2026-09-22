@@ -70,7 +70,9 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     /// 目录未加载完整时挂在列表末尾的 footer（转圈或失败提示共用这一个容器）
     private var loadingFooter: UIView!
 
-    private var loadingIndicator: UIActivityIndicatorView!
+    /// 加载中的指示视图。由接入方经 `ReaderEnvironment.makeLoadingIndicator` 提供，
+    /// 主题变化时整个重建 —— 它可能是 Lottie 那种颜色烤死的东西，改不了色。
+    private var loadingIndicator: UIView!
 
     /// 失败态的提示文案，整块可点重试
     private var failureLabel: UILabel!
@@ -140,10 +142,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         // 加载中 / 失败 footer（同一个容器，按状态切换里面显示哪个）
         loadingFooter = UIView()
 
-        loadingIndicator = UIActivityIndicatorView(style: .medium)
-        loadingIndicator.color = ReaderConfiguration.shared().currentThemeColors.textT3
-        loadingIndicator.hidesWhenStopped = true
-        loadingFooter.addSubview(loadingIndicator)
+        installLoadingIndicator(tintColor: ReaderConfiguration.shared().currentThemeColors.textT3)
 
         failureLabel = UILabel()
         failureLabel.font = ReaderEnvironment.fonts.uiRegular(13)
@@ -162,6 +161,33 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     @objc private func touchRetry() {
         
         delegate?.catalogViewDidRequestRetry?(catalogView: self)
+    }
+    
+    /// 装（或重装）加载中的指示视图。
+    ///
+    /// **用约束居中而不是设 frame。** 接入方给的视图可能只有固有尺寸
+    /// （`UIActivityIndicatorView`）、也可能只有自带的宽高约束（`LottieAnimationView`），
+    /// 库替它设 frame 的话后者会被自己的约束覆盖、或者干脆是 0×0。
+    /// 只固定位置、把尺寸留给它自己，两种都成立。
+    private func installLoadingIndicator(tintColor: UIColor) {
+        
+        loadingIndicator?.removeFromSuperview()
+        
+        let indicator = ReaderEnvironment.makeLoadingIndicator(tintColor)
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        loadingFooter.addSubview(indicator)
+        
+        // 垂直方向：上方留出与章节行一致的 20 间距，在剩余区域居中。
+        // 折算成「相对 footer 居中，再往下挪半个间距」。
+        NSLayoutConstraint.activate([
+            indicator.centerXAnchor.constraint(equalTo: loadingFooter.centerXAnchor),
+            indicator.centerYAnchor.constraint(
+                equalTo: loadingFooter.centerYAnchor,
+                constant: ReaderCatalogueCell.rowSpacing / 2
+            ),
+        ])
+        
+        loadingIndicator = indicator
     }
     
     /// 滚动到阅读记录
@@ -208,7 +234,8 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     open func reviseLoadingFooter() {
 
         guard let readModel, !readModel.isChapterListComplete else {
-            loadingIndicator.stopAnimating()
+            // footer 整个摘下来，指示视图跟着离屏，不需要额外停动画 ——
+            // 接入方给的视图库也不知道怎么停（见 `makeLoadingIndicator` 的约定）。
             if tableView.tableFooterView === loadingFooter { tableView.tableFooterView = nil }
             return
         }
@@ -219,11 +246,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         // 由宿主决定，现取才保证拿到的是宿主设过的那份。
         failureLabel.text = ReaderEnvironment.strings.catalogueLoadFailed
         failureLabel.isHidden = !isFailed
-        if isFailed {
-            loadingIndicator.stopAnimating()
-        } else {
-            loadingIndicator.startAnimating()
-        }
+        loadingIndicator.isHidden = isFailed
 
         let targetHeight = isFailed ? failureFooterHeight : loadingFooterHeight
         // 高度变了必须重新赋值 —— UITableView 只在挂载时读一次 footer 高度，
@@ -245,12 +268,11 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
 
         loadingFooter.frame.size = CGSize(width: bounds.width, height: height)
 
-        // 上方留出与章节行一致的 20 间距，内容居中在剩余区域
+        // 加载中的指示视图不在这里摆 —— 它是约束居中的（见 `installLoadingIndicator`），
+        // footer 的 bounds 一变它自己就跟上了。
+
+        // 失败文案：上方留出与章节行一致的 20 间距，占满剩余区域。
         let contentTop = ReaderCatalogueCell.rowSpacing
-        let centerY = contentTop + (height - contentTop) / 2
-
-        loadingIndicator.center = CGPoint(x: bounds.width / 2, y: centerY)
-
         failureLabel.frame = CGRect(x: 0, y: contentTop, width: bounds.width, height: height - contentTop)
     }
 
@@ -288,7 +310,12 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     /// 应用主题颜色
     open func adoptThemeColors(_ colors: ReaderThemeColors) {
 
-        loadingIndicator.color = colors.textT3
+        // 指示视图整个重建而不是改色：接入方给的可能是 Lottie 那种颜色烤死在文件里的东西，
+        // 库无从得知该改它哪个属性。重建的代价只是一次 addSubview。
+        let wasHidden = loadingIndicator?.isHidden ?? false
+        installLoadingIndicator(tintColor: colors.textT3)
+        loadingIndicator.isHidden = wasHidden
+
         failureLabel.textColor = colors.textT3
 
         tableView.reloadData()
