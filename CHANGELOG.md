@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.22.0
+
+抽屉头部的「全书共多少章」改成完整的文案注入点。**无破坏性变更**，不注入时默认值是
+`20 Chapters`（1.21.0 及以前是 `Chapter 20`，词序与单复数都变了）。
+
+### 新增 `ReaderStrings.chapterCount`
+
+```swift
+public var chapterCount: (_ count: Int) -> String = { count in "\(count) Chapters" }
+```
+
+此前那行是库内拼出来的：`"\(strings.chapter) \(totalChapterCount)"`。问题不在于词不对，
+而在于**词序也是本地化的一部分** —— 英文是 `20 Chapters`，中文是「共 20 章」，
+库没法替接入方决定。而且这里要的是复数形态，和目录 cell 前缀那个单数 `chapter`
+根本不是同一个词，复用一个字段就注定有一处是错的。
+
+用闭包而不是带 `%@` 的格式串，理由与 `chapterLoadFailed` 一致：占位符的数量与类型
+在编译期不受检查。
+
+`strings.chapter` 保持原样，仍然是目录 cell 前缀、菜单里当前章节标签用的单数词。
+
 ## 1.21.0
 
 最后四个 `@objc` 协议改成原生 Swift 协议。**破坏性变更**，四个协议的方法名与代理属性

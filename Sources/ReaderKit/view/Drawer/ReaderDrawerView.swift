@@ -242,8 +242,7 @@ open class ReaderDrawerView: UIView {
     open func reviseStoryInfo(storyName: String?, writer: String?, totalChapterCount: Int) {
         storyTitleLabel.text = storyName
         writerLabel.text = writer
-        // 设计稿：「Chapter」+ 总章节数
-        chapterCountLabel.text = "\(ReaderEnvironment.strings.chapter) \(totalChapterCount)"
+        chapterCountLabel.text = ReaderEnvironment.strings.chapterCount(totalChapterCount)
     }
 
     /// 更新书封图片

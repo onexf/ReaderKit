@@ -23,6 +23,13 @@ public struct ReaderStrings {
 
     /// 「章」的称谓，用于目录 cell 前缀、当前章节标签等。例：`Chapter`
     public var chapter: String = "Chapter"
+    /// 抽屉头部那行「全书共多少章」，`count` 为总章节数。例：`20 Chapters`
+    ///
+    /// 不用 `chapter` 拼数字：**词序是本地化的一部分**（英文 `20 Chapters`、
+    /// 中文「共 20 章」），而且这里要的是复数形态，和目录 cell 前缀那个单数不是同一个词。
+    public var chapterCount: (_ count: Int) -> String = { count in
+        "\(count) Chapters"
+    }
     /// 目录按钮标题
     public var directory: String = "Directory"
     /// 正文读完后，页眉显示的章节名
