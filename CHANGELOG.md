@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.18.0
+
+修 `onPageDragEnded`（1.16.0 新增）**一次都不会回调**。接口没变，1.16 / 1.17 的接入方
+直接升级即可。
+
+### 内部 scrollView 的发现时机错了
+
+`UIPageViewController` 是**懒建**内部那个 scrollView 的，而 1.16.0 只在 `viewDidLoad` 与
+`didMove(toParent:)` 里去找它 —— 这两个时机都早于第一次 `setViewControllers`，那时候它
+通常还不存在。于是 `internalScrollView` 恒为 nil，拖动监听挂不上，`onPageDragEnded`
+一次都不回调。
+
+**而这不会报错，只表现为「滑动没反应」** —— 和它本来要修的症状一模一样，所以很难区分是
+没接线还是没生效。
+
+改成在 `viewDidLayoutSubviews` 里也找一次（两个方法都幂等，重复调只有第一次有成本）。
+布局之后那个 scrollView 一定存在。
+
+同一个坑也影响 `suspendPageTurn(_:)` 与 `requirePageScrollToFail(_:)`：它们内部都调
+`ensurePrivateScrollView()`，此前只有在被调用得足够晚时才碰巧能拿到 scrollView。
+现在统一由布局兜住。
+
+### 给接入方的提醒
+
+收到 `onPageDragEnded` 后如果要 `setViewControllers` 翻页，**传 `animated: false`**。
+那一刻用户的手指刚离开、内部 scrollView 还在橡皮筋回弹中，带动画的切换会和它打架 ——
+容器会停在两页之间，表现是正文被裁掉一截、固定页脚的页码也不见了。
+
 ## 1.17.0
 
 修 `onPageDragEnded`（1.16.0 新增）的触发条件。**接口签名没变，但语义收窄了 ——

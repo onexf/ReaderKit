@@ -67,6 +67,22 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         observePageDrag()
     }
     
+    open override func viewDidLayoutSubviews() {
+        
+        super.viewDidLayoutSubviews()
+        
+        // ⚠️ **内部 scrollView 的发现必须放在这里，不能只靠 `viewDidLoad`。**
+        //
+        // UIPageViewController 是**懒建**那个 scrollView 的：`viewDidLoad` 和
+        // `didMove(toParent:)` 都早于第一次 `setViewControllers`，那两个时机它通常还不存在。
+        // 只在早期找一次的后果是 `internalScrollView` 恒为 nil —— 于是拖动监听挂不上、
+        // `onPageDragEnded` 一次都不回调，而这**不会报错**，只表现为「滑动没反应」。
+        //
+        // 布局之后它一定有了。两个方法都幂等，重复调只有第一次有成本。
+        ensurePrivateScrollView()
+        observePageDrag()
+    }
+    
     /// 查找并缓存 UIPageViewController 内部的 UIScrollView（.scroll 样式下存在）。
     /// 幂等：已找到则跳过。
     private func ensurePrivateScrollView() {
