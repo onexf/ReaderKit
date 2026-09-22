@@ -47,25 +47,25 @@ public protocol ReaderThemeColors {
     var page: UIColor { get }
     
     // Reader Text
-    var textT0: UIColor { get }       // 强调色/品牌色
-    var textT1: UIColor { get }       // 主文字
-    var textT2: UIColor { get }       // 次要文字
-    var textT3: UIColor { get }       // 辅助文字
-    var textDisable: UIColor { get }  // 禁用文字
+    var textStrong: UIColor { get }       // 强调色/品牌色
+    var textBody: UIColor { get }       // 主文字
+    var textSubtle: UIColor { get }       // 次要文字
+    var textFaint: UIColor { get }       // 辅助文字
+    var textMuted: UIColor { get }  // 禁用文字
     
     // Reader Icon
-    var iconDefault: UIColor { get }  // 默认图标
-    var iconDisable: UIColor { get }  // 禁用图标
+    var iconStandard: UIColor { get }  // 默认图标
+    var iconMuted: UIColor { get }  // 禁用图标
     
     // Reader Fill
-    var fillPopup: UIColor { get }    // 弹窗背景
+    var fillSheet: UIColor { get }    // 弹窗背景
     var fill: UIColor { get }         // 填充色
-    var fill2: UIColor { get }        // 强调填充
-    var fill3: UIColor { get }        // 极端色（黑/白）
+    var fillAccent: UIColor { get }        // 强调填充
+    var fillExtreme: UIColor { get }        // 极端色（黑/白）
     var fillControl: UIColor { get }  // 控件填充（设置面板 A- / A+ 胶囊底色）
     
     // Reader Line
-    var dividerLine: UIColor { get }  // 分割线
+    var separatorTint: UIColor { get }  // 分割线
     var line: UIColor { get }         // 线条
     
     // Reader Accent
@@ -107,7 +107,7 @@ public extension ReaderThemeColors {
     /// 夜间主题下自动变成半透明浅灰，不至于在深底上糊成一片。
     ///
     /// 设计稿目前只给了浅色态的 `#6C6C6C`；六套主题的值齐了之后由接入方覆盖。
-    var speechCapsuleFill: UIColor { textT1.withAlphaComponent(0.62) }
+    var speechCapsuleFill: UIColor { textBody.withAlphaComponent(0.62) }
 
     /// 胶囊内图标与文字色。
     ///
@@ -134,19 +134,19 @@ public extension ReaderThemeColors {
 /// 16 个颜色全部独立存储，不做计算属性派生
 public struct ReaderTintAssign: ReaderThemeColors {
     public let page: UIColor
-    public let textT0: UIColor
-    public let textT1: UIColor
-    public let textT2: UIColor
-    public let textT3: UIColor
-    public let textDisable: UIColor
-    public let iconDefault: UIColor
-    public let iconDisable: UIColor
-    public let fillPopup: UIColor
+    public let textStrong: UIColor
+    public let textBody: UIColor
+    public let textSubtle: UIColor
+    public let textFaint: UIColor
+    public let textMuted: UIColor
+    public let iconStandard: UIColor
+    public let iconMuted: UIColor
+    public let fillSheet: UIColor
     public let fill: UIColor
-    public let fill2: UIColor
-    public let fill3: UIColor
+    public let fillAccent: UIColor
+    public let fillExtreme: UIColor
     public let fillControl: UIColor
-    public let dividerLine: UIColor
+    public let separatorTint: UIColor
     public let line: UIColor
     public let accent: UIColor
 
@@ -166,37 +166,37 @@ public struct ReaderTintAssign: ReaderThemeColors {
     /// 末尾两个朗读高亮色带默认值 nil，所以既有调用处无需改动；
     /// 拿到设计稿后按主题传入即可覆盖派生兜底。
     public init(page: UIColor,
-                textT0: UIColor,
-                textT1: UIColor,
-                textT2: UIColor,
-                textT3: UIColor,
-                textDisable: UIColor,
-                iconDefault: UIColor,
-                iconDisable: UIColor,
-                fillPopup: UIColor,
+                textStrong: UIColor,
+                textBody: UIColor,
+                textSubtle: UIColor,
+                textFaint: UIColor,
+                textMuted: UIColor,
+                iconStandard: UIColor,
+                iconMuted: UIColor,
+                fillSheet: UIColor,
                 fill: UIColor,
-                fill2: UIColor,
-                fill3: UIColor,
+                fillAccent: UIColor,
+                fillExtreme: UIColor,
                 fillControl: UIColor,
-                dividerLine: UIColor,
+                separatorTint: UIColor,
                 line: UIColor,
                 accent: UIColor,
                 speechHighlightFill: UIColor? = nil,
                 speechHighlightText: UIColor? = nil) {
         self.page = page
-        self.textT0 = textT0
-        self.textT1 = textT1
-        self.textT2 = textT2
-        self.textT3 = textT3
-        self.textDisable = textDisable
-        self.iconDefault = iconDefault
-        self.iconDisable = iconDisable
-        self.fillPopup = fillPopup
+        self.textStrong = textStrong
+        self.textBody = textBody
+        self.textSubtle = textSubtle
+        self.textFaint = textFaint
+        self.textMuted = textMuted
+        self.iconStandard = iconStandard
+        self.iconMuted = iconMuted
+        self.fillSheet = fillSheet
         self.fill = fill
-        self.fill2 = fill2
-        self.fill3 = fill3
+        self.fillAccent = fillAccent
+        self.fillExtreme = fillExtreme
         self.fillControl = fillControl
-        self.dividerLine = dividerLine
+        self.separatorTint = separatorTint
         self.line = line
         self.accent = accent
         self.speechHighlightFillValue = speechHighlightFill
@@ -213,7 +213,7 @@ public struct ReaderTintAssign: ReaderThemeColors {
 public struct ReaderSwatchStyle {
     /// 浅色主题下的填充色
     public let lightFill: UIColor
-    /// 浅色主题下未选中时的描边色（选中时改用当前主题的 textT1）
+    /// 浅色主题下未选中时的描边色（选中时改用当前主题的 textBody）
     public let lightBorder: UIColor
     /// 夜间主题下的填充色（夜间未选中不描边）
     public let nightFill: UIColor

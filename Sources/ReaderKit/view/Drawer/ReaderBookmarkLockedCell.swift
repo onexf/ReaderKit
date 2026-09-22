@@ -15,15 +15,15 @@ open class ReaderBookmarkLockedCell: UITableViewCell {
     public static let cellHeight: CGFloat = 100
 
     /// CTA 内容块高度(锁 24 + 间距 4 + 标题 24 + 间距 4 + 副标题 18)
-    private let blockHeight: CGFloat = 74
+    private let lockedRowHeight: CGFloat = 74
 
-    private let lockIcon = UIImageView()
-    private let titleLabel = UILabel()
-    private let subtitleLabel = UILabel()
-    private let leftLine = UIView()
-    private let rightLine = UIView()
-    private let leftLineGradient = CAGradientLayer()
-    private let rightLineGradient = CAGradientLayer()
+    private let lockGlyph = UIImageView()
+    private let noticeLabel = UILabel()
+    private let detailLabel = UILabel()
+    private let leadingRule = UIView()
+    private let trailingRule = UIView()
+    private let leadingRuleGradient = CAGradientLayer()
+    private let trailingRuleGradient = CAGradientLayer()
 
     public class func cell(_ tableView: UITableView) -> ReaderBookmarkLockedCell {
         let id = "ReaderBookmarkLockedCell"
@@ -40,27 +40,27 @@ open class ReaderBookmarkLockedCell: UITableViewCell {
         selectionStyle = .none
         backgroundColor = .clear
 
-        lockIcon.contentMode = .scaleAspectFit
-        contentView.addSubview(lockIcon)
+        lockGlyph.contentMode = .scaleAspectFit
+        contentView.addSubview(lockGlyph)
 
-        leftLine.layer.addSublayer(leftLineGradient)
-        rightLine.layer.addSublayer(rightLineGradient)
-        leftLineGradient.startPoint = CGPoint(x: 0, y: 0.5)
-        leftLineGradient.endPoint = CGPoint(x: 1, y: 0.5)
-        rightLineGradient.startPoint = CGPoint(x: 0, y: 0.5)
-        rightLineGradient.endPoint = CGPoint(x: 1, y: 0.5)
-        contentView.addSubview(leftLine)
-        contentView.addSubview(rightLine)
+        leadingRule.layer.addSublayer(leadingRuleGradient)
+        trailingRule.layer.addSublayer(trailingRuleGradient)
+        leadingRuleGradient.startPoint = CGPoint(x: 0, y: 0.5)
+        leadingRuleGradient.endPoint = CGPoint(x: 1, y: 0.5)
+        trailingRuleGradient.startPoint = CGPoint(x: 0, y: 0.5)
+        trailingRuleGradient.endPoint = CGPoint(x: 1, y: 0.5)
+        contentView.addSubview(leadingRule)
+        contentView.addSubview(trailingRule)
 
-        titleLabel.text = ReaderEnvironment.strings.bookmarkLocked
-        titleLabel.font = ReaderEnvironment.fonts.uiMedium(16)
-        titleLabel.textAlignment = .center
-        contentView.addSubview(titleLabel)
+        noticeLabel.text = ReaderEnvironment.strings.bookmarkLocked
+        noticeLabel.font = ReaderEnvironment.fonts.uiMedium(16)
+        noticeLabel.textAlignment = .center
+        contentView.addSubview(noticeLabel)
 
-        subtitleLabel.text = ReaderEnvironment.strings.bookmarkLockedSub
-        subtitleLabel.font = ReaderEnvironment.fonts.uiRegular(12)
-        subtitleLabel.textAlignment = .center
-        contentView.addSubview(subtitleLabel)
+        detailLabel.text = ReaderEnvironment.strings.bookmarkLockedSub
+        detailLabel.font = ReaderEnvironment.fonts.uiRegular(12)
+        detailLabel.textAlignment = .center
+        contentView.addSubview(detailLabel)
 
         refresh()
     }
@@ -72,12 +72,12 @@ open class ReaderBookmarkLockedCell: UITableViewCell {
     /// 刷新配色与锁切图(随主题)
     open func refresh() {
         let colors = ReaderConfiguration.shared().currentThemeColors
-        lockIcon.image = ReaderEnvironment.images.bookmarkLockSeal(ReaderConfiguration.shared().themeType)
-        titleLabel.textColor = colors.textT1
-        subtitleLabel.textColor = colors.textT3
-        let lineColor = colors.dividerLine
-        leftLineGradient.colors = [lineColor.withAlphaComponent(0).cgColor, lineColor.cgColor]
-        rightLineGradient.colors = [lineColor.cgColor, lineColor.withAlphaComponent(0).cgColor]
+        lockGlyph.image = ReaderEnvironment.images.bookmarkLockSeal(ReaderConfiguration.shared().themeType)
+        noticeLabel.textColor = colors.textBody
+        detailLabel.textColor = colors.textFaint
+        let lineColor = colors.separatorTint
+        leadingRuleGradient.colors = [lineColor.withAlphaComponent(0).cgColor, lineColor.cgColor]
+        trailingRuleGradient.colors = [lineColor.cgColor, lineColor.withAlphaComponent(0).cgColor]
         setNeedsLayout()
     }
 
@@ -96,34 +96,34 @@ open class ReaderBookmarkLockedCell: UITableViewCell {
         let titleSubtitleGap: CGFloat = 4
 
         // 整块垂直居中
-        let top = max(0, (h - blockHeight) / 2)
+        let top = max(0, (h - lockedRowHeight) / 2)
 
-        lockIcon.frame = CGRect(x: (w - iconSize) / 2, y: top, width: iconSize, height: iconSize)
+        lockGlyph.frame = CGRect(x: (w - iconSize) / 2, y: top, width: iconSize, height: iconSize)
 
-        titleLabel.sizeToFit()
-        let titleW = min(titleLabel.frame.width, w - margin * 2)
-        titleLabel.frame = CGRect(x: (w - titleW) / 2,
-                                  y: lockIcon.frame.maxY + iconTitleGap,
+        noticeLabel.sizeToFit()
+        let titleW = min(noticeLabel.frame.width, w - margin * 2)
+        noticeLabel.frame = CGRect(x: (w - titleW) / 2,
+                                  y: lockGlyph.frame.maxY + iconTitleGap,
                                   width: titleW,
                                   height: titleH)
 
         let lineH: CGFloat = 1
-        let lineY = titleLabel.frame.midY - lineH / 2
+        let lineY = noticeLabel.frame.midY - lineH / 2
         let lineGap: CGFloat = 12
-        let leftMaxX = titleLabel.frame.minX - lineGap
-        let rightMinX = titleLabel.frame.maxX + lineGap
-        leftLine.frame = CGRect(x: margin, y: lineY, width: max(0, leftMaxX - margin), height: lineH)
-        rightLine.frame = CGRect(x: rightMinX, y: lineY, width: max(0, w - margin - rightMinX), height: lineH)
+        let leftMaxX = noticeLabel.frame.minX - lineGap
+        let rightMinX = noticeLabel.frame.maxX + lineGap
+        leadingRule.frame = CGRect(x: margin, y: lineY, width: max(0, leftMaxX - margin), height: lineH)
+        trailingRule.frame = CGRect(x: rightMinX, y: lineY, width: max(0, w - margin - rightMinX), height: lineH)
 
-        subtitleLabel.frame = CGRect(x: margin,
-                                     y: titleLabel.frame.maxY + titleSubtitleGap,
+        detailLabel.frame = CGRect(x: margin,
+                                     y: noticeLabel.frame.maxY + titleSubtitleGap,
                                      width: w - margin * 2,
                                      height: subtitleH)
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        leftLineGradient.frame = leftLine.bounds
-        rightLineGradient.frame = rightLine.bounds
+        leadingRuleGradient.frame = leadingRule.bounds
+        trailingRuleGradient.frame = trailingRule.bounds
         CATransaction.commit()
     }
 }

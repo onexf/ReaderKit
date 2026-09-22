@@ -83,7 +83,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// 控制器
     /// 阅读器控制器。
     ///
-    /// 类型为引擎基类而非具体子类：菜单只用到 `contentView` / `readModel` / `view` /
+    /// 类型为引擎基类而非具体子类：菜单只用到 `contentView` / `bookModel` / `view` /
     /// `pageViewController` 这几个引擎成员，不需要感知宿主子类的业务字段。
     public private(set) weak var vc: ReaderViewController!
     
@@ -110,19 +110,19 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     public private(set) var topView: ReaderMenuTopBar!
     
     /// BottomView
-    public private(set) var bottomView: ReaderMenuBottomBar!
+    public private(set) var bottomBar: ReaderMenuBottomBar!
     
     /// 目录背景遮罩
-    public private(set) var catalogBackgroundView: UIView!
+    public private(set) var catalogueBackdrop: UIView!
     
     /// 呼出菜单遮罩(设计稿:压在正文之上、顶部栏/底部栏之下,浅色主题 60% 黑、夜间 80% 黑)
     public private(set) var menuBackdrop: UIView!
     
     /// 底部目录视图
-    private var bottomCatalogView: ReaderCatalogueView!
+    private var catalogueDrawer: ReaderCatalogueView!
     
     /// 日夜间遮盖
-    public private(set) var cover: UIView!
+    public private(set) var nightTint: UIView!
     
     /// 禁用系统初始化
     private override init() { super.init() }
@@ -168,13 +168,13 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     private func initPressSwipeRecognizer() {
         
         // 单击手势
-        singleTap = UITapGestureRecognizer(target: self, action: #selector(touchSingleTap))
+        singleTap = UITapGestureRecognizer(target: self, action: #selector(handleMenuTap))
         singleTap.numberOfTapsRequired = 1
         singleTap.delegate = self
         vc.contentView.addGestureRecognizer(singleTap)
         
         // 收起菜单的滑动手势
-        dismissPan = UIPanGestureRecognizer(target: self, action: #selector(touchDismissPan))
+        dismissPan = UIPanGestureRecognizer(target: self, action: #selector(handleMenuDismissDrag))
         dismissPan.delegate = self
         // 只负责"发现有人在这块区域拖动",不吞触摸 —— 侧滑返回、滚动模式的正文滚动
         // 都还要照常收到这一串触摸。
@@ -183,10 +183,10 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     }
     
     // 触发单击手势
-    @objc private func touchSingleTap() {
+    @objc private func handleMenuTap() {
         
         // 如果内容还未加载完成，不显示菜单
-        guard vc.readModel != nil else {
+        guard vc.bookModel != nil else {
             // log("⚠️ touchSingleTap: readModel 为 nil，内容尚未加载，不显示菜单")
             return
         }
@@ -216,7 +216,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// 只在**开始**拖动的那一下收菜单，不跟手 —— 这是「先收起菜单」而不是「跟着手指拉」。
     /// 收完菜单本次拖动就不再有别的效果：左右翻页的 pan 在菜单呼出时已经被
     /// `suspendPageTurn(true)` 关掉，中途重新打开也不会接管已经开始的这串触摸。
-    @objc private func touchDismissPan() {
+    @objc private func handleMenuDismissDrag() {
         
         guard dismissPan.state == .began, isMenuShow else { return }
         
@@ -258,9 +258,9 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         
         if let topView, touchedView.isDescendant(of: topView) { return false }
         
-        if let bottomView, touchedView.isDescendant(of: bottomView) { return false }
+        if let bottomBar, touchedView.isDescendant(of: bottomBar) { return false }
         
-        if let bottomCatalogView, touchedView.isDescendant(of: bottomCatalogView) { return false }
+        if let catalogueDrawer, touchedView.isDescendant(of: catalogueDrawer) { return false }
         
         // 朗读 dock：整块吞掉点击，不唤起也不收起菜单。
         //
@@ -303,32 +303,32 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// 初始化日夜间遮盖
     private func initOverlay() {
         
-        cover = UIView()
-        cover.alpha = CGFloat(NSNumber(value: ReaderDefaults.bool(READER_KEY_MODE_DAY_NIGHT)).floatValue)
-        cover.isUserInteractionEnabled = false
-        cover.backgroundColor = UIColor.black.withAlphaComponent(0.7)
-        vc.view.addSubview(cover)
-        cover.frame = vc.view.bounds
+        nightTint = UIView()
+        nightTint.alpha = CGFloat(NSNumber(value: ReaderDefaults.bool(READER_KEY_MODE_DAY_NIGHT)).floatValue)
+        nightTint.isUserInteractionEnabled = false
+        nightTint.backgroundColor = UIColor.black.withAlphaComponent(0.7)
+        vc.view.addSubview(nightTint)
+        nightTint.frame = vc.view.bounds
     }
     
     // MARK: 目录背景遮罩
     
     /// 初始化目录背景遮罩
     private func initCatalogBackdrop() {
-        catalogBackgroundView = UIView()
+        catalogueBackdrop = UIView()
         // 目录背景蒙版：黑色 60% 透明（原 .cover1，改用引擎自有色值以脱离宿主 UIColor 扩展）
-        catalogBackgroundView.backgroundColor = UIColor.black.withAlphaComponent(0.6)
-        catalogBackgroundView.isHidden = true
-        contentView.addSubview(catalogBackgroundView)
+        catalogueBackdrop.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        catalogueBackdrop.isHidden = true
+        contentView.addSubview(catalogueBackdrop)
         // 遮罩撑满整个contentView
-        catalogBackgroundView.frame = CGRect(x: 0, y: 0, width: READER_CONTENT_VIEW_WIDTH, height: READER_CONTENT_VIEW_HEIGHT)
+        catalogueBackdrop.frame = CGRect(x: 0, y: 0, width: READER_CONTENT_VIEW_WIDTH, height: READER_CONTENT_VIEW_HEIGHT)
         
         // 添加点击手势关闭目录
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleCatalogBackgroundTap))
-        catalogBackgroundView.addGestureRecognizer(tapGesture)
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissCatalogueFromBackdrop))
+        catalogueBackdrop.addGestureRecognizer(tapGesture)
     }
     
-    @objc private func handleCatalogBackgroundTap() {
+    @objc private func dismissCatalogueFromBackdrop() {
         // log("🔥 handleCatalogBackgroundTap called")
         // 关闭底部目录
         concealBaseCatalog()
@@ -337,25 +337,25 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// 显示/隐藏目录背景遮罩
     open func presentCatalogBackdrop(isShow: Bool, animated: Bool = true) {
         if isShow {
-            catalogBackgroundView.isHidden = false
+            catalogueBackdrop.isHidden = false
             if animated {
-                catalogBackgroundView.alpha = 0
+                catalogueBackdrop.alpha = 0
                 UIView.animate(withDuration: READER_MENU_MOTION_TIME, delay: 0, options: READER_MENU_MOTION_OPTIONS) {
-                    self.catalogBackgroundView.alpha = 1
+                    self.catalogueBackdrop.alpha = 1
                 }
             } else {
-                catalogBackgroundView.alpha = 1
+                catalogueBackdrop.alpha = 1
             }
         } else {
             if animated {
                 UIView.animate(withDuration: READER_MENU_MOTION_TIME, delay: 0, options: READER_MENU_MOTION_OPTIONS, animations: {
-                    self.catalogBackgroundView.alpha = 0
+                    self.catalogueBackdrop.alpha = 0
                 }) { _ in
-                    self.catalogBackgroundView.isHidden = true
+                    self.catalogueBackdrop.isHidden = true
                 }
             } else {
-                catalogBackgroundView.alpha = 0
-                catalogBackgroundView.isHidden = true
+                catalogueBackdrop.alpha = 0
+                catalogueBackdrop.isHidden = true
             }
         }
     }
@@ -364,20 +364,20 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     
     /// 初始化底部目录视图
     private func initBaseCatalogView() {
-        bottomCatalogView = ReaderCatalogueView()
+        catalogueDrawer = ReaderCatalogueView()
         // 代理设为 vc 才能触发章节点击。
         // 目录面板代理目前实现在子类，故按协议做条件转换，避免菜单反向依赖具体子类类型。
-        bottomCatalogView.delegate = vc as? any ReaderCatalogueDelegate
-        bottomCatalogView.readModel = vc.readModel
-        bottomCatalogView.backgroundColor = ReaderConfiguration.shared().bgColor
-        bottomCatalogView.layer.cornerRadius = 12
-        bottomCatalogView.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
-        bottomCatalogView.layer.masksToBounds = true
-        bottomCatalogView.isHidden = true
-        contentView.addSubview(bottomCatalogView)
+        catalogueDrawer.delegate = vc as? any ReaderCatalogueDelegate
+        catalogueDrawer.bookModel = vc.bookModel
+        catalogueDrawer.backgroundColor = ReaderConfiguration.shared().bgColor
+        catalogueDrawer.layer.cornerRadius = 12
+        catalogueDrawer.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+        catalogueDrawer.layer.masksToBounds = true
+        catalogueDrawer.isHidden = true
+        contentView.addSubview(catalogueDrawer)
         
         let height = READER_CONTENT_VIEW_HEIGHT * 0.7
-        bottomCatalogView.frame = CGRect(x: 0, y: READER_CONTENT_VIEW_HEIGHT, width: READER_CONTENT_VIEW_WIDTH, height: height)
+        catalogueDrawer.frame = CGRect(x: 0, y: READER_CONTENT_VIEW_HEIGHT, width: READER_CONTENT_VIEW_WIDTH, height: height)
     }
     
     /// 显示底部目录
@@ -389,24 +389,24 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         presentCatalogBackdrop(isShow: true, animated: true)
         
         // 刷新目录数据并滚动到当前章节
-        bottomCatalogView.readModel = vc.readModel
-        bottomCatalogView.scrollEntry()
+        catalogueDrawer.bookModel = vc.bookModel
+        catalogueDrawer.scrollEntry()
         
         // 显示底部目录
-        bottomCatalogView.isHidden = false
+        catalogueDrawer.isHidden = false
         let height = READER_CONTENT_VIEW_HEIGHT * 0.7
         
         UIView.animate(withDuration: 0.3, delay: 0, options: .curveEaseOut, animations: { [weak self] in
-            self?.bottomCatalogView.frame.origin.y = READER_CONTENT_VIEW_HEIGHT - height
+            self?.catalogueDrawer.frame.origin.y = READER_CONTENT_VIEW_HEIGHT - height
         })
     }
     
     /// 隐藏底部目录
     open func concealBaseCatalog() {
         UIView.animate(withDuration: 0.3, delay: 0, options: .curveEaseOut, animations: { [weak self] in
-            self?.bottomCatalogView.frame.origin.y = READER_CONTENT_VIEW_HEIGHT
+            self?.catalogueDrawer.frame.origin.y = READER_CONTENT_VIEW_HEIGHT
         }) { [weak self] _ in
-            self?.bottomCatalogView.isHidden = true
+            self?.catalogueDrawer.isHidden = true
             self?.presentCatalogBackdrop(isShow: false, animated: true)
         }
     }
@@ -415,7 +415,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     
     /// 遮罩目标透明度:夜间比浅色主题更深(对照设计稿逐主题采样得到 0.6 / 0.8)
     open var menuBackdropAlpha: CGFloat {
-        return ReaderConfiguration.shared().isNightMode ? 0.8 : 0.6
+        return ReaderConfiguration.shared().isDarkTheme ? 0.8 : 0.6
     }
     
     /// 初始化呼出菜单遮罩
@@ -469,7 +469,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// 初始化TopView
     private func initPeakView() {
         
-        topView = ReaderMenuTopBar(readMenu: self)
+        topView = ReaderMenuTopBar(hostMenu: self)
         
         topView.isHidden = !isMenuShow
         
@@ -485,24 +485,24 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// 初始化BottomView
     private func initBaseView() {
         
-        bottomView = ReaderMenuBottomBar(readMenu: self)
+        bottomBar = ReaderMenuBottomBar(hostMenu: self)
     
-        bottomView.isHidden = !isMenuShow
+        bottomBar.isHidden = !isMenuShow
         
-        contentView.addSubview(bottomView)
+        contentView.addSubview(bottomBar)
         
-        let currentHeight = bottomView.getCurrentHeight()
+        let currentHeight = bottomBar.getCurrentHeight()
         let y = isMenuShow ? (READER_CONTENT_VIEW_HEIGHT - currentHeight) : READER_CONTENT_VIEW_HEIGHT
         
-        bottomView.frame = CGRect(x: 0, y: y, width: READER_CONTENT_VIEW_WIDTH, height: currentHeight)
+        bottomBar.frame = CGRect(x: 0, y: y, width: READER_CONTENT_VIEW_WIDTH, height: currentHeight)
         
         
         // 绘制中间虚线(如果不需要虚线可以去掉自己加个分割线)
 //        let shapeLayer: CAShapeLayer = CAShapeLayer()
 //        
-//        shapeLayer.bounds = bottomView.bounds
+//        shapeLayer.bounds = bottomBar.bounds
 //        
-//        shapeLayer.position = CGPoint(x: bottomView.frame.width / 2, y: bottomView.frame.height / 2)
+//        shapeLayer.position = CGPoint(x: bottomBar.frame.width / 2, y: bottomBar.frame.height / 2)
 //        
 //        shapeLayer.fillColor = UIColor.clear.cgColor
 //        
@@ -518,27 +518,27 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
 //        
 //        path.move(to: CGPoint(x: 0, y: READER_MENU_PROGRESS_VIEW_HEIGHT))
 //        
-//        path.addLine(to: CGPoint(x: bottomView.frame.width, y: READER_MENU_PROGRESS_VIEW_HEIGHT))
+//        path.addLine(to: CGPoint(x: bottomBar.frame.width, y: READER_MENU_PROGRESS_VIEW_HEIGHT))
 //        
 //        shapeLayer.path = path
 //        
-//        bottomView.layer.addSublayer(shapeLayer)
+//        bottomBar.layer.addSublayer(shapeLayer)
     }
     
     // MARK: 菜单层级
     
     /// 把菜单视图按既定顺序重新提到最前
     ///
-    /// contentView 上的 `cover`（目录/辅视图用的 0.7 黑遮盖）在 presentOverlay(isShow:true)
-    /// 里会被 bringSubviewToFront 提到最前且不再还原，之后呼出菜单时 topView / bottomView
+    /// contentView 上的 `nightTint`（目录/辅视图用的 0.7 黑遮盖）在 presentOverlay(isShow:true)
+    /// 里会被 bringSubviewToFront 提到最前且不再还原，之后呼出菜单时 topView / bottomBar
     /// 就被压在它下面。每次呼出前复位一次层级，保证「遮罩在正文之上、菜单栏之下」这个不变量。
     private func liftMenuHierarchy() {
         
-        contentView.bringSubviewToFront(catalogBackgroundView)
-        contentView.bringSubviewToFront(bottomCatalogView)
+        contentView.bringSubviewToFront(catalogueBackdrop)
+        contentView.bringSubviewToFront(catalogueDrawer)
         contentView.bringSubviewToFront(menuBackdrop)
         contentView.bringSubviewToFront(topView)
-        contentView.bringSubviewToFront(bottomView)
+        contentView.bringSubviewToFront(bottomBar)
         
         // 朗读 dock 排在最后：它只在菜单呼出期间出现，且必须浮在遮罩之上才看得见。
         // 与页脚胶囊的层级要求正好相反（那个要被遮罩压住），所以不能放进上面那组。
@@ -633,32 +633,32 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
   
         if isShow { 
             liftMenuHierarchy()
-            bottomView.isHidden = false
+            bottomBar.isHidden = false
             // 每次显示时重置按钮状态
-            bottomView.funcView.restoreForMenuDismissed()
+            bottomBar.settingsPanel.restoreForMenuDismissed()
         }
 
         UIView.animate(withDuration: READER_MENU_MOTION_TIME, delay: 0, options: READER_MENU_MOTION_OPTIONS, animations: { [weak self] () in
             
             guard let self else { return }
-            let currentHeight = self.bottomView.getCurrentHeight()
+            let currentHeight = self.bottomBar.getCurrentHeight()
             let y = isShow ? (READER_CONTENT_VIEW_HEIGHT - currentHeight) : READER_CONTENT_VIEW_HEIGHT
             
-            self.bottomView.frame = CGRect(x: 0, y: y, width: READER_CONTENT_VIEW_WIDTH, height: currentHeight)
-            self.bottomView.layoutIfNeeded()
+            self.bottomBar.frame = CGRect(x: 0, y: y, width: READER_CONTENT_VIEW_WIDTH, height: currentHeight)
+            self.bottomBar.layoutIfNeeded()
             
         }) { [weak self] (isOK) in
             
             if !isShow, let self {
-                self.bottomView.isHidden = true
-                // 滑出动画结束后收起设置面板，并把 bottomView 复位成「基础高度 + 屏幕外」，
+                self.bottomBar.isHidden = true
+                // 滑出动画结束后收起设置面板，并把 bottomBar 复位成「基础高度 + 屏幕外」，
                 // 下一次呼出就是干净的整体上滑，不会夹带一次面板塌陷
-                self.bottomView.funcView.restoreForMenuDismissed()
-                self.bottomView.frame = CGRect(x: 0,
+                self.bottomBar.settingsPanel.restoreForMenuDismissed()
+                self.bottomBar.frame = CGRect(x: 0,
                                                y: READER_CONTENT_VIEW_HEIGHT,
                                                width: READER_CONTENT_VIEW_WIDTH,
-                                               height: self.bottomView.getCurrentHeight())
-                self.bottomView.layoutIfNeeded()
+                                               height: self.bottomBar.getCurrentHeight())
+                self.bottomBar.layoutIfNeeded()
             }
             
             completion?()

@@ -19,8 +19,8 @@ open class ReaderPageView: UIView {
                 // log("=== 阅读内容调试信息 (pageModel) ===")
                 // log("内容长度: \(pageModel.showContent.length)")
                 // log("内容前100字符: \(pageModel.showContent.string.prefix(100))")
-                // log("headType: \(pageModel.headType.rawValue)")
-                // log("headTypeHeight: \(pageModel.headTypeHeight)")
+                // log("headerKind: \(pageModel.headerKind.rawValue)")
+                // log("headerInsetHeight: \(pageModel.headerInsetHeight)")
                 // log("contentSize: \(pageModel.contentSize)")
                 // log("page: \(pageModel.page?.intValue ?? -1)")
                 
@@ -153,11 +153,11 @@ open class ReaderPageView: UIView {
     }
 
     /// CTFrame
-    open var frameRef: CTFrame? {
+    open var ctFrame: CTFrame? {
         
         didSet{
             
-            if frameRef != nil { setNeedsDisplay() }
+            if ctFrame != nil { setNeedsDisplay() }
         }
     }
     
@@ -221,7 +221,7 @@ open class ReaderPageView: UIView {
         
         guard let sourceAttributedText else {
             
-            frameRef = nil
+            ctFrame = nil
             
             return
         }
@@ -240,7 +240,7 @@ open class ReaderPageView: UIView {
             typesetSource = tinted
         }
         
-        frameRef = ReaderCoreText.makeFrame(attrString: typesetSource, rect: sourceRect)
+        ctFrame = ReaderCoreText.makeFrame(attrString: typesetSource, rect: sourceRect)
     }
     
     /// 把高亮范围夹到源文本长度内。
@@ -290,7 +290,7 @@ open class ReaderPageView: UIView {
               let clamped = clamped(range, limit: sourceAttributedText.length) else { return nil }
         
         let rects = ReaderCoreText.rangeRects(range: clamped,
-                                              frameRef: frameRef,
+                                              ctFrame: ctFrame,
                                               content: sourceAttributedText.string)
         
         guard let first = rects.first else { return nil }
@@ -312,7 +312,7 @@ open class ReaderPageView: UIView {
     /// 矩形，所以这里直接传视图坐标，不需要翻转。
     open func characterIndex(atViewPoint point: CGPoint) -> Int? {
         
-        let index = ReaderCoreText.touchedCharacterIndex(point: point, frameRef: frameRef)
+        let index = ReaderCoreText.touchedCharacterIndex(point: point, ctFrame: ctFrame)
         
         guard index >= 0 else { return nil }
         
@@ -329,7 +329,7 @@ open class ReaderPageView: UIView {
         guard let sourceAttributedText,
               let range = clampedHighlightRange(limit: sourceAttributedText.length) else { return }
         
-        let rects = ReaderCoreText.rangeRects(range: range, frameRef: frameRef, content: sourceAttributedText.string)
+        let rects = ReaderCoreText.rangeRects(range: range, ctFrame: ctFrame, content: sourceAttributedText.string)
         
         guard !rects.isEmpty else { return }
         
@@ -380,7 +380,7 @@ open class ReaderPageView: UIView {
     /// 而且这类丢失在编译期与代码审查里都看不出来（子类看起来只是「自己画自己的」）。
     open override func draw(_ rect: CGRect) {
         
-        if (frameRef == nil) {return}
+        if (ctFrame == nil) {return}
         
         guard let ctx = UIGraphicsGetCurrentContext() else { return }
         
@@ -399,7 +399,7 @@ open class ReaderPageView: UIView {
         // 两者重叠时该让选区赢
         drawUnderlay(in: ctx)
         
-        CTFrameDraw(frameRef!, ctx);
+        CTFrameDraw(ctFrame!, ctx);
         
         // 下划线压在文字之上，避免被字形遮住
         if highlightStyle == .underline { drawHighlight(in: ctx, style: highlightStyle) }

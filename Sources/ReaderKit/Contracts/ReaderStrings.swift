@@ -35,9 +35,9 @@ public struct ReaderStrings {
     /// 正文读完后，页眉显示的章节名
     public var readEndChapterName: String = "The End"
     /// 上一章按钮标题（进度面板）
-    public var previousChapter: String = "Previous"
+    public var priorChapterTitle: String = "Previous"
     /// 下一章按钮标题（进度面板）
-    public var nextChapter: String = "Next"
+    public var followingChapterTitle: String = "Next"
     /// 章节名缺失时的占位（书签命名等场景）
     public var unnamedChapter: String = "Untitled chapter"
     /// 本地 txt 解析出的卷首/前言分节名

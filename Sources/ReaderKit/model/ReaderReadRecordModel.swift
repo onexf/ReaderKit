@@ -12,6 +12,9 @@ nonisolated(unsafe) public var READER_RECORD_CURRENT_CHAPTER_LOCATION: NSNumber!
 
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
+///
+/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
+/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
 open class ReaderReadRecordModel: NSObject, NSCoding {
 
     /// 小说ID
@@ -24,7 +27,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     open var page: NSNumber! = NSNumber(value: 0)
     
     /// 滚动模式下，contentOffset.y 相对于当前 page cell 顶部的偏移（用于精确还原滚动位置）
-    open var scrollOffsetInPage: CGFloat = 0
+    open var pageScrollAnchor: CGFloat = 0
     
     
     // MARK: 快捷获取
@@ -33,10 +36,10 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     open var pageModel: ReaderPageModel! { 
         guard let chapterModel = chapterModel,
               page.intValue >= 0,
-              page.intValue < chapterModel.pageModels.count else {
+              page.intValue < chapterModel.layoutPages.count else {
             return nil
         }
-        return chapterModel.pageModels[page.intValue]
+        return chapterModel.layoutPages[page.intValue]
     }
     
     /// 当前记录起始坐标
@@ -107,7 +110,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         self.page = NSNumber(value: page)
         
         // Reset scroll offset when explicitly setting page position
-        self.scrollOffsetInPage = 0
+        self.pageScrollAnchor = 0
         
         if isSave { save() }
     }
@@ -158,10 +161,10 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
                 }
                 
                 page = chapterModel.page(location: location)
-                scrollOffsetInPage = 0
+                pageScrollAnchor = 0
             } else {
                 page = chapterModel.page(location: location)
-                scrollOffsetInPage = chapterModel.inPageOffsetY(forLocation: location)
+                pageScrollAnchor = chapterModel.inPageOffsetY(forLocation: location)
             }
             
             if isSave { save() }
@@ -180,7 +183,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
             }else{ page = NSNumber(value: toPage) }
             
             // Reset scroll offset when jumping to a specific page
-            scrollOffsetInPage = 0
+            pageScrollAnchor = 0
             
             if isSave { save() }
         }
@@ -210,7 +213,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         
         recordModel.page = page
         
-        recordModel.scrollOffsetInPage = scrollOffsetInPage
+        recordModel.pageScrollAnchor = pageScrollAnchor
         
         return recordModel
     }
@@ -262,7 +265,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         
         page = aDecoder.decodeObject(forKey: "page") as? NSNumber
         
-        scrollOffsetInPage = CGFloat(aDecoder.decodeDouble(forKey: "scrollOffsetInPage"))
+        pageScrollAnchor = CGFloat(aDecoder.decodeDouble(forKey: "scrollOffsetInPage"))
     }
     
     open func encode(with aCoder: NSCoder) {
@@ -273,7 +276,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         
         aCoder.encode(page, forKey: "page")
         
-        aCoder.encode(Double(scrollOffsetInPage), forKey: "scrollOffsetInPage")
+        aCoder.encode(Double(pageScrollAnchor), forKey: "scrollOffsetInPage")
     }
     
     public init(_ dict: Any? = nil) {

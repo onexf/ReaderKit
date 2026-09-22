@@ -48,7 +48,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     }
     
     /// 数据源
-    open var readModel: ReaderBookModel! {
+    open var bookModel: ReaderBookModel! {
         
         didSet{
             
@@ -87,7 +87,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         addSubviews()
         
         NotificationCenter.default.addObserver(self,
-                                               selector: #selector(onChapterListUpdated),
+                                               selector: #selector(handleCatalogueRefresh),
                                                name: .readerChapterListDidUpdate,
                                                object: nil)
     }
@@ -97,8 +97,8 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     }
     
     /// 后台目录补全有新章节合并时刷新列表（仅刷新数据，不打断当前浏览位置）。
-    @objc private func onChapterListUpdated() {
-        guard readModel != nil else { return }
+    @objc private func handleCatalogueRefresh() {
+        guard bookModel != nil else { return }
         reviseNumberColumnWidth()
         tableView.reloadData()
         reviseLoadingFooter()
@@ -110,7 +110,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     /// 用真实数字会让不同行差几个点；字重取 Regular（当前章那档，比 Light 宽）保证都装得下。
     private func reviseNumberColumnWidth() {
 
-        let maxNumber = max(readModel?.totalChapterCount ?? 0, readModel?.chapterListModels?.count ?? 0)
+        let maxNumber = max(bookModel?.totalChapterCount ?? 0, bookModel?.chapterListModels?.count ?? 0)
         let digits = max(2, String(max(1, maxNumber)).count)
         let sample = String(repeating: "0", count: digits) as NSString
         let measured = ceil(sample.size(withAttributes: [.font: ReaderEnvironment.fonts.uiRegular(14)]).width)
@@ -142,11 +142,11 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         // 加载中 / 失败 footer（同一个容器，按状态切换里面显示哪个）
         loadingFooter = UIView()
 
-        installLoadingIndicator(tintColor: ReaderConfiguration.shared().currentThemeColors.textT3)
+        installLoadingIndicator(tintColor: ReaderConfiguration.shared().currentThemeColors.textFaint)
 
         failureLabel = UILabel()
         failureLabel.font = ReaderEnvironment.fonts.uiRegular(13)
-        failureLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textT3
+        failureLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textFaint
         failureLabel.textAlignment = .center
         failureLabel.numberOfLines = 2
         failureLabel.isHidden = true
@@ -198,7 +198,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     /// 所以尺寸不可用时先记下来，等 `layoutSubviews` 拿到尺寸再补做。
     open func scrollEntry() {
         
-        guard readModel != nil else { return }
+        guard bookModel != nil else { return }
         
         guard bounds.height > 0 else {
             needsScrollToCurrentChapter = true
@@ -210,14 +210,14 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     
     private func performScrollToCurrentChapter() {
         
-        guard let readModel, !readModel.chapterListModels.isEmpty else { return }
+        guard let bookModel, !bookModel.chapterListModels.isEmpty else { return }
         
         tableView.reloadData()
         
         // 安全检查 chapterModel 是否存在
-        guard let currentChapterId = readModel.recordModel.chapterModel?.id else { return }
+        guard let currentChapterId = bookModel.recordModel.chapterModel?.id else { return }
         
-        guard let row = readModel.chapterListModels.firstIndex(where: { $0.id == currentChapterId }) else {
+        guard let row = bookModel.chapterListModels.firstIndex(where: { $0.id == currentChapterId }) else {
             // 当前章还不在已加载目录里（分页目录常态）。不滚，等补到了再说 ——
             // 滚到一个错的位置比停在顶部更难判断。
             return
@@ -233,7 +233,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     /// 三态：目录完整 → 不挂 footer；未完整且未失败 → 转圈；未完整且已失败 → 可点重试的文案。
     open func reviseLoadingFooter() {
 
-        guard let readModel, !readModel.isChapterListComplete else {
+        guard let bookModel, !bookModel.isChapterListComplete else {
             // footer 整个摘下来，指示视图跟着离屏，不需要额外停动画 ——
             // 接入方给的视图库也不知道怎么停（见 `makeLoadingIndicator` 的约定）。
             if tableView.tableFooterView === loadingFooter { tableView.tableFooterView = nil }
@@ -313,10 +313,10 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         // 指示视图整个重建而不是改色：接入方给的可能是 Lottie 那种颜色烤死在文件里的东西，
         // 库无从得知该改它哪个属性。重建的代价只是一次 addSubview。
         let wasHidden = loadingIndicator?.isHidden ?? false
-        installLoadingIndicator(tintColor: colors.textT3)
+        installLoadingIndicator(tintColor: colors.textFaint)
         loadingIndicator.isHidden = wasHidden
 
-        failureLabel.textColor = colors.textT3
+        failureLabel.textColor = colors.textFaint
 
         tableView.reloadData()
     }
@@ -344,7 +344,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     // MARK: UITableViewDelegate,UITableViewDataSource
     open func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         
-        if readModel != nil { return readModel.chapterListModels.count }
+        if bookModel != nil { return bookModel.chapterListModels.count }
         
         return 0
     }
@@ -354,12 +354,12 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         let cell = ReaderCatalogueCell.cell(tableView)
         
         // 防止数组越界
-        guard indexPath.row < readModel.chapterListModels.count else {
+        guard indexPath.row < bookModel.chapterListModels.count else {
             return cell
         }
         
         // 章节
-        let chapterListModel = readModel.chapterListModels[indexPath.row]
+        let chapterListModel = bookModel.chapterListModels[indexPath.row]
 
         // 展示序号：priority 从 0 开始，缺失时用行号兜底
         let displayNumber = (chapterListModel.priority?.intValue).map { $0 + 1 } ?? (indexPath.row + 1)
@@ -367,7 +367,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         cell.configure(title: trimChapterPrefix(chapterListModel.name, number: displayNumber),
                        number: displayNumber,
                        // 当前阅读章节 - 安全检查
-                       isCurrent: readModel.recordModel.chapterModel?.id == chapterListModel.id,
+                       isCurrent: bookModel.recordModel.chapterModel?.id == chapterListModel.id,
                        // 需要解锁且未解锁
                        isLocked: chapterListModel.isLocked,
                        numberColumnWidth: numberColumnWidth,
@@ -384,21 +384,21 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     open func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
         // 防止数组越界
-        guard indexPath.row < readModel.chapterListModels.count else {
+        guard indexPath.row < bookModel.chapterListModels.count else {
             return
         }
         
-        delegate?.catalogueView(self, didSelect: readModel.chapterListModels[indexPath.row])
+        delegate?.catalogueView(self, didSelect: bookModel.chapterListModels[indexPath.row])
     }
     
     open func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
         
-        guard readModel != nil else { return }
+        guard bookModel != nil else { return }
         
         // 滚动到接近底部（最后 3 行）且目录尚未加载完整时，触发补目录（上拉加载更多）。
         // ensureDirectoryLoaded 内部已做防重入与「已完整则跳过」，频繁触发安全。
-        let count = readModel.chapterListModels?.count ?? 0
-        if count > 0, indexPath.row >= count - 3, !readModel.isChapterListComplete {
+        let count = bookModel.chapterListModels?.count ?? 0
+        if count > 0, indexPath.row >= count - 3, !bookModel.isChapterListComplete {
             delegate?.catalogueViewDidReachBottomEdge(self)
         }
     }

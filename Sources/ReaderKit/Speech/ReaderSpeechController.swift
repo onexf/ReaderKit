@@ -10,9 +10,9 @@
 //  - 具体怎么翻页、怎么画高亮由本类调用视图层，视图层不反向依赖本类
 //
 //  两个贯穿全局的坐标约定（弄错会表现为高亮错位与翻页跳错）：
-//  - 句范围、页范围、`page(location:)` 统一以 `ReaderChapterModel.fullContent`
+//  - 句范围、页范围、`page(location:)` 统一以 `ReaderChapterModel.typesetContent`
 //    （章节标题 + 正文）为基准，称「章内绝对坐标」
-//  - 分句输入必须是 `fullContent.string`；语言判定输入必须是 `content`（不含标题）
+//  - 分句输入必须是 `typesetContent.string`；语言判定输入必须是 `content`（不含标题）
 //
 
 import Foundation
@@ -107,7 +107,7 @@ public final class ReaderSpeechController {
     ///
     /// 只给纯文本而不是富文本：取用方（朗读播放器页）要用**自己的固定字号**重新排版，
     /// 拿到带阅读器属性的富文本反而要先剥属性。章节名另有 `speakingChapterTitle`。
-    public var speakingChapterText: String? { speakingChapter?.fullContent?.string }
+    public var speakingChapterText: String? { speakingChapter?.typesetContent?.string }
 
     /// 朗读中章节的章节名。未在朗读时为 nil。
     public var speakingChapterTitle: String? { speakingChapter?.name }
@@ -122,7 +122,7 @@ public final class ReaderSpeechController {
     /// 语义上「读到第几个字」本身就是离散的。
     public var chapterProgress: Double {
 
-        guard let total = speakingChapter?.fullContent?.length, total > 0,
+        guard let total = speakingChapter?.typesetContent?.length, total > 0,
               let sentence = currentSentence else { return 0 }
 
         let spoken = min(total, max(0, sentence.range.location))
@@ -183,7 +183,7 @@ public final class ReaderSpeechController {
     /// `highlightRange` 内部已经校验了「非空闲」与「同一章」，这里不必重复。
     private var isSpeakingSentenceOnDisplayedPage: Bool {
 
-        guard let record = reader?.readModel?.recordModel,
+        guard let record = reader?.bookModel?.recordModel,
               let displayedChapter = record.chapterModel,
               let pageModel = record.pageModel else { return false }
 
@@ -201,7 +201,7 @@ public final class ReaderSpeechController {
 
     /// 当前朗读所属的章节模型。
     ///
-    /// 必须单独持有，不能用 `readModel.recordModel.chapterModel` 代替 —— 后者是
+    /// 必须单独持有，不能用 `bookModel.recordModel.chapterModel` 代替 —— 后者是
     /// **正在展示**的章节。朗读跨章后正文视图并不跟着走（见 `alignPage(to:)` 的说明），
     /// 此时两者指向不同章节：用展示章节去算句所在页、或去填锁屏的章节名，都会错。
     private var speakingChapter: ReaderChapterModel?
@@ -422,7 +422,7 @@ public final class ReaderSpeechController {
             return
         }
 
-        guard let record = reader?.readModel?.recordModel,
+        guard let record = reader?.bookModel?.recordModel,
               let chapter = record.chapterModel else { return }
 
         guard prepare(chapter: chapter) else { return }
@@ -551,7 +551,7 @@ public final class ReaderSpeechController {
     /// 判断 —— 两处各写一遍迟早发散成「按钮是亮的但点了没反应」或反之。
     private var followingChapterIDForSkip: NSNumber? {
 
-        guard let book = reader?.readModel else { return nil }
+        guard let book = reader?.bookModel else { return nil }
 
         return book.resolvedFollowingChapterID(forChapterID: speakingChapterID)
     }
@@ -559,7 +559,7 @@ public final class ReaderSpeechController {
     /// 上一章的跳转目标。为 nil 表示已是首章。口径同上。
     private var precedingChapterIDForSkip: NSNumber? {
 
-        guard let book = reader?.readModel else { return nil }
+        guard let book = reader?.bookModel else { return nil }
 
         return precedingChapterID(of: speakingChapterID, in: book)
     }
@@ -614,7 +614,7 @@ public final class ReaderSpeechController {
 
         accumulatedSpeakingTime = 0
 
-        // **先校验正文。** `fullContent` 是「标题 + 正文」，正文为空时它仍然非空
+        // **先校验正文。** `typesetContent` 是「标题 + 正文」，正文为空时它仍然非空
         // （只剩标题），只看它会把「有归档但没正文」的空壳章节当成可读 ——
         // 分句只得到标题一句，读完立刻跨章，连锁下去就是雪崩式跨章
         // （详见 `proceed(toChapterID:in:)` 里的说明）。
@@ -627,9 +627,9 @@ public final class ReaderSpeechController {
             return false
         }
 
-        // fullContent 由 reviseFont() 生成，同时也是 pageModels 的排版来源。
+        // typesetContent 由 reviseFont() 生成，同时也是 layoutPages 的排版来源。
         // 它为空说明这一章还没排版，此时分页范围也不存在，无法建立坐标映射。
-        guard let fullText = chapter.fullContent?.string, !fullText.isEmpty else {
+        guard let fullText = chapter.typesetContent?.string, !fullText.isEmpty else {
 
             presentNotice(ReaderEnvironment.strings.speechFailed)
 
@@ -639,7 +639,7 @@ public final class ReaderSpeechController {
         // 语言只从正文判定：标题短、且常含「第 12 章」这类数字编号，会把识别带偏
         let detected = ReaderSentenceTokenizer.detectLanguage(inBody: chapter.content ?? "")
 
-        // 分句必须基于 fullContent：用 content 会让所有句坐标整体偏移一个标题长度
+        // 分句必须基于 typesetContent：用 content 会让所有句坐标整体偏移一个标题长度
         let parsed = ReaderSentenceTokenizer.sentences(inFullText: fullText, language: detected)
 
         guard !parsed.isEmpty else {
@@ -1018,7 +1018,7 @@ public final class ReaderSpeechController {
             return
         }
 
-        guard let record = reader.readModel?.recordModel,
+        guard let record = reader.bookModel?.recordModel,
               let displayedChapter = record.chapterModel,
               let chapterID = speakingChapter.id else { return }
 
@@ -1120,7 +1120,7 @@ public final class ReaderSpeechController {
     /// 当前朗读句落在指定页内的范围。
     ///
     /// 换算链：句的**章内绝对范围** ∩ 页的章内范围 → 平移 `-页起始位置` 得页内范围。
-    /// 三者同坐标系（都以 `fullContent` 为基准），所以只做交集与平移，不需要别的换算。
+    /// 三者同坐标系（都以 `typesetContent` 为基准），所以只做交集与平移，不需要别的换算。
     ///
     /// - Parameters:
     ///   - pageModel: 目标页
@@ -1181,7 +1181,7 @@ public final class ReaderSpeechController {
 
         }else{
 
-            guard let display = reader.currentDisplayController else { return }
+            guard let display = reader.visiblePageController else { return }
 
             // 新页控制器刚被 `setViewControllers` 接进容器时，视图加载是延后的，
             // 此刻 `renderingPageView` 还是 nil。不强制加载就会静默跳过这一笔，
@@ -1206,7 +1206,7 @@ public final class ReaderSpeechController {
 
         guard let reader else { return }
 
-        reader.currentDisplayController?.renderingPageView?.speechHighlightRange = nil
+        reader.visiblePageController?.renderingPageView?.speechHighlightRange = nil
 
         reader.scrollController?.clearSpeechHighlight()
     }
@@ -1216,21 +1216,21 @@ public final class ReaderSpeechController {
     /// 本章读完后的衔接。
     ///
     /// 下一章的解析走 `ReaderBookModel.resolvedFollowingChapterID(forChapterID:)`，
-    /// 不看 `chapterModel.nextChapterID` —— 后者可能过期或被污染，书里已有权威判定。
+    /// 不看 `chapterModel.followingChapterID` —— 后者可能过期或被污染，书里已有权威判定。
     private func concludeChapter() {
 
         logChapterConclusion()
 
-        guard let reader, let book = reader.readModel else {
+        guard let reader, let book = reader.bookModel else {
 
             stop()
 
             return
         }
 
-        if let nextChapterID = book.resolvedFollowingChapterID(forChapterID: speakingChapterID) {
+        if let followingChapterID = book.resolvedFollowingChapterID(forChapterID: speakingChapterID) {
 
-            proceed(toChapterID: nextChapterID, in: book)
+            proceed(toChapterID: followingChapterID, in: book)
 
             return
         }
@@ -1248,7 +1248,7 @@ public final class ReaderSpeechController {
         // 请求接入方补齐后续目录页，本次朗读到此为止。
         // 不在这里等目录回来再续读：目录补齐是可能失败、也可能很慢的网络动作，
         // 挂着一个「随时可能自己响起来」的朗读比停下来更难预期。
-        reader.chapterUnlockDelegate?.readControllerDidReachUnloadedBoundary(reader)
+        reader.accessDelegate?.readControllerDidReachUnloadedBoundary(reader)
 
         stop()
     }
@@ -1329,7 +1329,7 @@ public final class ReaderSpeechController {
 
     /// 章节是否有可朗读的正文。
     ///
-    /// 判据是 `content`（正文纯文本）而**不是** `fullContent` —— 后者是「标题 + 正文」，
+    /// 判据是 `content`（正文纯文本）而**不是** `typesetContent` —— 后者是「标题 + 正文」，
     /// 正文为空时它仍然非空（只剩标题），用它判断会把空壳章节当成可读。
     private static func hasReadableBody(_ chapter: ReaderChapterModel) -> Bool {
 
@@ -1391,7 +1391,7 @@ public final class ReaderSpeechController {
         guard let reader, let chapterID = chapter.id else { return }
 
         // 已经在这一章就别跳，跳转会重建正文视图（闪屏 + 丢滚动位置）
-        if let record = reader.readModel?.recordModel,
+        if let record = reader.bookModel?.recordModel,
            let displayedChapter = record.chapterModel,
            displayedChapter.id == chapterID { return }
 
@@ -1408,7 +1408,7 @@ public final class ReaderSpeechController {
     /// 但**必须先把当前播放停掉**，见下方说明。
     private func requestChapterSwitch(to chapterID: NSNumber) {
 
-        guard let book = reader?.readModel else { return }
+        guard let book = reader?.bookModel else { return }
 
         // 在途的渲染属于旧章节，撤掉。
         // 注意这一步不足以拦住已派发到主线程的 completion，那个由 `proceed` 里的
@@ -1427,7 +1427,7 @@ public final class ReaderSpeechController {
     /// 解析指定章节的上一章。
     ///
     /// `ReaderBookModel` 只提供了 `resolvedFollowingChapterID`，没有反向的，
-    /// 这里按同样的口径（以目录列表为权威，不信 `chapterModel.previousChapterID`）自己算。
+    /// 这里按同样的口径（以目录列表为权威，不信 `chapterModel.priorChapterID`）自己算。
     private func precedingChapterID(of chapterID: NSNumber?, in book: ReaderBookModel) -> NSNumber? {
 
         guard let chapterID,
@@ -1492,7 +1492,7 @@ public final class ReaderSpeechController {
     /// 组装中立上下文快照。
     private func makeContext() -> ReaderSpeechContext {
 
-        let book = reader?.readModel
+        let book = reader?.bookModel
 
         // 用**朗读中**的章节而非展示中的章节：跨章后两者不同，
         // 用后者会让锁屏上的章节名停在用户最后看到的那一章
@@ -1500,7 +1500,7 @@ public final class ReaderSpeechController {
 
         let sentence = currentSentence
 
-        let totalLength = chapter?.fullContent?.length ?? 0
+        let totalLength = chapter?.typesetContent?.length ?? 0
 
         var progress: Double = 0
 
@@ -1555,7 +1555,7 @@ public final class ReaderSpeechController {
         }
 
         return ReaderSpeechContext(bookTitle: book?.storyName ?? "",
-                                   chapterTitle: chapter?.name ?? "",
+                                   chapterCaption: chapter?.name ?? "",
                                    sentenceText: sentence?.text ?? "",
                                    chapterProgress: progress,
                                    estimatedDuration: duration,

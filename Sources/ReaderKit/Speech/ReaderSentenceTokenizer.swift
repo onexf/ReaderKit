@@ -21,7 +21,7 @@ public struct ReaderSentence {
 
     /// 句在**章内绝对坐标**中的范围。
     ///
-    /// 坐标基准是 `ReaderChapterModel.fullContent`（章节标题 + 正文），
+    /// 坐标基准是 `ReaderChapterModel.typesetContent`（章节标题 + 正文），
     /// 与 `ReaderPageModel.range`、`ReaderChapterModel.page(location:)` 同一基准，
     /// 因此无需换算即可反查页码与求交集。
     public let range: NSRange
@@ -42,10 +42,10 @@ public enum ReaderSentenceTokenizer {
 
     /// 从**正文**判定内容语言，返回 BCP-47 语言标签（如 `zh-Hans`、`en`、`ja`）。
     ///
-    /// 取样只用正文（`ReaderChapterModel.content`），**不要传 `fullContent`**：
+    /// 取样只用正文（`ReaderChapterModel.content`），**不要传 `typesetContent`**：
     /// 章节标题往往很短且含数字编号（「第 12 章」），会把识别结果带偏。
     ///
-    /// - Note: 切句用的是 `fullContent`，判定语言用的是 `content`，两者用途不同，不要混。
+    /// - Note: 切句用的是 `typesetContent`，判定语言用的是 `content`，两者用途不同，不要混。
     /// - Returns: 判定失败（文本过短、混排无主导语言）时返回 nil，调用方应走各自的默认行为。
     public static func detectLanguage(inBody body: String) -> String? {
 
@@ -72,7 +72,7 @@ public enum ReaderSentenceTokenizer {
     /// 把章节全文切成句。
     ///
     /// - Parameters:
-    ///   - fullText: **必须**传 `ReaderChapterModel.fullContent.string`（标题 + 正文）。
+    ///   - fullText: **必须**传 `ReaderChapterModel.typesetContent.string`（标题 + 正文）。
     ///     传 `content` 会让所有句的坐标整体偏移一个标题长度，表现为高亮错位与翻页跳错。
     ///   - language: `detectLanguage(inBody:)` 的结果。为 nil 时让 `NLTokenizer` 自行判断。
     /// - Returns: 按位置升序、互不重叠的句数组。去除首尾空白后为空的片段会被丢弃。

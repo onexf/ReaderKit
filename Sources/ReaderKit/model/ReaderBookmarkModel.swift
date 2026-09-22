@@ -9,6 +9,9 @@ import UIKit
 
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
+///
+/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
+/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
 open class ReaderBookmarkModel: NSObject, NSCoding {
 
     // 以下字段原为隐式解包可选（`String!`），是从 Objective-C 移植时留下的写法：
@@ -35,7 +38,7 @@ open class ReaderBookmarkModel: NSObject, NSCoding {
     open var location: NSNumber = NSNumber(value: 0)
     
     /// 服务端书签ID(上报 /app/bookmark/add 成功后回填,nil 表示尚未同步到服务端;有值即代表已在服务端,是唯一的"已同步"判据)
-    open var bookmarkId: NSNumber?
+    open var remoteMarkID: NSNumber?
     
     // MARK: -- 构造
     
@@ -61,7 +64,7 @@ open class ReaderBookmarkModel: NSObject, NSCoding {
 
         location = aDecoder.decodeObject(forKey: "location") as? NSNumber ?? NSNumber(value: 0)
         
-        bookmarkId = aDecoder.decodeObject(forKey: "bookmarkId") as? NSNumber
+        remoteMarkID = aDecoder.decodeObject(forKey: "bookmarkId") as? NSNumber
     }
     
     open func encode(with aCoder: NSCoder) {
@@ -78,7 +81,7 @@ open class ReaderBookmarkModel: NSObject, NSCoding {
         
         aCoder.encode(location, forKey: "location")
         
-        aCoder.encode(bookmarkId, forKey: "bookmarkId")
+        aCoder.encode(remoteMarkID, forKey: "bookmarkId")
     }
     
     open override func setValue(_ value: Any?, forUndefinedKey key: String) { }
@@ -86,7 +89,7 @@ open class ReaderBookmarkModel: NSObject, NSCoding {
     // MARK: -- 上报摘要
     
     /// 上报服务端的书签文字摘要最大长度(服务端 contentSnippet 字段上限 200)。
-    /// 需覆盖书签列表 cell 的 2 行展示(excerptLabel.numberOfLines = 2):
+    /// 需覆盖书签列表 cell 的 2 行展示(snippetLabel.numberOfLines = 2):
     /// 重装/跨设备后若本地无该章正文缓存,只能用服务端 contentSnippet 还原展示,
     /// 摘要够长才能让 cell 截取的 2 行与添加时一致(50 字仅够 1 行多,会比本地短)。
     public static let snippetMaxLength = 200

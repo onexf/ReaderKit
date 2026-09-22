@@ -115,7 +115,7 @@ open class ReaderSpeechActionButton: UIView {
         return view
     }()
 
-    private lazy var titleLabel: UILabel = {
+    private lazy var captionLabel: UILabel = {
         let label = UILabel()
         label.textAlignment = .left
         return label
@@ -141,7 +141,7 @@ open class ReaderSpeechActionButton: UIView {
 
         primaryControl.addSubview(primaryIconView)
 
-        primaryControl.addSubview(titleLabel)
+        primaryControl.addSubview(captionLabel)
 
         adoptThemeColors(ReaderConfiguration.shared().currentThemeColors)
 
@@ -174,7 +174,7 @@ open class ReaderSpeechActionButton: UIView {
                               options: [.transitionCrossDissolve, READER_MENU_MOTION_OPTIONS],
                               animations: { self.applyContent(for: newState) })
 
-            UIView.transition(with: titleLabel,
+            UIView.transition(with: captionLabel,
                               duration: READER_MENU_MOTION_TIME,
                               options: [.transitionCrossDissolve, READER_MENU_MOTION_OPTIONS],
                               animations: {})
@@ -246,19 +246,19 @@ open class ReaderSpeechActionButton: UIView {
 
             primaryIconView.image = images.speechPlay()
 
-            titleLabel.text = strings.speechStartHere
+            captionLabel.text = strings.speechStartHere
 
         case .playing:
 
             primaryIconView.image = images.speechPause()
 
-            titleLabel.text = strings.speechPause
+            captionLabel.text = strings.speechPause
 
         case .paused:
 
             primaryIconView.image = images.speechResume()
 
-            titleLabel.text = strings.speechResume
+            captionLabel.text = strings.speechResume
         }
 
         returnIconView.image = images.speechReturnToPlaying()
@@ -286,12 +286,12 @@ open class ReaderSpeechActionButton: UIView {
     /// 文字所需宽度。
     private var titleWidth: CGFloat {
 
-        guard let text = titleLabel.text, !text.isEmpty else { return 0 }
+        guard let text = captionLabel.text, !text.isEmpty else { return 0 }
 
         let bounding = (text as NSString).boundingRect(
             with: CGSize(width: .greatestFiniteMagnitude, height: Self.capsuleHeight),
             options: [.usesLineFragmentOrigin],
-            attributes: [.font: titleLabel.font as Any],
+            attributes: [.font: captionLabel.font as Any],
             context: nil
         )
 
@@ -368,7 +368,7 @@ open class ReaderSpeechActionButton: UIView {
                                        width: iconSide,
                                        height: iconSide)
 
-        titleLabel.frame = CGRect(x: iconSide + itemGap,
+        captionLabel.frame = CGRect(x: iconSide + itemGap,
                                   y: 0,
                                   width: max(0, primaryControl.bounds.width - iconSide - itemGap - horizontalInset),
                                   height: primaryControl.bounds.height)
@@ -382,9 +382,9 @@ open class ReaderSpeechActionButton: UIView {
 
         dividerView.backgroundColor = colors.speechCapsuleDivider
 
-        titleLabel.textColor = colors.speechCapsuleText
+        captionLabel.textColor = colors.speechCapsuleText
 
-        titleLabel.font = ReaderEnvironment.fonts.uiRegular(readerScaled(titleFontSize))
+        captionLabel.font = ReaderEnvironment.fonts.uiRegular(readerScaled(titleFontSize))
 
         // 图标按 template 提供（`ReaderImages` 的约定），这里统一染色即可跟随主题
         primaryIconView.tintColor = colors.speechCapsuleText

@@ -20,28 +20,28 @@ public struct ReaderBookmarkDraft {
     public let storyId: Int
     /// 章节 ID
     public let chapterId: Int
-    /// 书签起点：章节内字符偏移（`fullContent` 坐标系，含标题与排版后正文，UTF-16）。定位主键。
-    public let characterOffset: Int
+    /// 书签起点：章节内字符偏移（`typesetContent` 坐标系，含标题与排版后正文，UTF-16）。定位主键。
+    public let textLocation: Int
     /// 文字摘要：章节内容变更导致 offset 失配时的兜底锚点，非定位主键。
-    public let contentSnippet: String?
+    public let excerptText: String?
 
-    public init(storyId: Int, chapterId: Int, characterOffset: Int, contentSnippet: String?) {
+    public init(storyId: Int, chapterId: Int, textLocation: Int, excerptText: String?) {
         self.storyId = storyId
         self.chapterId = chapterId
-        self.characterOffset = characterOffset
-        self.contentSnippet = contentSnippet
+        self.textLocation = textLocation
+        self.excerptText = excerptText
     }
 }
 
 /// 新增书签成功后，宿主回给引擎的中立结果。
 public struct ReaderBookmarkReceipt {
     /// 服务端分配的书签 ID，引擎回填到本地模型
-    public let bookmarkId: Int
+    public let remoteMarkID: Int
     /// 服务端创建时间（**毫秒**）。引擎按秒存储，故会除以 1000。
     public let createdAtMilliseconds: Int?
 
-    public init(bookmarkId: Int, createdAtMilliseconds: Int?) {
-        self.bookmarkId = bookmarkId
+    public init(remoteMarkID: Int, createdAtMilliseconds: Int?) {
+        self.remoteMarkID = remoteMarkID
         self.createdAtMilliseconds = createdAtMilliseconds
     }
 }
@@ -63,10 +63,10 @@ public protocol ReaderBookmarkSyncing: AnyObject {
     /// 删除单条书签。
     ///
     /// 实现方应把「服务端返回书签不存在」也视为成功，避免本地残留删不掉。
-    func removeBookmark(storyId: Int, bookmarkId: Int, completion: @escaping (Bool) -> Void)
+    func removeBookmark(storyId: Int, remoteMarkID: Int, completion: @escaping (Bool) -> Void)
 
     /// 批量删除书签。空列表应直接回 `true`。
-    func removeBookmarks(storyId: Int, bookmarkIds: [Int], completion: @escaping (Bool) -> Void)
+    func removeBookmarks(storyId: Int, remoteMarkIDs: [Int], completion: @escaping (Bool) -> Void)
 
     /// 按书清空全部书签。
     func removeAllBookmarks(storyId: Int, completion: @escaping (Bool) -> Void)

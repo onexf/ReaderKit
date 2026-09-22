@@ -10,13 +10,13 @@ import UIKit
 open class ReaderMenuProgressPanel: ReaderMenuPanel {
     
     /// 上一章
-    private var previousChapter: UIButton!
+    private var priorChapterButton: UIButton!
     
     /// 进度
     private var slider: ReaderProgressSlider!
     
     /// 下一章
-    private var nextChapter: UIButton!
+    private var followingChapterButton: UIButton!
     
     public override init(frame: CGRect) { super.init(frame: frame) }
     
@@ -27,20 +27,20 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
         backgroundColor = UIColor.clear
         
         // 上一章
-        previousChapter = UIButton(type:.custom)
-        previousChapter.titleLabel?.font = READER_FONT_SA_14
-        previousChapter.setTitle(ReaderEnvironment.strings.previousChapter, for: .normal)
-        previousChapter.setTitleColor(READER_COLOR_MENU_COLOR, for: .normal)
-        previousChapter.addAction(UIAction { [weak self] _ in self?.clickPreviousChapter() }, for: .touchUpInside)
-        addSubview(previousChapter)
+        priorChapterButton = UIButton(type:.custom)
+        priorChapterButton.titleLabel?.font = READER_FONT_SA_14
+        priorChapterButton.setTitle(ReaderEnvironment.strings.priorChapterTitle, for: .normal)
+        priorChapterButton.setTitleColor(READER_COLOR_MENU_COLOR, for: .normal)
+        priorChapterButton.addAction(UIAction { [weak self] _ in self?.goToPriorChapter() }, for: .touchUpInside)
+        addSubview(priorChapterButton)
         
         // 下一章
-        nextChapter = UIButton(type:.custom)
-        nextChapter.titleLabel?.font = READER_FONT_SA_14
-        nextChapter.setTitle(ReaderEnvironment.strings.nextChapter, for: .normal)
-        nextChapter.setTitleColor(READER_COLOR_MENU_COLOR, for: .normal)
-        nextChapter.addAction(UIAction { [weak self] _ in self?.clickNextChapter() }, for: .touchUpInside)
-        addSubview(nextChapter)
+        followingChapterButton = UIButton(type:.custom)
+        followingChapterButton.titleLabel?.font = READER_FONT_SA_14
+        followingChapterButton.setTitle(ReaderEnvironment.strings.followingChapterTitle, for: .normal)
+        followingChapterButton.setTitleColor(READER_COLOR_MENU_COLOR, for: .normal)
+        followingChapterButton.addAction(UIAction { [weak self] _ in self?.goToFollowingChapter() }, for: .touchUpInside)
+        addSubview(followingChapterButton)
         
         // 进度条
         slider = ReaderProgressSlider()
@@ -75,22 +75,22 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
     open func reloadProgress() {
        
         // 有阅读数据
-        let readModel = readMenu.vc.readModel
+        let bookModel = hostMenu.vc.bookModel
         
         // 有阅读记录以及章节数据
-        if readModel != nil && (readModel?.recordModel?.chapterModel != nil) {
+        if bookModel != nil && (bookModel?.recordModel?.chapterModel != nil) {
             
             if ReaderConfiguration.shared().progressType == .total { // 总进度
                 
                 slider.minimumValue = 0
                 slider.maximumValue = 1
-                slider.value = ReaderProgress.ratio(readModel: readModel, recordModel: readModel?.recordModel)
+                slider.value = ReaderProgress.ratio(bookModel: bookModel, recordModel: bookModel?.recordModel)
                 
             }else{ // 分页进度
                 
                 slider.minimumValue = 1
-                slider.maximumValue = readModel!.recordModel.chapterModel.pageCount.floatValue
-                slider.value = readModel!.recordModel.page.floatValue + 1
+                slider.maximumValue = bookModel!.recordModel.chapterModel.pageCount.floatValue
+                slider.value = bookModel!.recordModel.page.floatValue + 1
             }
             
         }else{ // 没有则清空
@@ -102,15 +102,15 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
     }
     
     /// 上一章
-    open func clickPreviousChapter() {
+    open func goToPriorChapter() {
         
-        readMenu?.delegate?.readerMenuDidTapPreviousChapter(readMenu)
+        hostMenu?.delegate?.readerMenuDidTapPreviousChapter(hostMenu)
     }
     
     /// 下一章
-    open func clickNextChapter() {
+    open func goToFollowingChapter() {
         
-        readMenu?.delegate?.readerMenuDidTapNextChapter(readMenu)
+        hostMenu?.delegate?.readerMenuDidTapNextChapter(hostMenu)
     }
     
     // MARK: 气泡文案
@@ -137,34 +137,34 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
         if ReaderConfiguration.shared().progressType == .total { // 总进度
             
             // 有阅读数据
-            let readModel = readMenu.vc.readModel
+            let bookModel = hostMenu.vc.bookModel
             
             // 有阅读记录以及章节数据
-            if readModel != nil && (readModel?.recordModel?.chapterModel != nil) {
+            if bookModel != nil && (bookModel?.recordModel?.chapterModel != nil) {
                 
                 // 总章节个数
-                let count = (readModel!.chapterListModels.count - 1)
+                let count = (bookModel!.chapterListModels.count - 1)
                 
                 // 获得当前进度的章节索引
                 let index = NSInteger(Float(count) * sliderValue)
                 
                 // 获得章节列表模型
-                let chapterListModel = readModel!.chapterListModels[index]
+                let chapterListModel = bookModel!.chapterListModels[index]
                 
                 // 页码
                 let toPage = (index == count) ? READER_LAST_PAGE : 0
                 
                 // 传递。章节 id 缺失就不回调 —— 过去这里把 NSNumber! 原样递出去,
                 // 宿主侧再 .intValue 才崩,崩的地方离成因很远。
-                if let readMenu, let chapterID = chapterListModel.id?.intValue {
-                    readMenu.delegate?.readerMenu(readMenu, didSeekToChapter: chapterID, page: toPage)
+                if let hostMenu, let chapterID = chapterListModel.id?.intValue {
+                    hostMenu.delegate?.readerMenu(hostMenu, didSeekToChapter: chapterID, page: toPage)
                 }
             }
             
         }else{ // 分页进度
             
-            if let readMenu {
-                readMenu.delegate?.readerMenu(readMenu, didSeekToPage: Int(sliderValue - 1))
+            if let hostMenu {
+                hostMenu.delegate?.readerMenu(hostMenu, didSeekToPage: Int(sliderValue - 1))
             }
         }
     }
@@ -178,13 +178,13 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
         let buttonW = READER_SPACE_SA_55
         
         // 上一章
-        previousChapter.frame = CGRect(x: READER_SPACE_SA_5, y: 0, width: buttonW, height: h)
+        priorChapterButton.frame = CGRect(x: READER_SPACE_SA_5, y: 0, width: buttonW, height: h)
         
         // 下一章
-        nextChapter.frame = CGRect(x: w - buttonW - READER_SPACE_SA_5, y: 0, width: buttonW, height: h)
+        followingChapterButton.frame = CGRect(x: w - buttonW - READER_SPACE_SA_5, y: 0, width: buttonW, height: h)
         
         // 进度条
-        let sliderX = previousChapter.frame.maxX + READER_SPACE_SA_10
+        let sliderX = priorChapterButton.frame.maxX + READER_SPACE_SA_10
         let sliderW = w - 2 * sliderX
         slider.frame = CGRect(x: sliderX, y: 0, width: sliderW, height: h)
     }

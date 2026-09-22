@@ -50,7 +50,7 @@ open class ReaderSpeechScreenController: UIViewController {
     private let visibleLineCount = 3
 
     /// 书封底边到正文窗口顶边
-    private let coverToTextGap: CGFloat = 64
+    private let coverTextInset: CGFloat = 64
 
     /// 正文窗口底边到控件行顶边
     private let textToControlsGap: CGFloat = 47
@@ -473,7 +473,7 @@ open class ReaderSpeechScreenController: UIViewController {
         // 书封在标题与正文窗口之间居中
         let coverBandTop = chapterTitleLabel.frame.maxY
 
-        let coverBandHeight = textWindowTop - coverToTextGap - coverBandTop
+        let coverBandHeight = textWindowTop - coverTextInset - coverBandTop
 
         let coverY = coverBandTop + max(0, (coverBandHeight - coverSize.height) / 2)
 
@@ -492,7 +492,7 @@ open class ReaderSpeechScreenController: UIViewController {
 
         let placeholder = ReaderEnvironment.images.coverPlaceholder()
 
-        guard let url = book?.cover, !url.isEmpty else {
+        guard let url = book?.coverURL, !url.isEmpty else {
 
             coverView.image = placeholder
 
@@ -601,15 +601,15 @@ open class ReaderSpeechScreenController: UIViewController {
     /// - Returns: `top` 为区间顶边（相对正文视图），`height` 为区间高度；无行信息时为 nil。
     private func visibleLineSpan(containing location: Int, contentHeight: CGFloat) -> (top: CGFloat, height: CGFloat)? {
 
-        guard let frameRef = textView.frameRef else { return nil }
+        guard let ctFrame = textView.ctFrame else { return nil }
 
-        let lines = CTFrameGetLines(frameRef) as? [CTLine] ?? []
+        let lines = CTFrameGetLines(ctFrame) as? [CTLine] ?? []
 
         guard !lines.isEmpty else { return nil }
 
         var origins = [CGPoint](repeating: .zero, count: lines.count)
 
-        CTFrameGetLineOrigins(frameRef, CFRangeMake(0, 0), &origins)
+        CTFrameGetLineOrigins(ctFrame, CFRangeMake(0, 0), &origins)
 
         // 每行的顶边与底边（CoreText 原点在左下、以基线计，这里翻成 UIKit 的自上而下）
         var tops: [CGFloat] = []
@@ -712,7 +712,7 @@ open class ReaderSpeechScreenController: UIViewController {
         style.paragraphSpacing = bodyParagraphSpacing
 
         return [.font: font,
-                .foregroundColor: ReaderConfiguration.shared().currentThemeColors.textT1,
+                .foregroundColor: ReaderConfiguration.shared().currentThemeColors.textBody,
                 .paragraphStyle: style]
     }
 
@@ -729,23 +729,23 @@ open class ReaderSpeechScreenController: UIViewController {
 
         // 明暗取自配置而非主题协议：给 `ReaderThemeColors` 加 `isDark` 会变成
         // 接入方必须实现的新成员（那个协议的实现由宿主提供），代价不值
-        blurView.effect = UIBlurEffect(style: ReaderConfiguration.shared().isNightMode ? .dark : .light)
+        blurView.effect = UIBlurEffect(style: ReaderConfiguration.shared().isDarkTheme ? .dark : .light)
 
-        bookTitleLabel.textColor = colors.textT1
+        bookTitleLabel.textColor = colors.textBody
 
         bookTitleLabel.font = ReaderEnvironment.fonts.uiRegular(16)
 
-        chapterTitleLabel.textColor = colors.textT3
+        chapterTitleLabel.textColor = colors.textFaint
 
         chapterTitleLabel.font = ReaderEnvironment.fonts.uiLight(12)
 
-        dismissControl.adoptTintColor(colors.textT1)
+        dismissControl.adoptTintColor(colors.textBody)
 
-        previousControl.adoptTintColor(colors.textT1)
+        previousControl.adoptTintColor(colors.textBody)
 
-        nextControl.adoptTintColor(colors.textT1)
+        nextControl.adoptTintColor(colors.textBody)
 
-        toggleControl.adoptTintColor(colors.textT1)
+        toggleControl.adoptTintColor(colors.textBody)
 
         // 正文颜色写在属性里，换肤要重排一次
         reviseTextWindow()

@@ -32,7 +32,7 @@ open class ReaderViewController: ReaderScreenController {
     /// 定得晚就会先用浅色渲染一帧再跳成夜间。放在这里首次进场没有闪烁，也不需要刷新 UI ——
     /// 后面所有取色的代码读到的已经是同步后的配置。
     ///
-    /// 用户手动选过主题之后这一步自动失效（`hasUserSelectedTheme`）。
+    /// 用户手动选过主题之后这一步自动失效（`themeChosenByUser`）。
     open override func initialize() {
         
         super.initialize()
@@ -55,11 +55,11 @@ open class ReaderViewController: ReaderScreenController {
         
         // 正文还没上屏（首屏还在加载、或停在失败页）时不刷：换肤路径会重建正文容器，
         // 而那条路径要求阅读记录里已经有章节。这种情况下正文上屏时自然会按新配置取色。
-        guard readModel?.recordModel?.chapterModel != nil else { return }
+        guard bookModel?.recordModel?.chapterModel != nil else { return }
         
         // 刷新走接入方那条现成的换肤路径（点色块换主题走的是同一个）——
         // 主题一变要改的地方有七处，在这里另写一份必然漏。
-        if let readMenu { readMenu.delegate?.readerMenuDidChangeTheme(readMenu) }
+        if let hostMenu { hostMenu.delegate?.readerMenuDidChangeTheme(hostMenu) }
     }
 
     // MARK: - 注入点（Contracts）
@@ -96,12 +96,12 @@ open class ReaderViewController: ReaderScreenController {
     // MARK: - 阅读数据
 
     /// 阅读对象：当前书籍的章节、分页、进度、书签等本地模型。
-    open var readModel: ReaderBookModel!
+    open var bookModel: ReaderBookModel!
 
     /// 本次会话已阅读的章节 ID 集合。
     ///
     /// 供「阅读达标自动加书架」按已读章节数判定，滚动模式也会写入，故不能是 private。
-    open var readChapterIDs: Set<Int> = []
+    open var visitedChapterIDs: Set<Int> = []
 
     // MARK: - 视图层级
 
@@ -112,7 +112,7 @@ open class ReaderViewController: ReaderScreenController {
     open var leftView: ReaderDrawerView!
 
     /// 阅读菜单（顶栏 + 底部面板）
-    open var readMenu: ReaderMenu!
+    open var hostMenu: ReaderMenu!
 
     // MARK: - 翻页容器
 
@@ -123,10 +123,10 @@ open class ReaderViewController: ReaderScreenController {
     open var scrollController: ReaderScrollController!
 
     /// 非滚动模式下当前展示的正文页
-    open var currentDisplayController: ReaderPageContentController?
+    open var visiblePageController: ReaderPageContentController?
 
     /// 缓存的书末页。跨翻页容器重建复用，避免重复拉取数据。
-    open var cachedEndViewController: ReaderTerminalPageController?
+    open var terminalPageCache: ReaderTerminalPageController?
 
     // MARK: - 章节解锁
 
@@ -134,7 +134,7 @@ open class ReaderViewController: ReaderScreenController {
     ///
     /// 后续将按 `reader-library-architecture.md` 改造为异步闸门
     /// （`resume(unlocked:)` 闭包），届时本属性并入 `ReaderDelegate`。
-    open weak var chapterUnlockDelegate: ReaderChapterAccessDelegate?
+    open weak var accessDelegate: ReaderChapterAccessDelegate?
 
     // MARK: - 阅读会话钩子（供子类重写）
 
@@ -591,9 +591,9 @@ open class ReaderViewController: ReaderScreenController {
         if isShow {
 
             // 每次展示时重取书封：装 dock 的时机可能早于书籍数据到位（走接口加载那条路径时
-            // `readModel` 还是 nil），而菜单只可能在正文就位之后呼出。
+            // `bookModel` 还是 nil），而菜单只可能在正文就位之后呼出。
             // 重复调用的代价由接入方的图片缓存吸收。
-            dock.adoptCover(url: readModel?.cover)
+            dock.adoptCover(url: bookModel?.coverURL)
 
             isSpeechDockHidden = false
 
@@ -631,7 +631,7 @@ open class ReaderViewController: ReaderScreenController {
         // 已经开着就不重复 present（连点）
         guard presentedSpeechScreen == nil else { return }
 
-        let screen = ReaderSpeechScreenController(speech: speechController, book: readModel)
+        let screen = ReaderSpeechScreenController(speech: speechController, book: bookModel)
 
         presentedSpeechScreen = screen
 

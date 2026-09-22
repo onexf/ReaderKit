@@ -10,17 +10,17 @@ import UIKit
 open class ReaderMenuPanel: UIView {
 
     /// 菜单对象
-    open weak var readMenu: ReaderMenu!
+    open weak var hostMenu: ReaderMenu!
     
     /// 系统初始化
     public override init(frame: CGRect) { super.init(frame: frame) }
     
     /// 初始化
-    public convenience init(readMenu: ReaderMenu!) {
+    public convenience init(hostMenu: ReaderMenu!) {
         
         self.init(frame: CGRect.zero)
         
-        self.readMenu = readMenu
+        self.hostMenu = hostMenu
         
         addSubviews()
     }

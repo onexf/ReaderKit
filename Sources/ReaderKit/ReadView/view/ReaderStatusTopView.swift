@@ -35,7 +35,7 @@ open class ReaderStatusTopView: UIView {
     public private(set) var storyName: UILabel!
     
     /// 章节名
-    public private(set) var chapterName: UILabel!
+    public private(set) var chapterTitleLabel: UILabel!
     
     /// 设计稿中章节名距页眉顶部的内边距
     private let chapterNameTopInset: CGFloat = 10
@@ -58,7 +58,7 @@ open class ReaderStatusTopView: UIView {
         // 返回按钮（默认隐藏，仅空态页与书末页显示）
         backButton = UIButton(type: .custom)
         backButton.setImage(ReaderEnvironment.images.statusBarBack(), for: .normal)
-        backButton.tintColor = ReaderConfiguration.shared().currentThemeColors.textT2
+        backButton.tintColor = ReaderConfiguration.shared().currentThemeColors.textSubtle
         backButton.addAction(UIAction { [weak self] _ in self?.handleBackTap() }, for: .touchUpInside)
         backButton.isHidden = true
         addSubview(backButton)
@@ -72,12 +72,12 @@ open class ReaderStatusTopView: UIView {
         addSubview(storyName)
         
         // 章节名
-        chapterName = UILabel()
-        // 设计稿 Reader/Subtitle：Newsreader Medium 12，颜色 textT2
-        chapterName.font = ReaderEnvironment.fonts.chapterHeader(readerScaled(12))
-        chapterName.textColor = ReaderConfiguration.shared().currentThemeColors.textT2
-        chapterName.textAlignment = .left
-        addSubview(chapterName)
+        chapterTitleLabel = UILabel()
+        // 设计稿 Reader/Subtitle：Newsreader Medium 12，颜色 textSubtle
+        chapterTitleLabel.font = ReaderEnvironment.fonts.chapterHeader(readerScaled(12))
+        chapterTitleLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textSubtle
+        chapterTitleLabel.textAlignment = .left
+        addSubview(chapterTitleLabel)
     }
     
     open override func layoutSubviews() {
@@ -99,7 +99,7 @@ open class ReaderStatusTopView: UIView {
         storyName.frame = CGRect(x: 0, y: 0, width: 0, height: h)
         
         // 章节名所在文本行：设计稿 padding 10px 0，顶部对齐
-        let chapterNameHeight = ceil(chapterName.font.lineHeight)
+        let chapterNameHeight = ceil(chapterTitleLabel.font.lineHeight)
         var chapterNameX = leftMargin
         
         if showsBackButton {
@@ -117,7 +117,7 @@ open class ReaderStatusTopView: UIView {
             backButton.frame = .zero
         }
         
-        chapterName.frame = CGRect(x: chapterNameX, y: chapterNameTopInset, width: max(0, w - chapterNameX), height: chapterNameHeight)
+        chapterTitleLabel.frame = CGRect(x: chapterNameX, y: chapterNameTopInset, width: max(0, w - chapterNameX), height: chapterNameHeight)
     }
     
     // MARK: - 返回
@@ -147,7 +147,7 @@ open class ReaderStatusTopView: UIView {
     open func reviseColors() {
         let themeColors = ReaderConfiguration.shared().currentThemeColors
         storyName.textColor = ReaderConfiguration.shared().statusTextColor
-        chapterName.textColor = themeColors.textT2
-        backButton.tintColor = themeColors.textT2
+        chapterTitleLabel.textColor = themeColors.textSubtle
+        backButton.tintColor = themeColors.textSubtle
     }
 }

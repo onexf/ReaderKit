@@ -84,8 +84,8 @@ open class ReaderDrawerView: UIView {
     open weak var delegate: ReaderDrawerDelegate?
 
     /// 顶部书籍信息区域（整块可点，跳详情）
-    private var headerView: UIControl!
-    private var coverImageView: UIImageView!
+    private var bookHeader: UIControl!
+    private var coverThumb: UIImageView!
     private var storyTitleLabel: UILabel!
     private var writerLabel: UILabel!
 
@@ -93,10 +93,10 @@ open class ReaderDrawerView: UIView {
     private var chapterCountLabel: UILabel!
 
     /// 分割线
-    private var spaceLine: UIView!
+    private var divider: UIView!
 
     /// 目录
-    public private(set) var catalogView: ReaderCatalogueView!
+    public private(set) var catalogueList: ReaderCatalogueView!
 
     /// 书签
     ///
@@ -125,50 +125,50 @@ open class ReaderDrawerView: UIView {
         //   恢复时：取消下面 addAction 的注释，并去掉 isUserInteractionEnabled = false。
         //   对应的回调链仍保留：`handleBookInfoTap` → `readLeftViewDidClickBookInfo`
         //   → 由接入方跳转到书籍详情页。
-        headerView = UIControl()
-        headerView.backgroundColor = .clear
+        bookHeader = UIControl()
+        bookHeader.backgroundColor = .clear
         // 置为不可交互而非仅移除 target，避免 UIControl 仍吃掉触摸并给出高亮反馈
-        headerView.isUserInteractionEnabled = false
-//        headerView.addAction(UIAction { [weak self] _ in self?.handleBookInfoTap() }, for: .touchUpInside)
-        addSubview(headerView)
+        bookHeader.isUserInteractionEnabled = false
+//        bookHeader.addAction(UIAction { [weak self] _ in self?.handleBookInfoTap() }, for: .touchUpInside)
+        addSubview(bookHeader)
 
         // 书籍封面
-        coverImageView = UIImageView()
-        coverImageView.contentMode = .scaleAspectFill
-        coverImageView.clipsToBounds = true
-        coverImageView.image = ReaderEnvironment.images.coverPlaceholder()
-        coverImageView.layer.cornerRadius = coverCornerRadius
-        headerView.addSubview(coverImageView)
+        coverThumb = UIImageView()
+        coverThumb.contentMode = .scaleAspectFill
+        coverThumb.clipsToBounds = true
+        coverThumb.image = ReaderEnvironment.images.coverPlaceholder()
+        coverThumb.layer.cornerRadius = coverCornerRadius
+        bookHeader.addSubview(coverThumb)
 
         // 书名
         storyTitleLabel = UILabel()
         storyTitleLabel.font = ReaderEnvironment.fonts.uiMedium(16)
-        storyTitleLabel.textColor = themeColors.textT1
+        storyTitleLabel.textColor = themeColors.textBody
         storyTitleLabel.numberOfLines = 1
-        headerView.addSubview(storyTitleLabel)
+        bookHeader.addSubview(storyTitleLabel)
 
         // 作者
         writerLabel = UILabel()
         writerLabel.font = ReaderEnvironment.fonts.uiLight(14)
-        writerLabel.textColor = themeColors.textT3
+        writerLabel.textColor = themeColors.textFaint
         writerLabel.numberOfLines = 1
-        headerView.addSubview(writerLabel)
+        bookHeader.addSubview(writerLabel)
 
         // 章节总数
         chapterCountLabel = UILabel()
         chapterCountLabel.font = ReaderEnvironment.fonts.uiRegular(12)
-        chapterCountLabel.textColor = themeColors.textT3
+        chapterCountLabel.textColor = themeColors.textFaint
         chapterCountLabel.numberOfLines = 1
         addSubview(chapterCountLabel)
 
-        // 分割线：设计稿逐主题取的是控件填充色（比 dividerLine 更实一档）
-        spaceLine = UIView()
-        spaceLine.backgroundColor = themeColors.fillControl
-        addSubview(spaceLine)
+        // 分割线：设计稿逐主题取的是控件填充色（比 separatorTint 更实一档）
+        divider = UIView()
+        divider.backgroundColor = themeColors.fillControl
+        addSubview(divider)
 
         // 目录
-        catalogView = ReaderCatalogueView()
-        addSubview(catalogView)
+        catalogueList = ReaderCatalogueView()
+        addSubview(catalogueList)
 
         // 书签（暂无入口，恒定隐藏）
         markView = ReaderBookmarkListView()
@@ -181,7 +181,7 @@ open class ReaderDrawerView: UIView {
 
     /// 点击书籍信息区域，回调给阅读控制器
     ///
-    /// 1.0 无书籍详情页，`headerView` 已置为不可交互，此方法当前不会被触发。
+    /// 1.0 无书籍详情页，`bookHeader` 已置为不可交互，此方法当前不会被触发。
     /// 保留实现与回调链，恢复详情页时只需在 `addSubviews()` 里放开 addAction。
     private func handleBookInfoTap() {
         delegate?.readLeftViewDidClickBookInfo(self)
@@ -199,15 +199,15 @@ open class ReaderDrawerView: UIView {
         let contentTop = max(topPadding, safeInsets.top)
 
         // MARK: 书籍信息：封面 45×60，右侧文字列（书名 + 作者）在封面高度内垂直居中
-        headerView.frame = CGRect(x: horizontalMargin,
+        bookHeader.frame = CGRect(x: horizontalMargin,
                                   y: contentTop,
                                   width: w - horizontalMargin * 2,
                                   height: coverSize.height)
 
-        coverImageView.frame = CGRect(origin: .zero, size: coverSize)
+        coverThumb.frame = CGRect(origin: .zero, size: coverSize)
 
-        let textX = coverImageView.frame.maxX + coverTextSpacing
-        let textWidth = headerView.frame.width - textX
+        let textX = coverThumb.frame.maxX + coverTextSpacing
+        let textWidth = bookHeader.frame.width - textX
         let textBlockHeight = titleHeight + titleAuthorSpacing + authorHeight
         let textY = (coverSize.height - textBlockHeight) / 2
 
@@ -219,21 +219,21 @@ open class ReaderDrawerView: UIView {
 
         // MARK: 章节总数：书籍信息下方 16
         chapterCountLabel.frame = CGRect(x: horizontalMargin,
-                                         y: headerView.frame.maxY + bookInfoSpacing,
+                                         y: bookHeader.frame.maxY + bookInfoSpacing,
                                          width: w - horizontalMargin * 2,
                                          height: chapterCountHeight)
 
         // MARK: 分割线：章节总数下方 12
-        spaceLine.frame = CGRect(x: horizontalMargin,
+        divider.frame = CGRect(x: horizontalMargin,
                                  y: chapterCountLabel.frame.maxY + sectionSpacing,
                                  width: w - horizontalMargin * 2,
                                  height: dividerHeight)
 
         // MARK: 目录列表：分割线下方 12，向下铺到安全区上沿
-        let listY = spaceLine.frame.maxY + sectionSpacing
+        let listY = divider.frame.maxY + sectionSpacing
         let listHeight = frame.height - safeInsets.bottom - listY
-        catalogView.frame = CGRect(x: 0, y: listY, width: w, height: max(0, listHeight))
-        markView.frame = catalogView.frame
+        catalogueList.frame = CGRect(x: 0, y: listY, width: w, height: max(0, listHeight))
+        markView.frame = catalogueList.frame
     }
 
     // MARK: - 数据填充
@@ -251,7 +251,7 @@ open class ReaderDrawerView: UIView {
             return
         }
         let compressedURL = urlString.getImageCompressURL(width: Int(coverSize.width), heigth: Int(coverSize.height))
-        ReaderEnvironment.images.loadRemoteImage(coverImageView,
+        ReaderEnvironment.images.loadRemoteImage(coverThumb,
                                                 compressedURL,
                                                 ReaderEnvironment.images.coverPlaceholder())
     }
@@ -265,18 +265,18 @@ open class ReaderDrawerView: UIView {
 
     /// 应用主题颜色
     open func adoptThemeColors(_ colors: ReaderThemeColors) {
-        backgroundColor = colors.fillPopup
+        backgroundColor = colors.fillSheet
 
         // 书籍信息区域
-        storyTitleLabel.textColor = colors.textT1
-        writerLabel.textColor = colors.textT3
-        chapterCountLabel.textColor = colors.textT3
+        storyTitleLabel.textColor = colors.textBody
+        writerLabel.textColor = colors.textFaint
+        chapterCountLabel.textColor = colors.textFaint
 
         // 分割线
-        spaceLine.backgroundColor = colors.fillControl
+        divider.backgroundColor = colors.fillControl
 
         // 目录列表
-        catalogView.adoptThemeColors(colors)
+        catalogueList.adoptThemeColors(colors)
 
         // 书签列表（暂无入口，仍随主题刷新，避免接回入口时出现旧配色）
         markView.adoptThemeColors(colors)

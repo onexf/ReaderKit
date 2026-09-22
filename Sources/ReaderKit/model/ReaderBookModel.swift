@@ -9,6 +9,9 @@ import UIKit
 
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
+///
+/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
+/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
 open class ReaderBookModel: NSObject, NSCoding {
 
     /// 小说ID
@@ -18,7 +21,7 @@ open class ReaderBookModel: NSObject, NSCoding {
     open var storyName: String!
     
     /// 小说封面
-    open var cover: String?
+    open var coverURL: String?
     
     /// 作者
     open var writer: String?
@@ -74,7 +77,7 @@ open class ReaderBookModel: NSObject, NSCoding {
     }
     
     /// 基于当前 chapterListModels 权威解析指定章节的下一章 ID
-    /// （不信任可能过期 / 被污染的 chapterModel.nextChapterID）。
+    /// （不信任可能过期 / 被污染的 chapterModel.followingChapterID）。
     /// - Returns:
     ///   - 非 nil：存在下一章（返回其 id）
     ///   - nil：已是已加载列表最后一条。需结合 `isChapterListComplete` 甄别：
@@ -91,7 +94,7 @@ open class ReaderBookModel: NSObject, NSCoding {
     }
     
     /// 权威判定：指定章节是否为「全书真正的最后一章」。
-    /// 不依赖可能被污染的 chapterModel.nextChapterID / isLastChapter，仅基于目录完整性 + 列表位置。
+    /// 不依赖可能被污染的 chapterModel.followingChapterID / isLastChapter，仅基于目录完整性 + 列表位置。
     /// 目录未完整时一律返回 false（无法确定末章），从根本上杜绝分页未加载完时误判末章而触发 END。
     open func isAuthoritativeFinalChapter(chapterID: NSNumber?) -> Bool {
         guard isChapterListComplete else { return false }
@@ -124,23 +127,23 @@ open class ReaderBookModel: NSObject, NSCoding {
     /// 获取阅读对象,如果则创建对象返回
     public class func model(storyID: String!) ->ReaderBookModel {
         
-        var readModel: ReaderBookModel!
+        var bookModel: ReaderBookModel!
         
         if ReaderBookModel.isExist(storyID: storyID) {
             
-            readModel = ReaderArchiver.unarchiver(folderName: storyID, fileName: READER_KEY_OBJECT) as? ReaderBookModel
+            bookModel = ReaderArchiver.unarchiver(folderName: storyID, fileName: READER_KEY_OBJECT) as? ReaderBookModel
             
         }else{
             
-            readModel = ReaderBookModel()
+            bookModel = ReaderBookModel()
             
-            readModel.storyID = storyID
+            bookModel.storyID = storyID
         }
         
         // 获取阅读记录
-        readModel.recordModel = ReaderReadRecordModel.model(storyID: storyID)
+        bookModel.recordModel = ReaderReadRecordModel.model(storyID: storyID)
         
-        return readModel
+        return bookModel
     }
     
     public required init?(coder aDecoder: NSCoder) {
@@ -151,7 +154,7 @@ open class ReaderBookModel: NSObject, NSCoding {
         
         storyName = aDecoder.decodeObject(forKey: "storyName") as? String
         
-        cover = aDecoder.decodeObject(forKey: "cover") as? String
+        coverURL = aDecoder.decodeObject(forKey: "cover") as? String
         
         writer = aDecoder.decodeObject(forKey: "writer") as? String
         
@@ -176,7 +179,7 @@ open class ReaderBookModel: NSObject, NSCoding {
         
         aCoder.encode(storyName, forKey: "storyName")
         
-        aCoder.encode(cover, forKey: "cover")
+        aCoder.encode(coverURL, forKey: "cover")
         
         aCoder.encode(writer, forKey: "writer")
         

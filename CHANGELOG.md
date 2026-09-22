@@ -1,5 +1,110 @@
 # Changelog
 
+## 1.26.0
+
+**破坏性变更：约 130 个成员 / 属性 / 实参标签改名。** 逻辑一行没动，纯改名。
+
+### 为什么
+
+二进制同质化比对报告（本包 vs 同团队另一款线上 App）列出 48 组
+「类改名但成员未改」—— 类名换了、成员名一字未动，读起来就是「把抄来的代码改了个类名」。
+其中 40 组在本库。这一版把它们清掉。
+
+Swift 的**存储属性名会进 `__swift5_reflstr` 反射元数据**，`strings` 直接读得到，
+`private` 也躲不掉；计算属性和普通方法不进。所以这次改的重点是存储属性，
+外加剩余 `@objc` 成员的选择器（`@objc` 才会进 ObjC 选择器表）。
+
+### ⚠️ 归档键名刻意没跟着改
+
+六个参与 NSCoding 的模型里，属性改名了但 `forKey:` 的字符串**保持原样**，于是会看到
+`priorChapterID = aDecoder.decodeObject(forKey: "previousChapterID")` 这种名字对不上的写法。
+**这是对的，不要"顺手修一下"**：键名跟着改，已落盘的章节 / 书签缓存解档就拿到 nil，
+而这些字段是隐式解包可选 —— 访问即崩，且只在老用户升级时才崩。
+
+### 接入方必须改的公开 API
+
+| 旧 | 新 | 所在 |
+| --- | --- | --- |
+| `previousChapterID` | `priorChapterID` | ReaderChapterModel |
+| `nextChapterID` | `followingChapterID` | ReaderChapterModel |
+| `pageModels` | `layoutPages` | ReaderChapterModel |
+| `fullContent` | `typesetContent` | ReaderChapterModel |
+| `headTypeHeight` | `headerInsetHeight` | ReaderPageModel |
+| `headTypeIndex` | `headerKindRaw` | ReaderPageModel |
+| `headType` | `headerKind` | ReaderPageModel |
+| `alreadyLock` | `unlockState` | ReaderChapterListItemModel |
+| `isVipContent` | `premiumZoneFlag` | ReaderChapterListItemModel |
+| `cover` | `coverURL` | ReaderBookModel |
+| `marks` | `bookmarks` | ReaderBookmarkCluster |
+| `chapterName` | `chapterCaption` | ReaderBookmarkCluster |
+| `scrollOffsetInPage` | `pageScrollAnchor` | ReaderReadRecordModel |
+| `bookmarkId` | `remoteMarkID` | ReaderBookmarkDraft / Receipt / Syncing |
+| `characterOffset` | `textLocation` | ReaderBookmarkDraft |
+| `contentSnippet` | `excerptText` | ReaderBookmarkDraft |
+| `readModel` | `bookModel` | ReaderViewController 等 11 处 |
+| `readMenu` | `hostMenu` | ReaderViewController / ReaderMenuPanel |
+| `readChapterIDs` | `visitedChapterIDs` | ReaderViewController |
+| `currentDisplayController` | `visiblePageController` | ReaderViewController |
+| `cachedEndViewController` | `terminalPageCache` | ReaderViewController |
+| `chapterUnlockDelegate` | `accessDelegate` | ReaderViewController |
+| `bottomView` | `statusFooter` | ReaderPageContentController |
+| `bottomView` | `bottomBar` | ReaderMenu |
+| `cover` | `nightTint` | ReaderMenu |
+| `cover` | `dimOverlay` | ReaderContentView |
+| `catalogBackgroundView` | `catalogueBackdrop` | ReaderMenu |
+| `catalogView` | `cataloguePanel` | ReaderMenuBottomBar |
+| `catalogView` | `catalogueList` | ReaderDrawerView |
+| `funcView` | `settingsPanel` | ReaderMenuBottomBar |
+| `progressView` | `progressPanel` | ReaderMenuBottomBar |
+| `catalogueButton` | `catalogueTab` | ReaderMenuTabRail |
+| `bottomTabBar` | `tabRail` | ReaderMenuSettingsPanel |
+| `onChapterSelected` | `onChapterChosen` | ReaderMenuCataloguePanel |
+| `clickPreviousChapter` / `clickNextChapter` | `goToPriorChapter` / `goToFollowingChapter` | ReaderMenuProgressPanel |
+| `spaceLine` | `divider` | ReaderCatalogueCell / ReaderDrawerView |
+| `chapterName` | `chapterTitleLabel` | ReaderStatusTopView / ReaderCatalogueCell |
+| `chapterAscending` | `isAscendingOrder` | ReaderBookmarkListView |
+| `isNightMode` | `isDarkTheme` | ReaderConfiguration / ReaderMenuTabRail |
+| `hasUserSelectedTheme` | `themeChosenByUser` | ReaderConfiguration |
+| `hasUserSelectedEffect` | `effectChosenByUser` | ReaderConfiguration |
+| `frameRef` | `ctFrame` | ReaderPageView |
+| `isTorB` | `isTopCursor` | ReaderLongPressCursorView |
+| `isOpenDrag` | `isDragActive` | ReaderLongPressView |
+| `customTapGestureRecognizer` | `pageTapRecognizer` | ReaderSheetController |
+| `touchTap(tap:)` | `handlePageTap(tap:)` | ReaderSheetController（`@objc open`） |
+| `previousChapter` / `nextChapter` | `priorChapterTitle` / `followingChapterTitle` | ReaderStrings |
+| `chapterTitle` | `chapterCaption` | ReaderSpeechContext |
+| `chapterNumber` | `chapterOrdinal` | ReaderPositionContext |
+
+**实参标签也变了一个**（不改会编译报错）：
+
+```
+ReaderChapterAccessDelegate.readController(_:didAttemptToLoadLockedChapter:chapterName:chapterOrdinal:)
+                                                                          ^^^^^^^^^^^  → chapterCaption:
+```
+
+主题色 16 个语义色改了 11 个名字，`ReaderThemeColors` 的实现方逐项对照：
+
+| 旧 | 新 | | 旧 | 新 |
+| --- | --- | --- | --- | --- |
+| `textT0` | `textStrong` | | `iconDefault` | `iconStandard` |
+| `textT1` | `textBody` | | `iconDisable` | `iconMuted` |
+| `textT2` | `textSubtle` | | `fillPopup` | `fillSheet` |
+| `textT3` | `textFaint` | | `fill2` | `fillAccent` |
+| `textDisable` | `textMuted` | | `fill3` | `fillExtreme` |
+| `dividerLine` | `separatorTint` | | | |
+
+`page` / `fill` / `fillControl` / `line` / `accent` / 两个 `speechHighlight*` 没动。
+
+### 刻意没改的
+
+- **`pageViewController`**：接入方实现 `UIPageViewControllerDataSource` / `Delegate` 时，
+  方法名和形参名也叫这个，token 层面分不开，自动改名会把协议实现改没。
+  而且它本来就是 UIKit 的口径，撞名不构成证据。
+- **`chapterID` / `chapterId` / `chapterModel` / `pageModel`**：域内自然命名，
+  改成别的只会更难读；报告里它们是「一般」强度，不是铁证。
+- **系统 API 名**（`titleLabel`、`panGestureRecognizer`、`setModalPresentationStyle:` …）：
+  改不了，也不该改。
+
 ## 1.25.0
 
 26 处按钮的 `addTarget(self, action: #selector(…))` 换成 `UIAction` 闭包，

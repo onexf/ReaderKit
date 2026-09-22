@@ -12,10 +12,10 @@ import UIKit
 open class ReaderBookmarkSectionHeader: UITableViewHeaderFooterView {
 
     /// 章节标题(完整章节名)
-    private var titleLabel: UILabel!
+    private var headingLabel: UILabel!
 
     /// 锁定图标(锁定章节展示)
-    private var lockIcon: UIImageView!
+    private var lockGlyph: UIImageView!
 
     /// 是否锁定
     private var isLocked: Bool = false
@@ -44,20 +44,20 @@ open class ReaderBookmarkSectionHeader: UITableViewHeaderFooterView {
         backgroundView = bg
 
         // 章节标题
-        titleLabel = UILabel()
-        titleLabel.font = ReaderEnvironment.fonts.uiMedium(16)
-        titleLabel.textColor = themeColors.textT1
-        titleLabel.numberOfLines = 1
-        titleLabel.lineBreakMode = .byTruncatingTail
-        contentView.addSubview(titleLabel)
+        headingLabel = UILabel()
+        headingLabel.font = ReaderEnvironment.fonts.uiMedium(16)
+        headingLabel.textColor = themeColors.textBody
+        headingLabel.numberOfLines = 1
+        headingLabel.lineBreakMode = .byTruncatingTail
+        contentView.addSubview(headingLabel)
 
-        // 锁图标(锁定章节展示,着色用主题强调色 textT0,与目录页锁定章节一致)
-        lockIcon = UIImageView()
-        lockIcon.image = ReaderEnvironment.images.chapterLocked()?.withRenderingMode(.alwaysTemplate)
-        lockIcon.tintColor = themeColors.textT0
-        lockIcon.contentMode = .scaleAspectFit
-        lockIcon.isHidden = true
-        contentView.addSubview(lockIcon)
+        // 锁图标(锁定章节展示,着色用主题强调色 textStrong,与目录页锁定章节一致)
+        lockGlyph = UIImageView()
+        lockGlyph.image = ReaderEnvironment.images.chapterLocked()?.withRenderingMode(.alwaysTemplate)
+        lockGlyph.tintColor = themeColors.textStrong
+        lockGlyph.contentMode = .scaleAspectFit
+        lockGlyph.isHidden = true
+        contentView.addSubview(lockGlyph)
     }
 
     /// 配置分组头
@@ -66,12 +66,12 @@ open class ReaderBookmarkSectionHeader: UITableViewHeaderFooterView {
         let themeColors = ReaderConfiguration.shared().currentThemeColors
         isLocked = group.isLocked
 
-        titleLabel.text = group.chapterName
+        headingLabel.text = group.chapterCaption
         // 锁定提示由浮层(渐变 + 锁 + 文案)统一承载,header 不再单独显示锁图标
-        lockIcon.isHidden = true
+        lockGlyph.isHidden = true
 
         // 锁定章节标题置灰
-        titleLabel.textColor = group.isLocked ? themeColors.textT3 : themeColors.textT1
+        headingLabel.textColor = group.isLocked ? themeColors.textFaint : themeColors.textBody
 
         setNeedsLayout()
     }
@@ -91,18 +91,18 @@ open class ReaderBookmarkSectionHeader: UITableViewHeaderFooterView {
         // 锁图标(右侧,与标题文本垂直居中)
         let lockSize: CGFloat = 16
         var rightLimit = w - margin
-        if !lockIcon.isHidden {
-            lockIcon.frame = CGRect(x: w - margin - lockSize, y: titleTop + (titleHeight - lockSize) / 2, width: lockSize, height: lockSize)
-            rightLimit = lockIcon.frame.minX - 8
+        if !lockGlyph.isHidden {
+            lockGlyph.frame = CGRect(x: w - margin - lockSize, y: titleTop + (titleHeight - lockSize) / 2, width: lockSize, height: lockSize)
+            rightLimit = lockGlyph.frame.minX - 8
         }
 
         // 标题(顶部留 12)
-        titleLabel.frame = CGRect(x: margin, y: titleTop, width: max(0, rightLimit - margin), height: titleHeight)
+        headingLabel.frame = CGRect(x: margin, y: titleTop, width: max(0, rightLimit - margin), height: titleHeight)
     }
 
     open func adoptThemeColors(_ colors: ReaderThemeColors) {
-        titleLabel.textColor = isLocked ? colors.textT3 : colors.textT1
-        lockIcon.tintColor = colors.textT0
+        headingLabel.textColor = isLocked ? colors.textFaint : colors.textBody
+        lockGlyph.tintColor = colors.textStrong
     }
 
     public required init?(coder aDecoder: NSCoder) {

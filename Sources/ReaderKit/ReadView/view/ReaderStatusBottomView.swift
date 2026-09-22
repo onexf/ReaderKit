@@ -18,10 +18,10 @@ public let READER_STATUS_BOTTOM_VIEW_HEIGHT: CGFloat =  46
 ///
 /// - **上下滚动模式**：用本视图自带的 `pageLabel`，由 `ReaderScrollController`
 ///   在滚动时下发文案。滚动模式下页脚是固定的一层、正文是 tableView，页码只能由外部驱动。
-/// - **左右翻页模式**：仍由每页的 `ReaderPageContentController.pageNumberLabel` 负责。
+/// - **左右翻页模式**：仍由每页的 `ReaderPageContentController.folioLabel` 负责。
 ///   那边每翻一页都会新建一个正文控制器，页码随 VC 创建天然算好，改动它反而要新增刷新链路。
 ///
-/// 两条路的样式（Regular 12 / textT2 / 整条 60% 透明）与基线一致，视觉上无差别。
+/// 两条路的样式（Regular 12 / textSubtle / 整条 60% 透明）与基线一致，视觉上无差别。
 open class ReaderStatusBottomView: UIView {
     
     /// 设计稿中信息行距页脚区顶部的距离（与正文页页码 label 保持同一基线）
@@ -40,10 +40,10 @@ open class ReaderStatusBottomView: UIView {
     private var pageLabel: UILabel!
     
     /// 时间
-    private var timeLabel: UILabel!
+    private var clockLabel: UILabel!
     
     /// 电池
-    private var batteryView: ReaderBatteryView!
+    private var batteryGauge: ReaderBatteryView!
     
     /// 计时器
     private var timer: Timer?
@@ -70,28 +70,28 @@ open class ReaderStatusBottomView: UIView {
     private func addSubviews() {
         
         // 电池
-        batteryView = ReaderBatteryView()
-        batteryView.tintColor = ReaderConfiguration.shared().currentThemeColors.textT1
-        addSubview(batteryView)
+        batteryGauge = ReaderBatteryView()
+        batteryGauge.tintColor = ReaderConfiguration.shared().currentThemeColors.textBody
+        addSubview(batteryGauge)
         
-        // 页码（滚动模式使用）：样式与正文页的 pageNumberLabel 一致，
+        // 页码（滚动模式使用）：样式与正文页的 folioLabel 一致，
         // 透明度由整条页脚的 alpha 0.6 提供，不再单独设
         pageLabel = UILabel()
         pageLabel.textAlignment = .left
         pageLabel.font = ReaderEnvironment.fonts.uiRegular(readerScaled(12))
-        pageLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textT2
+        pageLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textSubtle
         pageLabel.isHidden = true
         addSubview(pageLabel)
         
         // 时间
-        timeLabel = UILabel()
-        timeLabel.textAlignment = .right
+        clockLabel = UILabel()
+        clockLabel.textAlignment = .right
         // 设计稿 App/14/Light：Lexend Deca Light 14
-        timeLabel.font = ReaderEnvironment.fonts.uiLight(readerScaled(14))
-        timeLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textT1
-        timeLabel.setContentHuggingPriority(.required, for: .horizontal)
-        timeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-        addSubview(timeLabel)
+        clockLabel.font = ReaderEnvironment.fonts.uiLight(readerScaled(14))
+        clockLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textBody
+        clockLabel.setContentHuggingPriority(.required, for: .horizontal)
+        clockLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        addSubview(clockLabel)
         
         // 初始化调用
         didChangeTime()
@@ -110,7 +110,7 @@ open class ReaderStatusBottomView: UIView {
         
         // 电池：右边缘与正文右边缘对齐，垂直居中于信息行
         let batteryX = w - ReaderBatterySize.width
-        batteryView.frame = CGRect(x: batteryX,
+        batteryGauge.frame = CGRect(x: batteryX,
                                    y: rowY + (rowHeight - ReaderBatterySize.height) / 2,
                                    width: ReaderBatterySize.width,
                                    height: ReaderBatterySize.height)
@@ -118,7 +118,7 @@ open class ReaderStatusBottomView: UIView {
         // 时间：紧贴电池左侧，宽度按实际文本自适应
         let timeLabelWidth = measuredTimeWidth()
         let timeLabelX = batteryX - timeBatterySpacing - timeLabelWidth
-        timeLabel.frame = CGRect(x: timeLabelX,
+        clockLabel.frame = CGRect(x: timeLabelX,
                                  y: rowY,
                                  width: timeLabelWidth,
                                  height: rowHeight)
@@ -161,7 +161,7 @@ open class ReaderStatusBottomView: UIView {
     /// 时间文本的实际宽度（额外加 2pt 避免被压缩）
     private func measuredTimeWidth() -> CGFloat {
         
-        guard let text = timeLabel.text, !text.isEmpty, let font = timeLabel.font else { return 50 }
+        guard let text = clockLabel.text, !text.isEmpty, let font = clockLabel.font else { return 50 }
         
         return ceil(text.size(withAttributes: [.font: font]).width) + 2
     }
@@ -204,9 +204,9 @@ open class ReaderStatusBottomView: UIView {
     /// 时间变化
     open func didChangeTime() {
         
-        timeLabel.text = readerClockText("HH:mm")
+        clockLabel.text = readerClockText("HH:mm")
         
-        batteryView.batteryLevel = UIDevice.current.batteryLevel
+        batteryGauge.batteryLevel = UIDevice.current.batteryLevel
         
         // 时间更新后需要重新布局，确保宽度自适应
         setNeedsLayout()
@@ -217,12 +217,12 @@ open class ReaderStatusBottomView: UIView {
         
         let themeColors = ReaderConfiguration.shared().currentThemeColors
         
-        timeLabel.textColor = themeColors.textT1
+        clockLabel.textColor = themeColors.textBody
         
-        batteryView.tintColor = themeColors.textT1
+        batteryGauge.tintColor = themeColors.textBody
         
-        // 页码用 textT2（与正文页的 pageNumberLabel 一致，比时间/电池弱一级）
-        pageLabel.textColor = themeColors.textT2
+        // 页码用 textSubtle（与正文页的 folioLabel 一致，比时间/电池弱一级）
+        pageLabel.textColor = themeColors.textSubtle
     }
     
     /// 销毁

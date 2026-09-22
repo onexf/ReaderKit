@@ -41,19 +41,19 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     open weak var pageTapDelegate: (any ReaderSheetControllerDelegate)?
     
     // 自定义Tap手势
-    public private(set) var customTapGestureRecognizer: UITapGestureRecognizer!
+    public private(set) var pageTapRecognizer: UITapGestureRecognizer!
     
     // Whether a tap-triggered page transition is in progress (prevents rapid-tap overlap)
     private var isTapAnimating: Bool = false
     
     // Whether setViewControllers was called during the current tap handling (animation will manage reset)
-    private var didStartTransition: Bool = false
+    private var transitionInFlight: Bool = false
     
     // Internal scrollView reference (UIPageViewController .scroll style uses a UIScrollView internally)
-    private weak var internalScrollView: UIScrollView?
+    private weak var hostedScrollView: UIScrollView?
     
     // Safety timer to reset isTapAnimating if completion block is never called
-    private var animationSafetyTimer: Timer?
+    private var transitionWatchdog: Timer?
     
     open override func viewDidLoad() {
         
@@ -61,11 +61,11 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         
         tapGestureRecognizerEnabled = false
         
-        customTapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(touchTap(tap:)))
+        pageTapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handlePageTap(tap:)))
 
-        customTapGestureRecognizer.delegate = self
+        pageTapRecognizer.delegate = self
 
-        view.addGestureRecognizer(customTapGestureRecognizer)
+        view.addGestureRecognizer(pageTapRecognizer)
         
         // Find the internal UIScrollView for later use
         ensurePrivateScrollView()
@@ -80,7 +80,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         //
         // UIPageViewController 是**懒建**那个 scrollView 的：`viewDidLoad` 和
         // `didMove(toParent:)` 都早于第一次 `setViewControllers`，那两个时机它通常还不存在。
-        // 只在早期找一次的后果是 `internalScrollView` 恒为 nil —— 于是拖动监听挂不上、
+        // 只在早期找一次的后果是 `hostedScrollView` 恒为 nil —— 于是拖动监听挂不上、
         // `onPageDragEnded` 一次都不回调，而这**不会报错**，只表现为「滑动没反应」。
         //
         // 布局之后它一定有了。两个方法都幂等，重复调只有第一次有成本。
@@ -91,10 +91,10 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     /// 查找并缓存 UIPageViewController 内部的 UIScrollView（.scroll 样式下存在）。
     /// 幂等：已找到则跳过。
     private func ensurePrivateScrollView() {
-        guard internalScrollView == nil else { return }
+        guard hostedScrollView == nil else { return }
         for subview in view.subviews {
             if let scrollView = subview as? UIScrollView {
-                internalScrollView = scrollView
+                hostedScrollView = scrollView
                 break
             }
         }
@@ -105,7 +105,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     /// - Note: pageCurl（仿真）样式无内部 scrollView，此调用不产生任何效果。
     open func requirePageScrollToFail(_ gesture: UIGestureRecognizer) {
         ensurePrivateScrollView()
-        internalScrollView?.panGestureRecognizer.require(toFail: gesture)
+        hostedScrollView?.panGestureRecognizer.require(toFail: gesture)
     }
     
     /// 用户拖动结束时回调，带上「想往哪翻」。
@@ -150,7 +150,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         guard !isObservingPageDrag else { return }
         
         ensurePrivateScrollView()
-        guard let pan = internalScrollView?.panGestureRecognizer else { return }
+        guard let pan = hostedScrollView?.panGestureRecognizer else { return }
         
         pan.addTarget(self, action: #selector(handlePageDrag(_:)))
         isObservingPageDrag = true
@@ -177,11 +177,11 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     /// 那条路径依赖内部 scrollView 的偏移动画，把 scrollView 整体关掉会一起废掉它。
     /// 关 pan 只拦用户拖动，程序驱动的翻页不受影响。
     ///
-    /// 点击翻页不在这里管 —— 它是本类自己的 `customTapGestureRecognizer`，
+    /// 点击翻页不在这里管 —— 它是本类自己的 `pageTapRecognizer`，
     /// 在 `gestureRecognizer(_:shouldReceive:)` 里按菜单状态拒掉。
     open func suspendPageTurn(_ isSuspended: Bool) {
         ensurePrivateScrollView()
-        internalScrollView?.panGestureRecognizer.isEnabled = !isSuspended
+        hostedScrollView?.panGestureRecognizer.isEnabled = !isSuspended
     }
     
     /// 菜单是否正呼出。
@@ -189,7 +189,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     /// 向上问宿主而不是自己存一个标志位：`isMenuShow` 是唯一事实来源，
     /// 存副本就要考虑两边什么时候同步，菜单被别的路径收起时副本就脏了。
     private var isReaderMenuShowing: Bool {
-        (parent as? ReaderViewController)?.readMenu?.isMenuShow == true
+        (parent as? ReaderViewController)?.hostMenu?.isMenuShow == true
     }
     
     open override func didMove(toParent parent: UIViewController?) {
@@ -208,27 +208,27 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     open override func setViewControllers(_ viewControllers: [UIViewController]?, direction: UIPageViewController.NavigationDirection, animated: Bool, completion: ((Bool) -> Void)? = nil) {
         
         if isTapAnimating && animated {
-            didStartTransition = true
+            transitionInFlight = true
             // Disable user interaction on internal scrollView during animation to prevent
             // touch events from interrupting the ongoing scroll animation (causes "bounce back" glitch)
-            internalScrollView?.isUserInteractionEnabled = false
+            hostedScrollView?.isUserInteractionEnabled = false
             
             // Safety timer: if completion is never called (e.g., animation interrupted by another
             // setViewControllers call), force-reset state after a reasonable timeout
-            animationSafetyTimer?.invalidate()
-            animationSafetyTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
+            transitionWatchdog?.invalidate()
+            transitionWatchdog = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
                 guard let self = self else { return }
                 if self.isTapAnimating {
-                    self.internalScrollView?.isUserInteractionEnabled = true
+                    self.hostedScrollView?.isUserInteractionEnabled = true
                     self.isTapAnimating = false
                 }
             }
             
             super.setViewControllers(viewControllers, direction: direction, animated: true) { [weak self] finished in
                 guard let self = self else { return }
-                self.animationSafetyTimer?.invalidate()
-                self.animationSafetyTimer = nil
-                self.internalScrollView?.isUserInteractionEnabled = true
+                self.transitionWatchdog?.invalidate()
+                self.transitionWatchdog = nil
+                self.hostedScrollView?.isUserInteractionEnabled = true
                 self.isTapAnimating = false
                 completion?(finished)
             }
@@ -238,7 +238,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     }
     
     // tap事件
-    @objc open func touchTap(tap: UIGestureRecognizer) {
+    @objc open func handlePageTap(tap: UIGestureRecognizer) {
         
         // Prevent rapid taps from triggering multiple simultaneous page transitions
         guard !isTapAnimating else { return }
@@ -255,9 +255,9 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
             // Top blank area: left 1/3 triggers previous page (go back)
             if touchPoint.x < LeftWidth {
                 isTapAnimating = true
-                didStartTransition = false
+                transitionInFlight = false
                 pageTapDelegate?.sheetControllerDidRequestPreviousPage(self)
-                if !didStartTransition {
+                if !transitionInFlight {
                     isTapAnimating = false
                 }
             }
@@ -271,20 +271,20 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         if (touchPoint.x < LeftWidth) { // 左边
             
             isTapAnimating = true
-            didStartTransition = false
+            transitionInFlight = false
             pageTapDelegate?.sheetControllerDidRequestPreviousPage(self)
             // If delegate didn't call setViewControllers (no previous page / locked chapter), reset immediately
-            if !didStartTransition {
+            if !transitionInFlight {
                 isTapAnimating = false
             }
             
         }else if (touchPoint.x > (ReaderScreenMetrics.screenWidth - RightWidth)) { // 右边
             
             isTapAnimating = true
-            didStartTransition = false
+            transitionInFlight = false
             pageTapDelegate?.sheetControllerDidRequestNextPage(self)
             // If delegate didn't call setViewControllers (no next page / locked chapter), reset immediately
-            if !didStartTransition {
+            if !transitionInFlight {
                 isTapAnimating = false
             }
         }
@@ -294,7 +294,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     
     /// Prevent tap gesture from recognizing on END page recommend content area so touches pass through
     open func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        if gestureRecognizer.isEqual(customTapGestureRecognizer) {
+        if gestureRecognizer.isEqual(pageTapRecognizer) {
             // 菜单呼出期间不点击翻页 —— 这一下点击归菜单，语义是「先收起菜单」。
             //
             // 拦在这里而不是让遮罩吃掉触摸：遮罩铺满整屏，一旦参与命中测试就会连带
@@ -312,13 +312,13 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     
     open func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
 
-        if (gestureRecognizer.isKind(of: UITapGestureRecognizer.classForCoder()) && gestureRecognizer.isEqual(customTapGestureRecognizer)) {
+        if (gestureRecognizer.isKind(of: UITapGestureRecognizer.classForCoder()) && gestureRecognizer.isEqual(pageTapRecognizer)) {
 
             // On END page top blank area, allow middle 1/3 to trigger menu simultaneously
             if let endVC = viewControllers?.first as? ReaderTerminalPageController {
-                let touchPoint = customTapGestureRecognizer.location(in: endVC.view)
+                let touchPoint = pageTapRecognizer.location(in: endVC.view)
                 if !endVC.isPressInSuggestContentZone(touchPoint) {
-                    let tapX = customTapGestureRecognizer.location(in: view).x
+                    let tapX = pageTapRecognizer.location(in: view).x
                     if tapX > LeftWidth && tapX < (ReaderScreenMetrics.screenWidth - RightWidth) {
                         return true
                     }
@@ -326,7 +326,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
                 return false
             }
 
-            let touchPoint = customTapGestureRecognizer.location(in: view)
+            let touchPoint = pageTapRecognizer.location(in: view)
 
             if (touchPoint.x > LeftWidth && touchPoint.x < (ReaderScreenMetrics.screenWidth - RightWidth)) {
 

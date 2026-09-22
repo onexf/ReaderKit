@@ -13,11 +13,11 @@ open class ReaderBookCoverView: UIView {
     private var name: UILabel!
     
     /// 当前阅读模型
-    open var readModel: ReaderBookModel! {
+    open var bookModel: ReaderBookModel! {
         
         didSet{
             
-            name.text = readModel.storyName
+            name.text = bookModel.storyName
         }
     }
 

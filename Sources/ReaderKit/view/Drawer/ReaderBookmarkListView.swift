@@ -97,12 +97,12 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     open weak var delegate: (any ReaderBookmarkListDelegate)?
     
     /// 数据源
-    open var readModel: ReaderBookModel! {
+    open var bookModel: ReaderBookModel! {
         
         didSet{
             // 按本书加载排序状态(存"是否降序",未设置默认 false → 升序)
-            if let storyID = readModel?.storyID {
-                chapterAscending = !ReaderDefaults.bool(ReaderBookmarkListView.sortDescendingKey(storyID: storyID))
+            if let storyID = bookModel?.storyID {
+                isAscendingOrder = !ReaderDefaults.bool(ReaderBookmarkListView.sortDescendingKey(storyID: storyID))
             }
             reloadMarks()
         }
@@ -114,7 +114,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     private static func sortDescendingKey(storyID: String) -> String {
         return "ReaderKit.bookmarkSortDescending.\(storyID)"
     }
-    public private(set) var chapterAscending: Bool = true
+    public private(set) var isAscendingOrder: Bool = true
     
     /// 当前展示用的分组快照
     private var groups: [ReaderBookmarkCluster] = []
@@ -126,14 +126,14 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     
     // MARK: - 空态(无书签时展示:插图 + 文案)
     
-    private var emptyContainer: UIView!
-    private var emptyImageView: UIImageView!
+    private var placeholderStack: UIView!
+    private var placeholderImageView: UIImageView!
     private var emptyLabel: UILabel!
     
     /// 空态插图尺寸/间距统一为最新通用空态规格(设计稿 199×129 / 间距 20),
     /// 与库内其他空态视图对齐
-    private let emptyImageSize = CGSize(width: 199, height: 129)
-    private let emptyImageTextSpacing: CGFloat = 20
+    private let placeholderImageSize = CGSize(width: 199, height: 129)
+    private let placeholderImageGap: CGFloat = 20
     
     public override init(frame: CGRect) {
         
@@ -143,13 +143,13 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         
         // 目录补全 / 对账更新后刷新书签(分组的章节序、锁定态、被删章节移除都依赖最新章节列表)
         NotificationCenter.default.addObserver(self,
-                                               selector: #selector(onChapterListUpdated),
+                                               selector: #selector(handleCatalogueRefresh),
                                                name: .readerChapterListDidUpdate,
                                                object: nil)
         
         // 服务端书签列表拉取合并完成后刷新(重装/换设备后从服务端拉回的书签需在列表实时展示)
         NotificationCenter.default.addObserver(self,
-                                               selector: #selector(onBookmarksMerged(_:)),
+                                               selector: #selector(handleBookmarkMerge(_:)),
                                                name: .readerBookmarksMerged,
                                                object: nil)
     }
@@ -159,14 +159,14 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     }
     
     /// 章节列表更新后刷新书签列表(仅在已有数据时)
-    @objc private func onChapterListUpdated() {
-        guard readModel != nil else { return }
+    @objc private func handleCatalogueRefresh() {
+        guard bookModel != nil else { return }
         reloadMarks()
     }
     
     /// 服务端书签合并完成后刷新当前书的书签列表(object 为 storyID,只刷新匹配的书)
-    @objc private func onBookmarksMerged(_ note: Notification) {
-        guard let storyID = note.object as? String, storyID == readModel?.storyID else { return }
+    @objc private func handleBookmarkMerge(_ note: Notification) {
+        guard let storyID = note.object as? String, storyID == bookModel?.storyID else { return }
         reloadMarks()
     }
     
@@ -185,45 +185,45 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         addSubview(tableView)
         
         // 长按书签弹出删除 sheet
-        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleRowLongPress(_:)))
         longPress.minimumPressDuration = 0.4
         tableView.addGestureRecognizer(longPress)
         
         // 空态:插图 + 文案
         let themeColors = ReaderConfiguration.shared().currentThemeColors
         
-        emptyContainer = UIView()
-        emptyContainer.isHidden = true
-        addSubview(emptyContainer)
+        placeholderStack = UIView()
+        placeholderStack.isHidden = true
+        addSubview(placeholderStack)
         
-        emptyImageView = UIImageView()
+        placeholderImageView = UIImageView()
         // 统一为最新通用空态插图(empty_no_content 无记录),插图自带底色,六套阅读主题下不染色不替换,
         // 与库内其他空态视图处理方式一致
-        emptyImageView.image = ReaderEnvironment.images.bookmarkEmpty()
-        emptyImageView.contentMode = .scaleAspectFit
-        emptyContainer.addSubview(emptyImageView)
+        placeholderImageView.image = ReaderEnvironment.images.bookmarkEmpty()
+        placeholderImageView.contentMode = .scaleAspectFit
+        placeholderStack.addSubview(placeholderImageView)
         
         emptyLabel = UILabel()
         emptyLabel.text = ReaderEnvironment.strings.bookmarkEmpty
         emptyLabel.font = ReaderEnvironment.fonts.uiRegular(14)
-        emptyLabel.textColor = themeColors.textT3
+        emptyLabel.textColor = themeColors.textFaint
         emptyLabel.textAlignment = .center
         emptyLabel.numberOfLines = 0
-        emptyContainer.addSubview(emptyLabel)
+        placeholderStack.addSubview(emptyLabel)
     }
     
     /// 长按书签:弹出删除 sheet(Remove 删当前 / Clear All 清全部)
-    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+    @objc private func handleRowLongPress(_ gesture: UILongPressGestureRecognizer) {
         
-        guard gesture.state == .began, readModel != nil else { return }
+        guard gesture.state == .began, bookModel != nil else { return }
         
         let point = gesture.location(in: tableView)
         
         guard let indexPath = tableView.indexPathForRow(at: point),
               indexPath.section < groups.count,
-              indexPath.row < groups[indexPath.section].marks.count else { return }
+              indexPath.row < groups[indexPath.section].bookmarks.count else { return }
         
-        let mark = groups[indexPath.section].marks[indexPath.row]
+        let mark = groups[indexPath.section].bookmarks[indexPath.row]
         
         // 锁定章节的书签不支持操作菜单(仅可通过 Clear All 清除)
         if groups[indexPath.section].isLocked { return }
@@ -241,10 +241,10 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
             
         }, onClearAll: { [weak self] in
             
-            // 确认清除后只执行清除,不在此处上报(点击上报已在 onClearAllClick)
+            // 确认清除后只执行清除,不在此处上报(点击上报已在 onClearAllConfirmed)
             self?.clearAllMarks()
             
-        }, onClearAllClick: { [weak self] in
+        }, onClearAllConfirmed: { [weak self] in
             
             guard let self = self else { return }
             
@@ -265,8 +265,8 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         // 悲观删除:先请求服务端,成功(或服务端已无)才移除本地并刷新;失败不移除
         delegate?.bookmarkListView(self, requestDelete: [mark], completion: { [weak self] success in
             guard let self = self, success else { return }
-            guard let realIndex = self.readModel.markModels.firstIndex(of: mark) else { return }
-            _ = self.readModel.discardMark(index: realIndex)
+            guard let realIndex = self.bookModel.markModels.firstIndex(of: mark) else { return }
+            _ = self.bookModel.discardMark(index: realIndex)
             self.reloadMarks()
             self.delegate?.bookmarkListViewDidChangeBookmarks(self)
         })
@@ -278,7 +278,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         // 悲观清空:走按书清空接口(deleteByBook)一次删该书全部,成功才清空本地并刷新;失败不清空
         delegate?.bookmarkListView(self, requestClearAllWithCompletion: { [weak self] success in
             guard let self = self, success else { return }
-            self.readModel.discardAllMarks()
+            self.bookModel.discardAllMarks()
             self.reloadMarks()
             self.delegate?.bookmarkListViewDidChangeBookmarks(self)
         })
@@ -287,11 +287,11 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     /// 切换组间排序(章节升序 / 降序)并刷新列表;组内时间顺序不变
     open func toggleSort() {
         
-        chapterAscending.toggle()
+        isAscendingOrder.toggle()
         
         // 按本书持久化排序状态(存是否降序)
-        if let storyID = readModel?.storyID {
-            ReaderDefaults.setBool(!chapterAscending, ReaderBookmarkListView.sortDescendingKey(storyID: storyID))
+        if let storyID = bookModel?.storyID {
+            ReaderDefaults.setBool(!isAscendingOrder, ReaderBookmarkListView.sortDescendingKey(storyID: storyID))
         }
         
         reloadMarks()
@@ -300,7 +300,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     /// 重新分组并刷新书签列表
     open func reloadMarks() {
         
-        guard readModel != nil else {
+        guard bookModel != nil else {
             
             groups = []
             
@@ -313,7 +313,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         
         // 锁定章节只保留最近一个(markGroups 已过滤);列表里其 section 仅展示章节名(header)
         // + 一个锁定提示 cell(锁 + Chapter locked + Subscribe),不展示书签内容
-        groups = readModel.markGroups(chapterAscending: chapterAscending)
+        groups = bookModel.markGroups(isAscendingOrder: isAscendingOrder)
         
         tableView.reloadData()
         
@@ -331,7 +331,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     open func adoptThemeColors(_ colors: ReaderThemeColors) {
 
         // 空态插图统一为通用 empty_no_content,自带底色不随主题切换;仅文案色跟随阅读主题
-        emptyLabel.textColor = colors.textT3
+        emptyLabel.textColor = colors.textFaint
 
         tableView.reloadData()
     }
@@ -339,9 +339,9 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     /// 根据数据更新空态显隐
     private func reviseVacantState() {
         
-        emptyContainer.isHidden = !groups.isEmpty
+        placeholderStack.isHidden = !groups.isEmpty
         
-        emptyLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textT3
+        emptyLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textFaint
         
         setNeedsLayout()
     }
@@ -353,17 +353,17 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         tableView.frame = bounds
         
         let labelHeight = emptyLabel.sizeThatFits(CGSize(width: bounds.width - 40, height: .greatestFiniteMagnitude)).height
-        let groupHeight = emptyImageSize.height + emptyImageTextSpacing + labelHeight
+        let groupHeight = placeholderImageSize.height + placeholderImageGap + labelHeight
         let groupTop = max(0, (bounds.height - groupHeight) / 2 - 20)
-        emptyContainer.frame = CGRect(x: 0, y: groupTop, width: bounds.width, height: groupHeight)
+        placeholderStack.frame = CGRect(x: 0, y: groupTop, width: bounds.width, height: groupHeight)
         
-        emptyImageView.frame = CGRect(x: (bounds.width - emptyImageSize.width) / 2,
+        placeholderImageView.frame = CGRect(x: (bounds.width - placeholderImageSize.width) / 2,
                                       y: 0,
-                                      width: emptyImageSize.width,
-                                      height: emptyImageSize.height)
+                                      width: placeholderImageSize.width,
+                                      height: placeholderImageSize.height)
         
         emptyLabel.frame = CGRect(x: 20,
-                                  y: emptyImageView.frame.maxY + emptyImageTextSpacing,
+                                  y: placeholderImageView.frame.maxY + placeholderImageGap,
                                   width: bounds.width - 40,
                                   height: labelHeight)
     }
@@ -382,7 +382,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         // 锁定章节:章节名在 header,内容区用 1 个锁定提示 cell(锁 + Chapter locked + Subscribe)
         if groups[section].isLocked { return 1 }
         
-        return groups[section].marks.count
+        return groups[section].bookmarks.count
     }
     
     open func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
@@ -418,12 +418,12 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         
         let cell = ReaderBookmarkCell.cell(tableView)
         
-        guard indexPath.row < group.marks.count else { return cell }
+        guard indexPath.row < group.bookmarks.count else { return cell }
         
-        let mark = group.marks[indexPath.row]
+        let mark = group.bookmarks[indexPath.row]
         
         cell.configure(mark: mark,
-                       progress: readModel.markProgress(mark),
+                       progress: bookModel.markProgress(mark),
                        isLocked: group.isLocked)
         
         return cell
@@ -441,7 +441,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         
         // 分组内最后一条书签:不再额外留底部 12 间距(与下一个章节标题的 12px 间距由 header 顶部提供)
         // 非最后一条:底部留 12,作为同章节多条书签之间的间隔
-        let isLast = indexPath.row == group.marks.count - 1
+        let isLast = indexPath.row == group.bookmarks.count - 1
         return isLast ? READER_MARK_CELL_CONTENT_HEIGHT : READER_MARK_CELL_HEIGHT
     }
     
@@ -452,9 +452,9 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         let group = groups[indexPath.section]
         
         // 锁定章节的提示 cell 不响应点击
-        guard !group.isLocked, indexPath.row < group.marks.count else { return }
+        guard !group.isLocked, indexPath.row < group.bookmarks.count else { return }
         
-        delegate?.bookmarkListView(self, didSelect: group.marks[indexPath.row])
+        delegate?.bookmarkListView(self, didSelect: group.bookmarks[indexPath.row])
     }
     
     open func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
@@ -467,9 +467,9 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         let group = groups[indexPath.section]
         
         // 上锁章节的书签无需上报(锁定章节仅展示一个锁定提示 cell)
-        guard !group.isLocked, indexPath.row < group.marks.count else { return }
+        guard !group.isLocked, indexPath.row < group.bookmarks.count else { return }
         
-        delegate?.bookmarkListView(self, willExpose: group.marks[indexPath.row])
+        delegate?.bookmarkListView(self, willExpose: group.bookmarks[indexPath.row])
     }
     
     /// 书签列表是否真正可见(自身及祖先均未隐藏、未透明,且在窗口可见区域内)
@@ -503,15 +503,15 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         guard editingStyle == .delete,
               indexPath.section < groups.count,
               !groups[indexPath.section].isLocked,
-              indexPath.row < groups[indexPath.section].marks.count else { return }
+              indexPath.row < groups[indexPath.section].bookmarks.count else { return }
         
-        let mark = groups[indexPath.section].marks[indexPath.row]
+        let mark = groups[indexPath.section].bookmarks[indexPath.row]
         
         // 悲观删除:先请求服务端,成功才移除本地;成功/失败都整体刷新(成功移除该行、失败让滑动复位)
         delegate?.bookmarkListView(self, requestDelete: [mark], completion: { [weak self] success in
             guard let self = self else { return }
-            if success, let realIndex = self.readModel.markModels.firstIndex(of: mark) {
-                _ = self.readModel.discardMark(index: realIndex)
+            if success, let realIndex = self.bookModel.markModels.firstIndex(of: mark) {
+                _ = self.bookModel.discardMark(index: realIndex)
                 self.delegate?.bookmarkListViewDidChangeBookmarks(self)
             }
             self.reloadMarks()

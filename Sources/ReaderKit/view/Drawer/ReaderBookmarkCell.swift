@@ -23,16 +23,16 @@ public let READER_MARK_CELL_HEIGHT: CGFloat = READER_MARK_CELL_CONTENT_HEIGHT + 
 open class ReaderBookmarkCell: UITableViewCell {
 
     /// 书签徽标背景
-    private var badgeView: UIView!
+    private var iconBadge: UIView!
 
     /// 书签徽标图标
-    private var badgeIcon: UIImageView!
+    private var badgeGlyph: UIImageView!
 
     /// 摘录内容(最多 2 行)
-    private var excerptLabel: UILabel!
+    private var snippetLabel: UILabel!
 
     /// 时间
-    private var timeLabel: UILabel!
+    private var createdAtLabel: UILabel!
 
 
     public class func cell(_ tableView: UITableView) -> ReaderBookmarkCell {
@@ -63,30 +63,30 @@ open class ReaderBookmarkCell: UITableViewCell {
         let themeColors = ReaderConfiguration.shared().currentThemeColors
 
         // 书签徽标背景(圆角方块)
-        badgeView = UIView()
-        badgeView.backgroundColor = themeColors.fill
-        badgeView.layer.cornerRadius = 9
-        contentView.addSubview(badgeView)
+        iconBadge = UIView()
+        iconBadge.backgroundColor = themeColors.fill
+        iconBadge.layer.cornerRadius = 9
+        contentView.addSubview(iconBadge)
 
         // 书签徽标图标
-        badgeIcon = UIImageView()
-        badgeIcon.image = ReaderEnvironment.images.bookmarkBadge()?.withRenderingMode(.alwaysTemplate)
-        badgeIcon.tintColor = themeColors.textT0
-        badgeIcon.contentMode = .scaleAspectFit
-        badgeView.addSubview(badgeIcon)
+        badgeGlyph = UIImageView()
+        badgeGlyph.image = ReaderEnvironment.images.bookmarkBadge()?.withRenderingMode(.alwaysTemplate)
+        badgeGlyph.tintColor = themeColors.textStrong
+        badgeGlyph.contentMode = .scaleAspectFit
+        iconBadge.addSubview(badgeGlyph)
 
         // 摘录内容
-        excerptLabel = UILabel()
-        excerptLabel.font = ReaderEnvironment.fonts.uiRegular(14)
-        excerptLabel.textColor = themeColors.textT2
-        excerptLabel.numberOfLines = 2
-        contentView.addSubview(excerptLabel)
+        snippetLabel = UILabel()
+        snippetLabel.font = ReaderEnvironment.fonts.uiRegular(14)
+        snippetLabel.textColor = themeColors.textSubtle
+        snippetLabel.numberOfLines = 2
+        contentView.addSubview(snippetLabel)
 
         // 时间
-        timeLabel = UILabel()
-        timeLabel.font = ReaderEnvironment.fonts.uiRegular(12)
-        timeLabel.textColor = themeColors.textT3
-        contentView.addSubview(timeLabel)
+        createdAtLabel = UILabel()
+        createdAtLabel.font = ReaderEnvironment.fonts.uiRegular(12)
+        createdAtLabel.textColor = themeColors.textFaint
+        contentView.addSubview(createdAtLabel)
     }
 
     /// 配置 cell
@@ -97,9 +97,9 @@ open class ReaderBookmarkCell: UITableViewCell {
     open func configure(mark: ReaderBookmarkModel, progress: Float, isLocked: Bool) {
 
 
-        excerptLabel.text = mark.content
+        snippetLabel.text = mark.content
         // 添加时间固定展示为 yyyy-MM-dd HH:mm
-        timeLabel.text = readerClockText("yyyy-MM-dd HH:mm", Date(timeIntervalSince1970: TimeInterval(mark.time.intValue)))
+        createdAtLabel.text = readerClockText("yyyy-MM-dd HH:mm", Date(timeIntervalSince1970: TimeInterval(mark.time.intValue)))
 
         adoptThemeColors(ReaderConfiguration.shared().currentThemeColors)
 
@@ -109,10 +109,10 @@ open class ReaderBookmarkCell: UITableViewCell {
     /// 应用主题颜色
     open func adoptThemeColors(_ colors: ReaderThemeColors) {
 
-        badgeView.backgroundColor = colors.fill
-        badgeIcon.tintColor = colors.textT0
-        excerptLabel.textColor = colors.textT2
-        timeLabel.textColor = colors.textT3
+        iconBadge.backgroundColor = colors.fill
+        badgeGlyph.tintColor = colors.textStrong
+        snippetLabel.textColor = colors.textSubtle
+        createdAtLabel.textColor = colors.textFaint
     }
 
     open override func layoutSubviews() {
@@ -126,21 +126,21 @@ open class ReaderBookmarkCell: UITableViewCell {
         // 书签徽标:18x18,圆角9,内部图标 12x12 居中
         let badgeSize: CGFloat = 18
         let iconSize: CGFloat = 12
-        badgeView.frame = CGRect(x: margin, y: rowTop + 3, width: badgeSize, height: badgeSize)
-        badgeIcon.frame = CGRect(x: (badgeSize - iconSize) / 2, y: (badgeSize - iconSize) / 2, width: iconSize, height: iconSize)
+        iconBadge.frame = CGRect(x: margin, y: rowTop + 3, width: badgeSize, height: badgeSize)
+        badgeGlyph.frame = CGRect(x: (badgeSize - iconSize) / 2, y: (badgeSize - iconSize) / 2, width: iconSize, height: iconSize)
 
         // 右侧内容:摘录 + meta 行
-        let rightX = badgeView.frame.maxX + 8
+        let rightX = iconBadge.frame.maxX + 8
         let rightW = w - rightX - margin
 
         // 摘录:最多 2 行,行高约 22,共 44
         let excerptH: CGFloat = 44
-        excerptLabel.frame = CGRect(x: rightX, y: rowTop, width: rightW, height: excerptH)
+        snippetLabel.frame = CGRect(x: rightX, y: rowTop, width: rightW, height: excerptH)
 
         // meta 行:仅时间(摘录下方间距 4,对齐设计)
-        let metaY = excerptLabel.frame.maxY + 4
+        let metaY = snippetLabel.frame.maxY + 4
         let metaH: CGFloat = 16
-        timeLabel.frame = CGRect(x: rightX, y: metaY, width: rightW, height: metaH)
+        createdAtLabel.frame = CGRect(x: rightX, y: metaY, width: rightW, height: metaH)
     }
 
     public required init?(coder aDecoder: NSCoder) {

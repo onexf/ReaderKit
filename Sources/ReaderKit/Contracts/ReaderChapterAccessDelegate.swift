@@ -20,9 +20,9 @@ public protocol ReaderChapterAccessDelegate: AnyObject {
     /// 当尝试加载未解锁的章节时触发
     /// - Parameters:
     ///   - chapterId: 章节ID
-    ///   - chapterName: 章节名称
-    ///   - chapterNumber: 章节序号（从1开始）
-    func readController(_ controller: ReaderViewController, didAttemptToLoadLockedChapter chapterId: Int, chapterName: String, chapterNumber: Int)
+    ///   - chapterCaption: 章节名称
+    ///   - chapterOrdinal: 章节序号（从1开始）
+    func readController(_ controller: ReaderViewController, didAttemptToLoadLockedChapter chapterId: Int, chapterCaption: String, chapterOrdinal: Int)
 
     /// 当翻到「已加载章节边界但目录尚未完整加载」时触发，请求补齐后续目录页
     /// （避免分页目录未加载完时边界卡住或被误判为末章）。

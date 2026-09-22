@@ -9,6 +9,9 @@ import UIKit
 
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
+///
+/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
+/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
 open class ReaderChapterModel: NSObject, NSCoding {
     
     /// 小说ID
@@ -18,10 +21,10 @@ open class ReaderChapterModel: NSObject, NSCoding {
     open var id: NSNumber!
     
     /// 上一章ID
-    open var previousChapterID: NSNumber!
+    open var priorChapterID: NSNumber!
     
     /// 下一章ID
-    open var nextChapterID: NSNumber!
+    open var followingChapterID: NSNumber!
     
     /// 章节名称
     open var name: String!
@@ -39,31 +42,31 @@ open class ReaderChapterModel: NSObject, NSCoding {
     open var pageCount: NSNumber! = NSNumber(value: 0)
     
     /// 分页数据
-    open var pageModels: [ReaderPageModel]! = []
+    open var layoutPages: [ReaderPageModel]! = []
     
     
     // MARK: 快捷获取
     
     /// 当前章节是否为第一个章节
-    open var isFirstChapter: Bool! { return (previousChapterID == READER_NO_MORE_CHAPTER) }
+    open var isFirstChapter: Bool! { return (priorChapterID == READER_NO_MORE_CHAPTER) }
     
     /// 当前章节是否为最后一个章节
-    open var isLastChapter: Bool! { return (nextChapterID == READER_NO_MORE_CHAPTER) }
+    open var isLastChapter: Bool! { return (followingChapterID == READER_NO_MORE_CHAPTER) }
     
     /// 完整章节名称
     open var fullName: String! { return ReaderTextRule.chapterHeading(name) }
     
     /// 完整富文本内容
-    open var fullContent: NSAttributedString!
+    open var typesetContent: NSAttributedString!
     
     /// 分页总高 (上下滚动模式使用)
     open var pageTotalHeight: CGFloat {
         
         var pageTotalHeight: CGFloat = 0
         
-        for pageModel in pageModels {
+        for pageModel in layoutPages {
             
-            pageTotalHeight += (pageModel.contentSize.height + pageModel.headTypeHeight)
+            pageTotalHeight += (pageModel.contentSize.height + pageModel.headerInsetHeight)
         }
         
         return pageTotalHeight
@@ -73,7 +76,7 @@ open class ReaderChapterModel: NSObject, NSCoding {
     // MARK: -- 更新字体
     
     /// 分页参数签名（用于判断是否需要重新分页）
-    private var pagingSignature: String = ""
+    private var layoutFingerprint: String = ""
     
     /// 生成当前分页参数的签名字符串
     private func activePagingSignature() -> String {
@@ -93,16 +96,16 @@ open class ReaderChapterModel: NSObject, NSCoding {
         
         let newSignature = activePagingSignature()
         
-        if pagingSignature != newSignature {
+        if layoutFingerprint != newSignature {
             
-            pagingSignature = newSignature
+            layoutFingerprint = newSignature
             
-            fullContent = entireContentAttrString()
+            typesetContent = entireContentAttrString()
             
             // 不再显示书名页，直接从章节内容开始
-            pageModels = ReaderTypesetter.pageing(attrString: fullContent, rect: CGRect(origin: CGPoint.zero, size: READER_VIEW_RECT.size), isFirstChapter: false)
+            layoutPages = ReaderTypesetter.pageing(attrString: typesetContent, rect: CGRect(origin: CGPoint.zero, size: READER_VIEW_RECT.size), isFirstChapter: false)
             
-            pageCount = NSNumber(value: pageModels.count)
+            pageCount = NSNumber(value: layoutPages.count)
             
             save()
         }
@@ -133,44 +136,44 @@ open class ReaderChapterModel: NSObject, NSCoding {
     
     /// 获取指定页码字符串
     open func contentString(page: NSInteger) ->String {
-        guard page >= 0 && page < pageModels.count else {
+        guard page >= 0 && page < layoutPages.count else {
             return ""
         }
-        return pageModels[page].content.string
+        return layoutPages[page].content.string
     }
 
     /// 获取指定页码富文本
     open func contentAttributedString(page: NSInteger) ->NSAttributedString {
-        guard page >= 0 && page < pageModels.count else {
+        guard page >= 0 && page < layoutPages.count else {
             return NSAttributedString(string: "")
         }
-        return pageModels[page].showContent
+        return layoutPages[page].showContent
     }
     
     /// 获取指定页开始坐标
     open func locationInitial(page: NSInteger) ->NSNumber {
-        guard page >= 0 && page < pageModels.count else {
+        guard page >= 0 && page < layoutPages.count else {
             return NSNumber(value: 0)
         }
-        return NSNumber(value: pageModels[page].range.location)
+        return NSNumber(value: layoutPages[page].range.location)
     }
     
     /// 获取指定页码末尾坐标
     open func locationFinal(page: NSInteger) ->NSNumber {
-        guard page >= 0 && page < pageModels.count else {
+        guard page >= 0 && page < layoutPages.count else {
             return NSNumber(value: 0)
         }
-        let range = pageModels[page].range!
+        let range = layoutPages[page].range!
         
         return NSNumber(value: range.location + range.length)
     }
     
     /// 获取指定页中间
     open func locationMiddle(page: NSInteger) ->NSNumber {
-        guard page >= 0 && page < pageModels.count else {
+        guard page >= 0 && page < layoutPages.count else {
             return NSNumber(value: 0)
         }
-        let range = pageModels[page].range!
+        let range = layoutPages[page].range!
         
         return NSNumber(value: (range.location + (range.location + range.length) / 2))
     }
@@ -178,11 +181,11 @@ open class ReaderChapterModel: NSObject, NSCoding {
     /// 获取存在指定坐标的页码
     open func page(location: NSInteger) ->NSNumber {
         
-        let count = pageModels.count
+        let count = layoutPages.count
         
         for i in 0..<count {
             
-            let range = pageModels[i].range!
+            let range = layoutPages[i].range!
             
             if location < (range.location + range.length) {
                 
@@ -235,9 +238,9 @@ open class ReaderChapterModel: NSObject, NSCoding {
         
         id = aDecoder.decodeObject(forKey: "id") as? NSNumber
         
-        previousChapterID = aDecoder.decodeObject(forKey: "previousChapterID") as? NSNumber
+        priorChapterID = aDecoder.decodeObject(forKey: "previousChapterID") as? NSNumber
         
-        nextChapterID = aDecoder.decodeObject(forKey: "nextChapterID") as? NSNumber
+        followingChapterID = aDecoder.decodeObject(forKey: "nextChapterID") as? NSNumber
         
         name = aDecoder.decodeObject(forKey: "name") as? String
         
@@ -245,13 +248,13 @@ open class ReaderChapterModel: NSObject, NSCoding {
         
         content = aDecoder.decodeObject(forKey: "content") as? String
         
-        fullContent = aDecoder.decodeObject(forKey: "fullContent") as? NSAttributedString
+        typesetContent = aDecoder.decodeObject(forKey: "fullContent") as? NSAttributedString
         
         pageCount = aDecoder.decodeObject(forKey: "pageCount") as? NSNumber
         
-        pageModels = aDecoder.decodeObject(forKey: "pageModels") as? [ReaderPageModel]
+        layoutPages = aDecoder.decodeObject(forKey: "pageModels") as? [ReaderPageModel]
         
-        pagingSignature = aDecoder.decodeObject(forKey: "pagingSignature") as? String ?? ""
+        layoutFingerprint = aDecoder.decodeObject(forKey: "pagingSignature") as? String ?? ""
     }
     
     open func encode(with aCoder: NSCoder) {
@@ -260,9 +263,9 @@ open class ReaderChapterModel: NSObject, NSCoding {
         
         aCoder.encode(id, forKey: "id")
         
-        aCoder.encode(previousChapterID, forKey: "previousChapterID")
+        aCoder.encode(priorChapterID, forKey: "previousChapterID")
         
-        aCoder.encode(nextChapterID, forKey: "nextChapterID");
+        aCoder.encode(followingChapterID, forKey: "nextChapterID");
         
         aCoder.encode(name, forKey: "name")
         
@@ -270,13 +273,13 @@ open class ReaderChapterModel: NSObject, NSCoding {
         
         aCoder.encode(content, forKey: "content")
         
-        aCoder.encode(fullContent, forKey: "fullContent")
+        aCoder.encode(typesetContent, forKey: "fullContent")
         
         aCoder.encode(pageCount, forKey: "pageCount")
         
-        aCoder.encode(pageModels, forKey: "pageModels")
+        aCoder.encode(layoutPages, forKey: "pageModels")
         
-        aCoder.encode(pagingSignature, forKey: "pagingSignature")
+        aCoder.encode(layoutFingerprint, forKey: "pagingSignature")
     }
     
     public init(_ dict: Any? = nil) {

@@ -18,11 +18,11 @@ open class ReaderTextFileParser: NSObject {
         
         DispatchQueue.global().async {
             
-            let readModel = parser(url: url)
+            let bookModel = parser(url: url)
             
             DispatchQueue.main.async {
                 
-                completion?(readModel)
+                completion?(bookModel)
             }
         }
     }
@@ -60,25 +60,25 @@ open class ReaderTextFileParser: NSObject {
             if chapterListModels.isEmpty { return nil }
             
             // 阅读模型
-            let readModel = ReaderBookModel.model(storyID: storyID)
+            let bookModel = ReaderBookModel.model(storyID: storyID)
             
             // 书籍类型
-            readModel.storySourceType = .local
+            bookModel.storySourceType = .local
             
             // 小说名称
-            readModel.storyName = storyName
+            bookModel.storyName = storyName
             
             // 记录章节列表
-            readModel.chapterListModels = chapterListModels
+            bookModel.chapterListModels = chapterListModels
             
             // 设置第一个章节为阅读记录
-            readModel.recordModel.modify(chapterID:  readModel.chapterListModels.first!.id, toPage: 0)
+            bookModel.recordModel.modify(chapterID:  bookModel.chapterListModels.first!.id, toPage: 0)
             
             // 保存
-            readModel.save()
+            bookModel.save()
             
             // 返回
-            return readModel
+            return bookModel
             
         }else{ // 存在
             
@@ -204,14 +204,14 @@ open class ReaderTextFileParser: NSObject {
                 chapterModel.content = READER_PH_SPACE + chapterModel.content.removeSEHeadAndTail
                 
                 // 设置上一个章节ID
-                chapterModel.previousChapterID = lastChapterModel?.id ?? READER_NO_MORE_CHAPTER
+                chapterModel.priorChapterID = lastChapterModel?.id ?? READER_NO_MORE_CHAPTER
                 
                 // 设置下一个章节ID
                 if i == (count - 1) { // 最后一个章节了
                     
-                    chapterModel.nextChapterID = READER_NO_MORE_CHAPTER
+                    chapterModel.followingChapterID = READER_NO_MORE_CHAPTER
 
-                }else{ lastChapterModel?.nextChapterID = chapterModel.id }
+                }else{ lastChapterModel?.followingChapterID = chapterModel.id }
                 
                 // 保存
                 chapterModel.save()

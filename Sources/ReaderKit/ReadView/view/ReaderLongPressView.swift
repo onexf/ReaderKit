@@ -51,7 +51,7 @@ import UIKit
 open class ReaderLongPressView: ReaderPageView {
     
     /// 开启拖拽
-    public private(set) var isOpenDrag: Bool = false
+    public private(set) var isDragActive: Bool = false
     
     /// 选中区域
     private var selectRange: NSRange!
@@ -66,13 +66,13 @@ open class ReaderLongPressView: ReaderPageView {
     private var tapGes: UITapGestureRecognizer?
     
     /// 左光标
-    private var LCursorView: ReaderLongPressCursorView!
+    private var startCursor: ReaderLongPressCursorView!
     
     /// 右光标
-    private var RCursorView: ReaderLongPressCursorView!
+    private var endCursor: ReaderLongPressCursorView!
     
     /// 触摸的光标是左还是右
-    private var isCursorLorR: Bool = true
+    private var isDraggingStartCursor: Bool = true
     
     /// 是否触摸到左右光标
     private var isTouchCursor: Bool = false
@@ -107,10 +107,10 @@ open class ReaderLongPressView: ReaderPageView {
         //   3. 验证场景：iOS 15.1 / 17 / 18，iPhone + iPad 多窗口，反复长按 + 翻页
         //   4. 同步把 .kiro/learnings/bugs/ 里这次的 learning 链接到书签 spec
         //
-        // longGes = UILongPressGestureRecognizer(target: self, action: #selector(longAction(long:)))
+        // longGes = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPressAction(long:)))
         // addGestureRecognizer(longGes!)
         //
-        // tapGes = UITapGestureRecognizer(target: self, action: #selector(handleTapAction(tap:)))
+        // tapGes = UITapGestureRecognizer(target: self, action: #selector(handleSelectionTap(tap:)))
         // tapGes!.isEnabled = false
         // addGestureRecognizer(tapGes!)
     }
@@ -127,14 +127,14 @@ open class ReaderLongPressView: ReaderPageView {
     // MARK: 手势事件
     
     /// 单击事件
-    @objc private func handleTapAction(tap: UITapGestureRecognizer) {
+    @objc private func handleSelectionTap(tap: UITapGestureRecognizer) {
 
         // 重置页面数据
         reset()
     }
     
     /// 长按事件
-    @objc private func longAction(long: UILongPressGestureRecognizer) {
+    @objc private func handleLongPressAction(long: UILongPressGestureRecognizer) {
 
         // 触摸位置
         let point = long.location(in: self)
@@ -158,10 +158,10 @@ open class ReaderLongPressView: ReaderPageView {
         }else{ // 触摸结束
 
             // 获得选中区域
-            selectRange = ReaderCoreText.touchedParagraphRange(point: point, frameRef: frameRef, content: pageModel.content?.string)
+            selectRange = ReaderCoreText.touchedParagraphRange(point: point, ctFrame: ctFrame, content: pageModel.content?.string)
 
             // 获得选中选中范围
-            rects = ReaderCoreText.rangeRects(range: selectRange!, frameRef: frameRef, content: pageModel.content?.string)
+            rects = ReaderCoreText.rangeRects(range: selectRange!, ctFrame: ctFrame, content: pageModel.content?.string)
 
             // 显示光标
             cursor(isShow: true)
@@ -181,7 +181,7 @@ open class ReaderLongPressView: ReaderPageView {
                 // 手势状态
                 longGes?.isEnabled = false
                 tapGes?.isEnabled = true
-                isOpenDrag = true
+                isDragActive = true
 
                 // 发送通知
                 ReaderLongPressNotification.post(userInfo: [READER_KEY_LONG_PRESS_VIEW : NSNumber(value: false)])
@@ -218,7 +218,7 @@ open class ReaderLongPressView: ReaderPageView {
     /// 解析触摸事件
     private func drag(touches: Set<UITouch>, status: ReaderDragStatus) {
         
-        if isOpenDrag {
+        if isDragActive {
             
             let touch: UITouch? = ((touches as NSSet).anyObject() as? UITouch)
             
@@ -239,21 +239,21 @@ open class ReaderLongPressView: ReaderPageView {
         // 触摸开始
         if status == .begin {
             
-            if LCursorView.frame.insetBy(dx: READER_LONG_PRESS_CURSOR_VIEW_OFFSET, dy: READER_LONG_PRESS_CURSOR_VIEW_OFFSET).contains(point) { // 触摸到左边光标
+            if startCursor.frame.insetBy(dx: READER_LONG_PRESS_CURSOR_VIEW_OFFSET, dy: READER_LONG_PRESS_CURSOR_VIEW_OFFSET).contains(point) { // 触摸到左边光标
                 
                 // 隐藏菜单
                 presentDropdown(isShow: false)
                 
-                isCursorLorR = true
+                isDraggingStartCursor = true
                 
                 isTouchCursor = true
                 
-            }else if RCursorView.frame.insetBy(dx: READER_LONG_PRESS_CURSOR_VIEW_OFFSET, dy: READER_LONG_PRESS_CURSOR_VIEW_OFFSET).contains(point) { // 触摸到右边光标
+            }else if endCursor.frame.insetBy(dx: READER_LONG_PRESS_CURSOR_VIEW_OFFSET, dy: READER_LONG_PRESS_CURSOR_VIEW_OFFSET).contains(point) { // 触摸到右边光标
                 
                 // 隐藏菜单
                 presentDropdown(isShow: false)
                 
-                isCursorLorR = false
+                isDraggingStartCursor = false
                 
                 isTouchCursor = true
                 
@@ -277,7 +277,7 @@ open class ReaderLongPressView: ReaderPageView {
             if isTouchCursor && selectRange != nil {
                 
                 // 触摸到的位置
-                let location = ReaderCoreText.touchedCharacterIndex(point: point, frameRef: frameRef)
+                let location = ReaderCoreText.touchedCharacterIndex(point: point, ctFrame: ctFrame)
                 
                 // 无结果
                 if location == -1 { return }
@@ -286,7 +286,7 @@ open class ReaderLongPressView: ReaderPageView {
                 reviseChooseRange(location: location)
                 
                 // 获得选中选中范围
-                rects = ReaderCoreText.rangeRects(range: selectRange, frameRef: frameRef, content: pageModel.content?.string)
+                rects = ReaderCoreText.rangeRects(range: selectRange, ctFrame: ctFrame, content: pageModel.content?.string)
                 
                 // 更新光标位置
                 reviseCursorFrame()
@@ -298,7 +298,7 @@ open class ReaderLongPressView: ReaderPageView {
             if isTouchCursor {
                 
                 // 显示复制菜单
-                // 注：原实现挂在放大镜移除动画的回调里，恢复长按功能时同 longAction 一并调整
+                // 注：原实现挂在放大镜移除动画的回调里，恢复长按功能时同 handleLongPressAction 一并调整
                 presentDropdown(isShow: true)
             }
             
@@ -318,7 +318,7 @@ open class ReaderLongPressView: ReaderPageView {
         let RLocation = selectRange!.location + selectRange!.length
         
         // 判断触摸
-        if isCursorLorR { // 左边
+        if isDraggingStartCursor { // 左边
             
             if location < RLocation {
                 
@@ -337,7 +337,7 @@ open class ReaderLongPressView: ReaderPageView {
                 
             }else{
                 
-                isCursorLorR = false
+                isDraggingStartCursor = false
                 
                 var length = location - RLocation
                 
@@ -367,7 +367,7 @@ open class ReaderLongPressView: ReaderPageView {
                 
             }else{
                 
-                isCursorLorR = true
+                isDraggingStartCursor = true
                 
                 let tempLength = LLocation - location
                 
@@ -389,28 +389,28 @@ open class ReaderLongPressView: ReaderPageView {
         
         if isShow {
             
-            if !rects.isEmpty && LCursorView == nil {
+            if !rects.isEmpty && startCursor == nil {
                 
-                LCursorView = ReaderLongPressCursorView()
-                LCursorView.isTorB = true
-                addSubview(LCursorView)
+                startCursor = ReaderLongPressCursorView()
+                startCursor.isTopCursor = true
+                addSubview(startCursor)
                 
-                RCursorView = ReaderLongPressCursorView()
-                RCursorView.isTorB = false
-                addSubview(RCursorView)
+                endCursor = ReaderLongPressCursorView()
+                endCursor.isTopCursor = false
+                addSubview(endCursor)
                 
                 reviseCursorFrame()
             }
             
         }else{
             
-            if LCursorView != nil {
+            if startCursor != nil {
                 
-                LCursorView.removeFromSuperview()
-                LCursorView = nil
+                startCursor.removeFromSuperview()
+                startCursor = nil
                 
-                RCursorView.removeFromSuperview()
-                RCursorView = nil
+                endCursor.removeFromSuperview()
+                endCursor = nil
             }
         }
     }
@@ -418,7 +418,7 @@ open class ReaderLongPressView: ReaderPageView {
     /// 更新光标位置
     private func reviseCursorFrame() {
         
-        if !rects.isEmpty && LCursorView != nil {
+        if !rects.isEmpty && startCursor != nil {
             
             let cursorViewW: CGFloat = 10
             let cursorViewSpaceW: CGFloat = cursorViewW / 4
@@ -426,9 +426,9 @@ open class ReaderLongPressView: ReaderPageView {
             let first = rects.first!
             let last = rects.last!
             
-            LCursorView.frame = CGRect(x: first.minX - cursorViewW + cursorViewSpaceW, y: bounds.height - first.minY - first.height - cursorViewSpaceH, width: cursorViewW, height: first.height + cursorViewSpaceH)
+            startCursor.frame = CGRect(x: first.minX - cursorViewW + cursorViewSpaceW, y: bounds.height - first.minY - first.height - cursorViewSpaceH, width: cursorViewW, height: first.height + cursorViewSpaceH)
             
-            RCursorView.frame = CGRect(x: last.maxX - cursorViewSpaceW, y: bounds.height - last.minY - last.height, width: cursorViewW, height: last.height + cursorViewSpaceH)
+            endCursor.frame = CGRect(x: last.maxX - cursorViewSpaceW, y: bounds.height - last.minY - last.height, width: cursorViewW, height: last.height + cursorViewSpaceH)
         }
     }
     
@@ -442,7 +442,7 @@ open class ReaderLongPressView: ReaderPageView {
         
         // 手势状态
         tapGes?.isEnabled = false
-        isOpenDrag = false
+        isDragActive = false
         longGes?.isEnabled = true
         
         // 移除菜单
@@ -474,7 +474,7 @@ open class ReaderLongPressView: ReaderPageView {
                 
                 let menuController = UIMenuController.shared
                 
-                let copy = UIMenuItem(title: ReaderEnvironment.strings.copy, action: #selector(clickCopy))
+                let copy = UIMenuItem(title: ReaderEnvironment.strings.copy, action: #selector(handleCopyTap))
                 
                 menuController.menuItems = [copy]
                 
@@ -498,7 +498,7 @@ open class ReaderLongPressView: ReaderPageView {
     /// 允许菜单事件
     open override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
         
-        if action == #selector(clickCopy) { return true }
+        if action == #selector(handleCopyTap) { return true }
         
         return false
     }
@@ -510,7 +510,7 @@ open class ReaderLongPressView: ReaderPageView {
     }
     
     /// 复制事件
-    @objc private func clickCopy() {
+    @objc private func handleCopyTap() {
         
         if selectRange != nil {
             
@@ -554,10 +554,10 @@ open class ReaderLongPressView: ReaderPageView {
     /// 释放
     deinit {
         
-        tapGes?.removeTarget(self, action: #selector(handleTapAction(tap:)))
+        tapGes?.removeTarget(self, action: #selector(handleSelectionTap(tap:)))
         tapGes = nil
         
-        longGes?.removeTarget(self, action: #selector(longAction(long:)))
+        longGes?.removeTarget(self, action: #selector(handleLongPressAction(long:)))
         longGes = nil
     }
     

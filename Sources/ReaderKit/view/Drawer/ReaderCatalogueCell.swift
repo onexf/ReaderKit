@@ -54,23 +54,23 @@ open class ReaderCatalogueCell: UITableViewCell {
     // MARK: - 子视图
 
     /// 章节标题（`ReaderMenuCataloguePanel` 仍在直接读写，保持对外可见）
-    public private(set) var chapterName: UILabel!
+    public private(set) var chapterTitleLabel: UILabel!
 
     /// 「Chapter」前缀
     private var chapterPrefix: UILabel!
 
     /// 章节序号
-    private var chapterNumber: UILabel!
+    private var ordinalLabel: UILabel!
 
     /// 当前章指示条
     private var indicator: UIView!
 
     /// 锁定图标
-    private var lockIcon: UIImageView!
+    private var lockGlyph: UIImageView!
 
     /// 分割线：新稿目录行之间不再有分割线，这里只为兼容仍在引用它的
     /// `ReaderMenuCataloguePanel`（已无入口的旧底部目录面板）而保留，不加入视图树
-    public private(set) var spaceLine: UIView!
+    public private(set) var divider: UIView!
 
     // MARK: - 状态
 
@@ -120,24 +120,24 @@ open class ReaderCatalogueCell: UITableViewCell {
         contentView.addSubview(chapterPrefix)
 
         // 章节序号：定宽居中
-        chapterNumber = UILabel()
-        chapterNumber.textAlignment = .center
-        contentView.addSubview(chapterNumber)
+        ordinalLabel = UILabel()
+        ordinalLabel.textAlignment = .center
+        contentView.addSubview(ordinalLabel)
 
-        chapterName = UILabel()
-        chapterName.numberOfLines = 1
-        chapterName.lineBreakMode = .byTruncatingTail
-        contentView.addSubview(chapterName)
+        chapterTitleLabel = UILabel()
+        chapterTitleLabel.numberOfLines = 1
+        chapterTitleLabel.lineBreakMode = .byTruncatingTail
+        contentView.addSubview(chapterTitleLabel)
 
         // 锁定图标：染色跟随行文字色
-        lockIcon = UIImageView()
-        lockIcon.image = ReaderEnvironment.images.chapterLocked()?.withRenderingMode(.alwaysTemplate)
-        lockIcon.isHidden = true
-        contentView.addSubview(lockIcon)
+        lockGlyph = UIImageView()
+        lockGlyph.image = ReaderEnvironment.images.chapterLocked()?.withRenderingMode(.alwaysTemplate)
+        lockGlyph.isHidden = true
+        contentView.addSubview(lockGlyph)
 
         // 兼容用占位，不参与布局
-        spaceLine = UIView()
-        spaceLine.isHidden = true
+        divider = UIView()
+        divider.isHidden = true
     }
 
     // MARK: - 数据填充
@@ -161,32 +161,32 @@ open class ReaderCatalogueCell: UITableViewCell {
         isLockedChapter = isLocked
         self.numberColumnWidth = numberColumnWidth
 
-        chapterName.text = title
-        chapterNumber.text = "\(number)"
+        chapterTitleLabel.text = title
+        ordinalLabel.text = "\(number)"
 
         // 设计稿：当前章 Regular + 主文字色；锁定章 Light + 辅助文字色；常态 Light + 次要文字色
         let font: UIFont = isCurrent ? ReaderEnvironment.fonts.uiRegular(14) : ReaderEnvironment.fonts.uiLight(14)
         let textColor: UIColor
         if isCurrent {
-            textColor = colors.textT1
+            textColor = colors.textBody
         } else if isLocked {
-            textColor = colors.textT3
+            textColor = colors.textFaint
         } else {
-            textColor = colors.textT2
+            textColor = colors.textSubtle
         }
 
         chapterPrefix.font = font
-        chapterNumber.font = font
-        chapterName.font = font
+        ordinalLabel.font = font
+        chapterTitleLabel.font = font
         chapterPrefix.textColor = textColor
-        chapterNumber.textColor = textColor
-        chapterName.textColor = textColor
+        ordinalLabel.textColor = textColor
+        chapterTitleLabel.textColor = textColor
 
         indicator.isHidden = !isCurrent
-        indicator.backgroundColor = colors.textT1
+        indicator.backgroundColor = colors.textBody
 
-        lockIcon.isHidden = !isLocked
-        lockIcon.tintColor = textColor
+        lockGlyph.isHidden = !isLocked
+        lockGlyph.tintColor = textColor
 
         setNeedsLayout()
     }
@@ -209,21 +209,21 @@ open class ReaderCatalogueCell: UITableViewCell {
         let prefixWidth = ceil(chapterPrefix.sizeThatFits(CGSize(width: w, height: contentHeight)).width)
         chapterPrefix.frame = CGRect(x: prefixX, y: 0, width: prefixWidth, height: contentHeight)
 
-        chapterNumber.frame = CGRect(x: chapterPrefix.frame.maxX + numberSpacing,
+        ordinalLabel.frame = CGRect(x: chapterPrefix.frame.maxX + numberSpacing,
                                      y: 0,
                                      width: numberColumnWidth,
                                      height: contentHeight)
 
         // 锁图标：右边距 20，与首行文字垂直居中
-        lockIcon.frame = CGRect(x: w - horizontalMargin - lockSize,
+        lockGlyph.frame = CGRect(x: w - horizontalMargin - lockSize,
                                 y: (contentHeight - lockSize) / 2,
                                 width: lockSize,
                                 height: lockSize)
 
         // 章节标题：撑满序号与锁（或右边距）之间的空间
-        let titleX = chapterNumber.frame.maxX + itemSpacing
-        let titleMaxX = isLockedChapter ? lockIcon.frame.minX - itemSpacing : w - horizontalMargin
-        chapterName.frame = CGRect(x: titleX, y: 0, width: max(0, titleMaxX - titleX), height: contentHeight)
+        let titleX = ordinalLabel.frame.maxX + itemSpacing
+        let titleMaxX = isLockedChapter ? lockGlyph.frame.minX - itemSpacing : w - horizontalMargin
+        chapterTitleLabel.frame = CGRect(x: titleX, y: 0, width: max(0, titleMaxX - titleX), height: contentHeight)
     }
 
     public required init?(coder aDecoder: NSCoder) {

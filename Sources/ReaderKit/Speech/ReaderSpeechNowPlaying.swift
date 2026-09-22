@@ -144,7 +144,7 @@ final class ReaderSpeechNowPlaying {
 
         // 标题给章节名、专辑给书名：锁屏上标题是最醒目的一行，
         // 听书时用户更需要知道「读到哪一章」而不是重复看书名
-        info[MPMediaItemPropertyTitle] = context.chapterTitle
+        info[MPMediaItemPropertyTitle] = context.chapterCaption
 
         info[MPMediaItemPropertyAlbumTitle] = context.bookTitle
 

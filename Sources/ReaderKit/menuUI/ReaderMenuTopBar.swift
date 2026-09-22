@@ -43,7 +43,7 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
         
         super.addSubviews()
         
-        let iconColor = ReaderConfiguration.shared().currentThemeColors.iconDefault
+        let iconColor = ReaderConfiguration.shared().currentThemeColors.iconStandard
         
         // 返回
         back = UIButton(type:.custom)
@@ -58,7 +58,7 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
         addToBookshelf.addAction(UIAction { [weak self] _ in self?.handleAddToBookshelfTap() }, for: .touchUpInside)
         addSubview(addToBookshelf)
         
-        // 反馈（Figma 中使用 iconDefault 颜色）
+        // 反馈（Figma 中使用 iconStandard 颜色）
         feedback = UIButton(type:.custom)
         feedback.setImage(ReaderEnvironment.images.feedback(), for: .normal)
         feedback.tintColor = iconColor
@@ -69,19 +69,19 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
     /// 点击返回
     private func handleBackTap() {
         
-        readMenu?.delegate?.readerMenuDidTapBack(readMenu)
+        hostMenu?.delegate?.readerMenuDidTapBack(hostMenu)
     }
     
     /// 点击加入书架
     private func handleAddToBookshelfTap() {
         
-        readMenu?.delegate?.readerMenuDidTapAddToBookshelf(readMenu)
+        hostMenu?.delegate?.readerMenuDidTapAddToBookshelf(hostMenu)
     }
     
     /// 点击反馈
     private func handleFeedbackTap() {
         
-        readMenu?.delegate?.readerMenuDidTapFeedback(readMenu)
+        hostMenu?.delegate?.readerMenuDidTapFeedback(hostMenu)
     }
     
     // 顶部栏曾有书签入口，设计改版后只保留 返回 / 反馈 / 加入书架，书签改由侧栏书签 tab
@@ -96,11 +96,11 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
         reviseAppendToBookshelfImages()
     }
     
-    /// 更新加书架按钮图片（未加入用 iconDefault 深色，已加入用 iconDisable 浅色）
+    /// 更新加书架按钮图片（未加入用 iconStandard 深色，已加入用 iconMuted 浅色）
     private func reviseAppendToBookshelfImages() {
         let themeColors = ReaderConfiguration.shared().currentThemeColors
-        let normalImage = ReaderEnvironment.images.addToBookshelf()?.withTintColor(themeColors.iconDefault)
-        let selectedImage = ReaderEnvironment.images.addedToBookshelf()?.withTintColor(themeColors.iconDisable)
+        let normalImage = ReaderEnvironment.images.addToBookshelf()?.withTintColor(themeColors.iconStandard)
+        let selectedImage = ReaderEnvironment.images.addedToBookshelf()?.withTintColor(themeColors.iconMuted)
         addToBookshelf.setImage(normalImage, for: .normal)
         addToBookshelf.setImage(selectedImage, for: .selected)
     }
@@ -139,9 +139,9 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
     
     /// 应用主题颜色
     open func adoptThemeColors(_ colors: ReaderThemeColors) {
-        backgroundColor = colors.fillPopup
-        back.tintColor = colors.iconDefault
-        feedback.tintColor = colors.iconDefault
+        backgroundColor = colors.fillSheet
+        back.tintColor = colors.iconStandard
+        feedback.tintColor = colors.iconStandard
         reviseAppendToBookshelfImages()
     }
 }

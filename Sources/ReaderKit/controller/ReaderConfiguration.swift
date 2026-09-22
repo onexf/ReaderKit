@@ -122,10 +122,10 @@ open class ReaderConfiguration {
     open var lineHeightPercent: Int = 160
     
     /// 用户是否手动选择过阅读主题。选过之后就不再跟随系统深色模式。
-    open var hasUserSelectedTheme = false
+    open var themeChosenByUser = false
     
     /// 阅读方式是否已确定（首次由第一本小说的篇幅决定，或用户手动切过）。
-    open var hasUserSelectedEffect = false
+    open var effectChosenByUser = false
     
     /// 磁盘上那份配置的主题方案版本号，只用于一次性索引迁移。对外没有意义。
     private var themeSchemaVersion = READER_THEME_SCHEMA_VERSION
@@ -145,16 +145,16 @@ open class ReaderConfiguration {
     
     /// 字体颜色 - 根据当前主题获取
     open var textColor: UIColor! {
-        return currentThemeColors.textT1
+        return currentThemeColors.textBody
     }
     
     /// 状态栏字体颜色 - 根据当前主题获取
     open var statusTextColor: UIColor! {
-        return currentThemeColors.textT3
+        return currentThemeColors.textFaint
     }
     
     /// 是否为夜间模式
-    open var isNightMode: Bool {
+    open var isDarkTheme: Bool {
         return themeType == .night
     }
     
@@ -171,7 +171,7 @@ open class ReaderConfiguration {
     /// 接入方的 AppDelegate 可能强制为 .light，传进来的值同样无法反映系统设置。
     @discardableResult
     open func syncWithSystemDarkVariantIfRequired() -> Bool {
-        guard !hasUserSelectedTheme else { return false }
+        guard !themeChosenByUser else { return false }
         
         let target: ReaderThemeType = Self.detectSystemDarkVariant() ? .night : .lightDefault
         guard themeType != target else { return false }
@@ -362,8 +362,8 @@ open class ReaderConfiguration {
             StoreKey.progress: progressType.rawValue,
             StoreKey.fontSize: fontSize,
             StoreKey.lineHeight: lineHeightPercent,
-            StoreKey.userSelectedTheme: hasUserSelectedTheme ? 1 : 0,
-            StoreKey.userSelectedEffect: hasUserSelectedEffect ? 1 : 0,
+            StoreKey.userSelectedTheme: themeChosenByUser ? 1 : 0,
+            StoreKey.userSelectedEffect: effectChosenByUser ? 1 : 0,
             StoreKey.schemaVersion: themeSchemaVersion,
         ]
         
@@ -406,10 +406,10 @@ open class ReaderConfiguration {
             lineHeightPercent = raw
         }
         if let raw = Self.storedInt(stored, StoreKey.userSelectedTheme) {
-            hasUserSelectedTheme = raw != 0
+            themeChosenByUser = raw != 0
         }
         if let raw = Self.storedInt(stored, StoreKey.userSelectedEffect) {
-            hasUserSelectedEffect = raw != 0
+            effectChosenByUser = raw != 0
         }
         
         return loadTheme(from: stored)

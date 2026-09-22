@@ -43,13 +43,13 @@ open class ReaderMenuTabRail: UIView {
     open weak var delegate: ReaderMenuTabRailDelegate?
 
     /// 当前是否为夜间模式（仅控制图标显示，不执行切换逻辑）
-    open var isNightMode: Bool = false {
+    open var isDarkTheme: Bool = false {
         didSet { reviseNightVariantBtn() }
     }
 
     // MARK: - 按钮
 
-    public private(set) var catalogueButton: UIButton!
+    public private(set) var catalogueTab: UIButton!
     public private(set) var nightModeButton: UIButton!
     public private(set) var settingButton: UIButton!
 
@@ -66,20 +66,20 @@ open class ReaderMenuTabRail: UIView {
 
     private func configureViews() {
         let colors = ReaderConfiguration.shared().currentThemeColors
-        backgroundColor = colors.fillPopup
+        backgroundColor = colors.fillSheet
 
-        let iconColor = colors.iconDefault
+        let iconColor = colors.iconStandard
 
         // 目录按钮：暂不设选中态。设计稿没给「目录选中」的图，
         // 原先资源里那张实心圆角方块与常态的文档轮廓不是同一套形状语言，不能拿来当选中态，
         // 该资源已在个人中心改版时移除，需要选中态时请让设计补图
-        catalogueButton = craftLaneBtn(
+        catalogueTab = craftLaneBtn(
             normalImage: ReaderEnvironment.images.tabCatalogue(),
             title: ReaderEnvironment.strings.directory
         )
-        catalogueButton.tintColor = iconColor
-        catalogueButton.addAction(UIAction { [weak self] _ in self?.handleCatalogue() }, for: .touchUpInside)
-        addSubview(catalogueButton)
+        catalogueTab.tintColor = iconColor
+        catalogueTab.addAction(UIAction { [weak self] _ in self?.presentCatalogue() }, for: .touchUpInside)
+        addSubview(catalogueTab)
 
         // 日/夜间切换按钮
         nightModeButton = craftLaneBtn(
@@ -87,7 +87,7 @@ open class ReaderMenuTabRail: UIView {
             title: ReaderEnvironment.strings.night
         )
         nightModeButton.tintColor = iconColor
-        nightModeButton.addAction(UIAction { [weak self] _ in self?.handleNightMode() }, for: .touchUpInside)
+        nightModeButton.addAction(UIAction { [weak self] _ in self?.toggleNightTheme() }, for: .touchUpInside)
         addSubview(nightModeButton)
 
         // 设置按钮：常态描边六边形，设置面板展开时换成实心六边形
@@ -98,7 +98,7 @@ open class ReaderMenuTabRail: UIView {
             title: ReaderEnvironment.strings.setting
         )
         settingButton.tintColor = iconColor
-        settingButton.addAction(UIAction { [weak self] _ in self?.handleSetting() }, for: .touchUpInside)
+        settingButton.addAction(UIAction { [weak self] _ in self?.presentSettings() }, for: .touchUpInside)
         addSubview(settingButton)
 
         reviseNightVariantBtn()
@@ -123,9 +123,9 @@ open class ReaderMenuTabRail: UIView {
         return button
     }
 
-    /// tab 文案颜色：6 套主题的设计稿都取主文字色（此前浅色主题误取了 textT2，偏灰）
+    /// tab 文案颜色：6 套主题的设计稿都取主文字色（此前浅色主题误取了 textSubtle，偏灰）
     private func laneTitleColor(_ colors: ReaderThemeColors) -> UIColor {
-        return colors.textT1
+        return colors.textBody
     }
 
     /// 配置按钮图标在上、文字在下的布局
@@ -148,9 +148,9 @@ open class ReaderMenuTabRail: UIView {
         )
     }
 
-    /// 根据 isNightMode 更新日/夜间按钮的图标和文字
+    /// 根据 isDarkTheme 更新日/夜间按钮的图标和文字
     private func reviseNightVariantBtn() {
-        if isNightMode {
+        if isDarkTheme {
             nightModeButton.setImage(ReaderEnvironment.images.dayMode(), for: .normal)
             nightModeButton.setTitle(ReaderEnvironment.strings.day, for: .normal)
         } else {
@@ -162,15 +162,15 @@ open class ReaderMenuTabRail: UIView {
 
     // MARK: - Actions
 
-    private func handleCatalogue() {
+    private func presentCatalogue() {
         delegate?.bottomTabBarDidClickCatalogue(self)
     }
 
-    private func handleNightMode() {
+    private func toggleNightTheme() {
         delegate?.bottomTabBarDidClickNightMode(self)
     }
 
-    private func handleSetting() {
+    private func presentSettings() {
         delegate?.bottomTabBarDidClickSetting(self)
     }
 
@@ -183,7 +183,7 @@ open class ReaderMenuTabRail: UIView {
         let contentWidth = bounds.width - horizontalMargin * 2
         let buttonWidth = contentWidth / 3
 
-        catalogueButton.frame = CGRect(x: horizontalMargin, y: topPadding, width: buttonWidth, height: itemHeight)
+        catalogueTab.frame = CGRect(x: horizontalMargin, y: topPadding, width: buttonWidth, height: itemHeight)
         nightModeButton.frame = CGRect(x: horizontalMargin + buttonWidth, y: topPadding, width: buttonWidth, height: itemHeight)
         settingButton.frame = CGRect(x: horizontalMargin + buttonWidth * 2, y: topPadding, width: buttonWidth, height: itemHeight)
     }
@@ -192,13 +192,13 @@ open class ReaderMenuTabRail: UIView {
     
     /// 应用主题颜色
     open func adoptThemeColors(_ colors: ReaderThemeColors) {
-        backgroundColor = colors.fillPopup
+        backgroundColor = colors.fillSheet
         
         // 更新按钮文字颜色和图标 tintColor
-        let iconColor = colors.iconDefault
+        let iconColor = colors.iconStandard
         let titleColor = laneTitleColor(colors)
-        catalogueButton.setTitleColor(titleColor, for: .normal)
-        catalogueButton.tintColor = iconColor
+        catalogueTab.setTitleColor(titleColor, for: .normal)
+        catalogueTab.tintColor = iconColor
         nightModeButton.setTitleColor(titleColor, for: .normal)
         nightModeButton.tintColor = iconColor
         settingButton.setTitleColor(titleColor, for: .normal)

@@ -58,7 +58,7 @@ public struct ReaderSpeechContext {
     public let bookTitle: String
 
     /// 当前章节名。
-    public let chapterTitle: String
+    public let chapterCaption: String
 
     /// 当前朗读的句子文本。空串表示当前没有正在朗读的句。
     public let sentenceText: String
@@ -113,7 +113,7 @@ public struct ReaderSpeechContext {
     public let hasNextChapter: Bool
 
     public init(bookTitle: String,
-                chapterTitle: String,
+                chapterCaption: String,
                 sentenceText: String,
                 chapterProgress: Double,
                 estimatedDuration: TimeInterval = 0,
@@ -123,7 +123,7 @@ public struct ReaderSpeechContext {
                 hasPreviousChapter: Bool = true,
                 hasNextChapter: Bool = true) {
         self.bookTitle = bookTitle
-        self.chapterTitle = chapterTitle
+        self.chapterCaption = chapterCaption
         self.sentenceText = sentenceText
         self.chapterProgress = chapterProgress
         self.estimatedDuration = estimatedDuration

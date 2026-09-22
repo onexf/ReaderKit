@@ -10,13 +10,13 @@ import UIKit
 open class ReaderLongPressController: ReaderPageContentController {
 
     /// 阅读视图
-    private var readView: ReaderLongPressView!
+    private var selectionView: ReaderLongPressView!
     
     /// 当前承载正文渲染的视图。
     ///
-    /// 书名页走 `super.initReadView()`，此时本类的 `readView` 为 nil、
+    /// 书名页走 `super.initReadView()`，此时本类的 `selectionView` 为 nil、
     /// 渲染视图落在父类那个上，故需要回退到 super。
-    open override var renderingPageView: ReaderPageView? { readView ?? super.renderingPageView }
+    open override var renderingPageView: ReaderPageView? { selectionView ?? super.renderingPageView }
     
     // 初始化阅读视图
     open override func initReadView() {
@@ -34,9 +34,9 @@ open class ReaderLongPressController: ReaderPageContentController {
             let pageModel = recordModel.pageModel!
             
             // 阅读视图
-            readView = ReaderLongPressView()
-            readView.pageModel = pageModel
-            view.addSubview(readView)
+            selectionView = ReaderLongPressView()
+            selectionView.pageModel = pageModel
+            view.addSubview(selectionView)
             
             // 高度取**阅读区域**，与 `ReaderPageView` 在翻页模式下的排版尺寸严格一致。
             //
@@ -46,7 +46,7 @@ open class ReaderLongPressController: ReaderPageContentController {
             // 这里曾经用 `pageModel.contentSize.height`（注释理由是「长按拖拽需要内容高度」）。
             // 那个值是在无高度约束下量出来的，比阅读区域高出末行行距与段后间距，
             // 于是每一页的末行都落到阅读区域之外、压在页脚上。
-            readView.frame = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height)
+            selectionView.frame = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height)
         }
     }
     
@@ -82,15 +82,15 @@ open class ReaderLongPressController: ReaderPageContentController {
         // 是否为书籍首页
         if recordModel.pageModel.isHomePage { return }
         
-        if readView?.isOpenDrag ?? false {
+        if selectionView?.isDragActive ?? false {
             
             let windowPoint = ((touches as NSSet).anyObject() as? UITouch)?.location(in: view)
       
             if windowPoint != nil {
                 
-                let point = view.convert(windowPoint!, to: readView)
+                let point = view.convert(windowPoint!, to: selectionView)
         
-                readView?.drag(status: status, point: point, windowPoint: windowPoint!)
+                selectionView?.drag(status: status, point: point, windowPoint: windowPoint!)
             }
         }
     }

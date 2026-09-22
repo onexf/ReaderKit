@@ -23,9 +23,9 @@ open class ReaderCoreText: NSObject {
         
         let path = CGPath(rect: rect, transform: nil)
         
-        let frameRef = CTFramesetterCreateFrame(framesetter, CFRangeMake(0, 0), path, nil)
+        let ctFrame = CTFramesetterCreateFrame(framesetter, CFRangeMake(0, 0), path, nil)
         
-        return frameRef
+        return ctFrame
     }
     
     /// 获得内容分页列表
@@ -65,13 +65,13 @@ open class ReaderCoreText: NSObject {
     ///
     /// - Parameters:
     ///   - point: 触摸位置
-    ///   - frameRef: 内容 CTFrame
+    ///   - ctFrame: 内容 CTFrame
     /// - Returns: 触摸位置的Index
-    public class func touchedCharacterIndex(point: CGPoint, frameRef: CTFrame?) ->CFIndex {
+    public class func touchedCharacterIndex(point: CGPoint, ctFrame: CTFrame?) ->CFIndex {
         
         var location: CFIndex = -1
         
-        let line = touchedLine(point: point, frameRef: frameRef)
+        let line = touchedLine(point: point, ctFrame: ctFrame)
         
         if line != nil {
             
@@ -85,11 +85,11 @@ open class ReaderCoreText: NSObject {
     ///
     /// - Parameters:
     ///   - point: 触摸位置
-    ///   - frameRef: 内容 CTFrame
+    ///   - ctFrame: 内容 CTFrame
     /// - Returns: 一行的 NSRange
-    public class func touchedLineRange(point: CGPoint, frameRef: CTFrame?) ->NSRange {
+    public class func touchedLineRange(point: CGPoint, ctFrame: CTFrame?) ->NSRange {
         
-        let line = touchedLine(point: point, frameRef: frameRef)
+        let line = touchedLine(point: point, ctFrame: ctFrame)
         
         return lineRange(line: line)
     }
@@ -98,12 +98,12 @@ open class ReaderCoreText: NSObject {
     ///
     /// - Parameters:
     ///   - point: 触摸位置
-    ///   - frameRef: 内容 CTFrame
+    ///   - ctFrame: 内容 CTFrame
     ///   - content: 内容字符串，传了则获取长按的段落 NSRange，没传则获取一行文字的 NSRange
     /// - Returns: 一个段落的 NSRange || 一行文字的 NSRange
-    public class func touchedParagraphRange(point: CGPoint, frameRef: CTFrame?, content: String? = nil) ->NSRange {
+    public class func touchedParagraphRange(point: CGPoint, ctFrame: CTFrame?, content: String? = nil) ->NSRange {
         
-        let line = touchedLine(point: point, frameRef: frameRef)
+        let line = touchedLine(point: point, ctFrame: ctFrame)
         
         var range: NSRange =  lineRange(line: line)
         
@@ -111,7 +111,7 @@ open class ReaderCoreText: NSObject {
         
         if (line != nil && content != nil) {
             
-            let lines: [CTLine] = CTFrameGetLines(frameRef!) as! [CTLine]
+            let lines: [CTLine] = CTFrameGetLines(ctFrame!) as! [CTLine]
             
             let count = lines.count
             
@@ -173,21 +173,21 @@ open class ReaderCoreText: NSObject {
     ///
     /// - Parameters:
     ///   - point: 触摸位置
-    ///   - frameRef: 内容 CTFrame
+    ///   - ctFrame: 内容 CTFrame
     /// - Returns: CTLine
-    public class func touchedLine(point: CGPoint, frameRef: CTFrame?) ->CTLine? {
+    public class func touchedLine(point: CGPoint, ctFrame: CTFrame?) ->CTLine? {
         
         var line: CTLine? = nil
         
-        if frameRef == nil { return line }
+        if ctFrame == nil { return line }
         
-        let frameRef: CTFrame = frameRef!
+        let ctFrame: CTFrame = ctFrame!
         
-        let path: CGPath = CTFrameGetPath(frameRef)
+        let path: CGPath = CTFrameGetPath(ctFrame)
         
         let bounds: CGRect = path.boundingBox
         
-        let lines: [CTLine] = CTFrameGetLines(frameRef) as! [CTLine]
+        let lines: [CTLine] = CTFrameGetLines(ctFrame) as! [CTLine]
         
         if lines.isEmpty { return line }
         
@@ -195,7 +195,7 @@ open class ReaderCoreText: NSObject {
         
         let origins = malloc(lineCount * MemoryLayout<CGPoint>.size).assumingMemoryBound(to: CGPoint.self)
         
-        CTFrameGetLineOrigins(frameRef, CFRangeMake(0, 0), origins)
+        CTFrameGetLineOrigins(ctFrame, CFRangeMake(0, 0), origins)
         
         for i in 0..<lineCount {
             
@@ -235,16 +235,16 @@ open class ReaderCoreText: NSObject {
     /// 获取内容所有段落尾部 NSRange
     ///
     /// - Parameters:
-    ///   - frameRef: 内容 CTFrame
-    ///   - content: 内容字符串，也就是生成 frameRef 的正文内容
+    ///   - ctFrame: 内容 CTFrame
+    ///   - content: 内容字符串，也就是生成 ctFrame 的正文内容
     /// - Returns: [NSRange] 传入内容的所有断尾 NSRange
-    public class func paragraphEndRanges (frameRef: CTFrame?, content: String?) -> [NSRange] {
+    public class func paragraphEndRanges (ctFrame: CTFrame?, content: String?) -> [NSRange] {
         
         var ranges: [NSRange] = []
         
-        if (frameRef != nil && content != nil) {
+        if (ctFrame != nil && content != nil) {
             
-            let lines: [CTLine] = CTFrameGetLines(frameRef!) as! [CTLine]
+            let lines: [CTLine] = CTFrameGetLines(ctFrame!) as! [CTLine]
             
             for line in lines {
                 
@@ -264,18 +264,18 @@ open class ReaderCoreText: NSObject {
     /// 获取内容所有段落尾部 CGRect
     ///
     /// - Parameters:
-    ///   - frameRef: 内容 CTFrame
-    ///   - content: 内容字符串，也就是生成 frameRef 的正文内容
+    ///   - ctFrame: 内容 CTFrame
+    ///   - content: 内容字符串，也就是生成 ctFrame 的正文内容
     /// - Returns: [CGRect] 传入内容的所有断尾 CGRect
-    public class func paragraphEndRects (frameRef: CTFrame?, content: String?) -> [CGRect] {
+    public class func paragraphEndRects (ctFrame: CTFrame?, content: String?) -> [CGRect] {
         
         var rects: [CGRect] = []
         
-        let ranges = paragraphEndRanges(frameRef: frameRef, content: content)
+        let ranges = paragraphEndRanges(ctFrame: ctFrame, content: content)
         
         for range in ranges {
             
-            let rect = rangeRects(range: range, frameRef: frameRef, content: content)
+            let rect = rangeRects(range: range, ctFrame: ctFrame, content: content)
             
             rects += rect
         }
@@ -286,20 +286,20 @@ open class ReaderCoreText: NSObject {
     /// 通过 range 返回字符串所覆盖的位置 [CGRect]
     ///
     /// - Parameter range: NSRange
-    /// - Parameter frameRef: 内容 CTFrame
+    /// - Parameter ctFrame: 内容 CTFrame
     /// - Parameter content: 内容字符串(有值则可以去除选中每一行区域内的 开头空格 - 尾部换行符 - 所占用的区域,不传默认返回每一行实际占用区域)
     /// - Returns: 覆盖位置
-    public class func rangeRects(range: NSRange, frameRef: CTFrame?, content: String? = nil) -> [CGRect] {
+    public class func rangeRects(range: NSRange, ctFrame: CTFrame?, content: String? = nil) -> [CGRect] {
         
         var rects: [CGRect] = []
         
-        if frameRef == nil { return rects }
+        if ctFrame == nil { return rects }
         
         if range.length == 0 || range.location == NSNotFound { return rects }
         
-        let frameRef = frameRef!
+        let ctFrame = ctFrame!
         
-        let lines: [CTLine] = CTFrameGetLines(frameRef) as! [CTLine]
+        let lines: [CTLine] = CTFrameGetLines(ctFrame) as! [CTLine]
         
         if lines.isEmpty { return rects }
         
@@ -307,7 +307,7 @@ open class ReaderCoreText: NSObject {
         
         let origins = malloc(lineCount * MemoryLayout<CGPoint>.size).assumingMemoryBound(to: CGPoint.self)
         
-        CTFrameGetLineOrigins(frameRef, CFRangeMake(0, 0), origins)
+        CTFrameGetLineOrigins(ctFrame, CFRangeMake(0, 0), origins)
         
         for i in 0..<lineCount {
             
@@ -385,13 +385,13 @@ open class ReaderCoreText: NSObject {
     /// 通过 range 获得合适的 MenuRect
     ///
     /// - Parameter rects: [CGRect]
-    /// - Parameter frameRef: 内容 CTFrame
+    /// - Parameter ctFrame: 内容 CTFrame
     /// - Parameter viewFrame: 目标ViewFrame
     /// - Parameter content: 内容字符串
     /// - Returns: MenuRect
-    public class func menuRect(range: NSRange, frameRef: CTFrame?, viewFrame: CGRect, content: String? = nil) ->CGRect {
+    public class func menuRect(range: NSRange, ctFrame: CTFrame?, viewFrame: CGRect, content: String? = nil) ->CGRect {
         
-        let rects = rangeRects(range: range, frameRef: frameRef, content: content)
+        let rects = rangeRects(range: range, ctFrame: ctFrame, content: content)
         
         return menuRect(rects: rects, viewFrame: viewFrame)
     }
@@ -466,13 +466,13 @@ open class ReaderCoreText: NSObject {
             
             let path = CGPath(rect: drawingRect, transform: nil)
             
-            let frameRef = CTFramesetterCreateFrame(framesetter, CFRangeMake(0, 0), path, nil)
+            let ctFrame = CTFramesetterCreateFrame(framesetter, CFRangeMake(0, 0), path, nil)
             
-            let lines = CTFrameGetLines(frameRef) as! [CTLine]
+            let lines = CTFrameGetLines(ctFrame) as! [CTLine]
             
             var origins: [CGPoint] = Array(repeating: CGPoint.zero, count: lines.count)
             
-            CTFrameGetLineOrigins(frameRef, CFRangeMake(0, 0), &origins)
+            CTFrameGetLineOrigins(ctFrame, CFRangeMake(0, 0), &origins)
             
             let lineY = origins.last!.y
             
@@ -512,13 +512,13 @@ open class ReaderCoreText: NSObject {
     ///
     /// - Parameter line: CTLine
     /// - Returns: 行高
-    public class func lineHeight(frameRef: CTFrame?) ->CGFloat {
+    public class func lineHeight(ctFrame: CTFrame?) ->CGFloat {
         
-        if frameRef == nil { return 0 }
+        if ctFrame == nil { return 0 }
         
-        let frameRef: CTFrame = frameRef!
+        let ctFrame: CTFrame = ctFrame!
         
-        let lines: [CTLine] = CTFrameGetLines(frameRef) as! [CTLine]
+        let lines: [CTLine] = CTFrameGetLines(ctFrame) as! [CTLine]
         
         if lines.isEmpty { return 0 }
         

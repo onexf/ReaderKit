@@ -56,10 +56,10 @@ extension ReaderBookModel {
             // 避免只记 cell 起点导致跳转落到上一段(偏移)。其他翻页模式 cell 起点即页首,沿用 locationFirst。
             if ReaderConfiguration.shared().effectType == .scroll,
                let chapterModel = recordModel.chapterModel,
-               let full = chapterModel.fullContent, full.length > 0 {
+               let full = chapterModel.typesetContent, full.length > 0 {
                 
                 let loc = chapterModel.location(forPage: recordModel.page.intValue,
-                                                inPageOffsetY: recordModel.scrollOffsetInPage)
+                                                inPageOffsetY: recordModel.pageScrollAnchor)
                 let clamped = min(max(loc, 0), full.length - 1)
                 
                 markModel.content = (full.string as NSString).substring(from: clamped).removeSEHeadAndTail.enterToSingleSpace
@@ -169,16 +169,16 @@ extension ReaderBookModel {
 
 /// 书签分组(按章节聚合)
 /// - chapterID:章节 ID
-/// - chapterName:章节名称
+/// - chapterCaption:章节名称
 /// - priority:章节排序序号(从 chapterListModels 查得,查不到回退 Int.max 排到最后)
 /// - isLocked:章节是否锁定(实时查 chapterListModels)
-/// - marks:组内书签,按添加时间由近到远排列
+/// - bookmarks:组内书签,按添加时间由近到远排列
 public struct ReaderBookmarkCluster {
     public let chapterID: NSNumber
-    public let chapterName: String
+    public let chapterCaption: String
     public let priority: Int
     public let isLocked: Bool
-    public var marks: [ReaderBookmarkModel]
+    public var bookmarks: [ReaderBookmarkModel]
 }
 
 extension ReaderBookModel {
@@ -190,16 +190,16 @@ extension ReaderBookModel {
     }
 
     /// 生成书签分组列表
-    /// - Parameter chapterAscending: 组间排序,true = 章节从小到大(默认),false = 从大到小
+    /// - Parameter isAscendingOrder: 组间排序,true = 章节从小到大(默认),false = 从大到小
     /// - Returns: 分组数组;组内书签固定按时间由近到远(最新在前)
-    public func markGroups(chapterAscending: Bool) -> [ReaderBookmarkCluster] {
+    public func markGroups(isAscendingOrder: Bool) -> [ReaderBookmarkCluster] {
 
-        guard let marks = markModels, !marks.isEmpty else { return [] }
+        guard let bookmarks = markModels, !bookmarks.isEmpty else { return [] }
 
         // 1. 按 chapterID 聚合(用字符串 key 避免 NSNumber 作为字典 key 的歧义)
         var buckets: [String: [ReaderBookmarkModel]] = [:]
         var order: [String] = []
-        for mark in marks {
+        for mark in bookmarks {
             let key = (mark.chapterID ?? NSNumber(value: 0)).stringValue
             if buckets[key] == nil {
                 buckets[key] = []
@@ -215,20 +215,20 @@ extension ReaderBookModel {
             let listModel = chapterListModel(for: first.chapterID)
             return ReaderBookmarkCluster(
                 chapterID: first.chapterID,
-                chapterName: first.name ?? (listModel?.name ?? ""),
+                chapterCaption: first.name ?? (listModel?.name ?? ""),
                 priority: listModel?.priority?.intValue ?? Int.max,
                 isLocked: listModel?.isLocked ?? false,
-                marks: sortedMarks
+                bookmarks: sortedMarks
             )
         }
 
         // 3. 组间按 priority 排序(priority 相同回退按 chapterID)
         groups.sort { lhs, rhs in
             if lhs.priority != rhs.priority {
-                return chapterAscending ? (lhs.priority < rhs.priority) : (lhs.priority > rhs.priority)
+                return isAscendingOrder ? (lhs.priority < rhs.priority) : (lhs.priority > rhs.priority)
             }
             let l = lhs.chapterID.intValue, r = rhs.chapterID.intValue
-            return chapterAscending ? (l < r) : (l > r)
+            return isAscendingOrder ? (l < r) : (l > r)
         }
 
         // 4. 锁定章节书签:只保留"最近一个"被锁定章节(priority 最小,离已读最近)的分组,其余锁定组不展示
@@ -247,7 +247,7 @@ extension ReaderBookModel {
         guard ReaderChapterModel.isExist(storyID: storyID, chapterID: mark.chapterID) else { return 0 }
 
         let chapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: mark.chapterID, isUpdateFont: false)
-        let fullLength = Float(chapterModel.fullContent?.length ?? 0)
+        let fullLength = Float(chapterModel.typesetContent?.length ?? 0)
 
         guard fullLength > 0 else { return 0 }
 

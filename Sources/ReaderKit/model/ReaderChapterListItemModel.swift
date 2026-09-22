@@ -9,6 +9,9 @@ import UIKit
 
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
+///
+/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
+/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
 open class ReaderChapterListItemModel: NSObject, NSCoding {
     
     /// 章节ID
@@ -27,18 +30,18 @@ open class ReaderChapterListItemModel: NSObject, NSCoding {
     open var lock: Int = 1
     
     /// 是否已经解锁 (1=是已解锁, 2=否未解锁)
-    open var alreadyLock: Int = 2
+    open var unlockState: Int = 2
     
     /// 解锁价格（金币）
     open var price: Int = 0
     
     /// 所属小说是否为VIP专区内容（0-否 1-是），由小说详情传入
-    open var isVipContent: Int = 0
+    open var premiumZoneFlag: Int = 0
     
     /// 章节是否锁定。
     ///
     /// 本版本不含会员 / 充值模块，付费墙已整体移除，全部章节免费可读，因此恒为 false。
-    /// `lock` / `alreadyLock` / `price` / `isVipContent` 字段保留：它们仍由服务端下发并参与
+    /// `lock` / `unlockState` / `price` / `premiumZoneFlag` 字段保留：它们仍由服务端下发并参与
     /// NSCoding 归档，删除会破坏已落盘缓存的兼容性。
     open var isLocked: Bool {
         return false
@@ -60,11 +63,11 @@ open class ReaderChapterListItemModel: NSObject, NSCoding {
         
         lock = (aDecoder.decodeObject(forKey: "lock") as? NSNumber)?.intValue ?? 1
         
-        alreadyLock = (aDecoder.decodeObject(forKey: "alreadyLock") as? NSNumber)?.intValue ?? 2
+        unlockState = (aDecoder.decodeObject(forKey: "alreadyLock") as? NSNumber)?.intValue ?? 2
         
         price = (aDecoder.decodeObject(forKey: "price") as? NSNumber)?.intValue ?? 0
         
-        isVipContent = (aDecoder.decodeObject(forKey: "isVipContent") as? NSNumber)?.intValue ?? 0
+        premiumZoneFlag = (aDecoder.decodeObject(forKey: "isVipContent") as? NSNumber)?.intValue ?? 0
     }
     
     open func encode(with aCoder: NSCoder) {
@@ -79,11 +82,11 @@ open class ReaderChapterListItemModel: NSObject, NSCoding {
         
         aCoder.encode(NSNumber(value: lock), forKey: "lock")
         
-        aCoder.encode(NSNumber(value: alreadyLock), forKey: "alreadyLock")
+        aCoder.encode(NSNumber(value: unlockState), forKey: "alreadyLock")
         
         aCoder.encode(NSNumber(value: price), forKey: "price")
         
-        aCoder.encode(NSNumber(value: isVipContent), forKey: "isVipContent")
+        aCoder.encode(NSNumber(value: premiumZoneFlag), forKey: "isVipContent")
     }
     
     public init(_ dict: Any? = nil) {

@@ -13,8 +13,8 @@ import Foundation
 /// duplicate `book_download_failed` events.
 ///
 /// Strategy:
-/// - Cooldown: After a failure, the same chapter cannot be retried within `cooldownInterval` seconds.
-/// - Max retries: After `maxRetryCount` consecutive failures, automatic retries are blocked
+/// - Cooldown: After a failure, the same chapter cannot be retried within `retryCooldown` seconds.
+/// - Max retries: After `retryBudget` consecutive failures, automatic retries are blocked
 ///   until the user performs a manual action (chapter switch, re-enter reader, etc.).
 final public class ReaderChapterRetryThrottle {
 
@@ -25,22 +25,22 @@ final public class ReaderChapterRetryThrottle {
     // MARK: - Configuration
     
     /// Minimum interval (seconds) between retry attempts for the same chapter
-    private let cooldownInterval: TimeInterval = 10.0
+    private let retryCooldown: TimeInterval = 10.0
     
     /// Maximum number of automatic retries allowed per chapter
-    private let maxRetryCount: Int = 3
+    private let retryBudget: Int = 3
     
     // MARK: - State
     
     /// Tracks failure info per chapter ID
-    private var failureRecords: [Int: ReaderChapterFailureEntry] = [:]
+    private var failureLedger: [Int: ReaderChapterFailureEntry] = [:]
     
-    /// Serial queue to protect failureRecords from concurrent access
+    /// Serial queue to protect failureLedger from concurrent access
     private let queue = DispatchQueue(label: "com.readerkit.chapterRetryQueue")
     
     private struct ReaderChapterFailureEntry {
-        var failureCount: Int
-        var lastFailureTime: Date
+        var attemptCount: Int
+        var lastAttemptAt: Date
     }
     
     // MARK: - Public API
@@ -50,19 +50,19 @@ final public class ReaderChapterRetryThrottle {
     /// - Returns: `true` if the request should proceed, `false` if throttled.
     public func shouldPermitReattempt(chapterId: Int) -> Bool {
         return queue.sync {
-            guard let record = failureRecords[chapterId] else {
+            guard let record = failureLedger[chapterId] else {
                 // No previous failure, allow
                 return true
             }
             
             // Exceeded max retry count → block until manual reset
-            if record.failureCount >= maxRetryCount {
+            if record.attemptCount >= retryBudget {
                 return false
             }
             
             // Within cooldown period → block
-            let elapsed = Date().timeIntervalSince(record.lastFailureTime)
-            if elapsed < cooldownInterval {
+            let elapsed = Date().timeIntervalSince(record.lastAttemptAt)
+            if elapsed < retryCooldown {
                 return false
             }
             
@@ -75,12 +75,12 @@ final public class ReaderChapterRetryThrottle {
     /// - Parameter chapterId: The chapter ID that failed.
     public func entryFailure(chapterId: Int) {
         queue.sync {
-            if var record = failureRecords[chapterId] {
-                record.failureCount += 1
-                record.lastFailureTime = Date()
-                failureRecords[chapterId] = record
+            if var record = failureLedger[chapterId] {
+                record.attemptCount += 1
+                record.lastAttemptAt = Date()
+                failureLedger[chapterId] = record
             } else {
-                failureRecords[chapterId] = ReaderChapterFailureEntry(failureCount: 1, lastFailureTime: Date())
+                failureLedger[chapterId] = ReaderChapterFailureEntry(attemptCount: 1, lastAttemptAt: Date())
             }
         }
     }
@@ -91,7 +91,7 @@ final public class ReaderChapterRetryThrottle {
     /// - Parameter chapterId: The chapter ID to reset.
     public func reset(chapterId: Int) {
         queue.sync {
-            _ = failureRecords.removeValue(forKey: chapterId)
+            _ = failureLedger.removeValue(forKey: chapterId)
         }
     }
     
@@ -99,7 +99,7 @@ final public class ReaderChapterRetryThrottle {
     /// Call this when the reader is re-initialized or the user switches books.
     public func resetAll() {
         queue.sync {
-            failureRecords.removeAll()
+            failureLedger.removeAll()
         }
     }
 }

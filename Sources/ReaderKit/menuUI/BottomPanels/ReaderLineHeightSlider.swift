@@ -6,7 +6,7 @@
 //
 //  设计稿规格（各主题一致，仅取色不同）：
 //  - 控件高 24，滑块头 24×24 纯白圆形，阴影 dy 0.97 / blur 4.61 / 黑 14%
-//  - 轨道高 4、圆角 2；滑块头中心左侧为 accent，右侧为 dividerLine
+//  - 轨道高 4、圆角 2；滑块头中心左侧为 accent，右侧为 separatorTint
 //  - 滑块头中心行程为 [12, width - 12]，即最小值时轨道左侧仍有 12pt 的已填充段
 //
 
@@ -105,7 +105,7 @@ open class ReaderLineHeightSlider: UIControl {
     /// 主题换肤
     open func adoptThemeColors(_ colors: ReaderThemeColors) {
         filledTrackView.backgroundColor = colors.accent
-        remainTrackView.backgroundColor = colors.dividerLine
+        remainTrackView.backgroundColor = colors.separatorTint
     }
     
     /// 夹到 [min, max] 区间内（连续取值，不做档位吸附）

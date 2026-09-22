@@ -16,11 +16,11 @@ public struct ReaderPositionContext {
     /// 章节 ID
     public let chapterId: Int
     /// 章节序号（**从 1 开始**的展示用序号，非 priority 原值）
-    public let chapterNumber: Int
+    public let chapterOrdinal: Int
 
-    public init(chapterId: Int, chapterNumber: Int) {
+    public init(chapterId: Int, chapterOrdinal: Int) {
         self.chapterId = chapterId
-        self.chapterNumber = chapterNumber
+        self.chapterOrdinal = chapterOrdinal
     }
 }
 

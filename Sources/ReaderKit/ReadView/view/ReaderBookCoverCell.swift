@@ -10,7 +10,7 @@ import UIKit
 open class ReaderBookCoverCell: UITableViewCell {
 
     /// 书籍首页视图
-    public private(set) var homeView: ReaderBookCoverView!
+    public private(set) var coverPage: ReaderBookCoverView!
     
     public class func cell(_ tableView: UITableView) ->ReaderBookCoverCell {
         
@@ -38,15 +38,15 @@ open class ReaderBookCoverCell: UITableViewCell {
     private func addSubviews() {
         
         // 书籍首页
-        homeView = ReaderBookCoverView()
-        contentView.addSubview(homeView)
+        coverPage = ReaderBookCoverView()
+        contentView.addSubview(coverPage)
     }
     
     open override func layoutSubviews() {
         
         super.layoutSubviews()
         
-        homeView.frame = bounds
+        coverPage.frame = bounds
     }
     
     public required init?(coder aDecoder: NSCoder) {

@@ -9,6 +9,9 @@ import UIKit
 
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
+///
+/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
+/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
 open class ReaderPageModel: NSObject, NSCoding {
 
     // MARK: 常用属性
@@ -26,27 +29,27 @@ open class ReaderPageModel: NSObject, NSCoding {
     // MARK: 滚动模式使用
     
     /// 根据开头类型返回开头高度 (目前主要是滚动模式使用)
-    open var headTypeHeight: CGFloat! = 0
+    open var headerInsetHeight: CGFloat! = 0
     
     /// 当前内容Size (目前主要是(滚动模式 || 长按模式)使用)
     open var contentSize: CGSize! = CGSize.zero
     
     /// 当前内容头部类型 (目前主要是滚动模式使用)
-    open var headTypeIndex: NSNumber!
+    open var headerKindRaw: NSNumber!
     
     /// 当前内容头部类型 (目前主要是滚动模式使用)
-    open var headType: ReaderSheetHeaderType! {
+    open var headerKind: ReaderSheetHeaderType! {
         
-        set{ headTypeIndex = NSNumber(value: newValue.rawValue) }
+        set{ headerKindRaw = NSNumber(value: newValue.rawValue) }
         
-        get{ return ReaderSheetHeaderType(rawValue: headTypeIndex.intValue) }
+        get{ return ReaderSheetHeaderType(rawValue: headerKindRaw.intValue) }
     }
     
     /// 当前内容总高(cell 高度)
     open var cellHeight: CGFloat! {
         
         // 内容高度 + 头部高度
-        return contentSize.height + headTypeHeight
+        return contentSize.height + headerInsetHeight
     }
     
     
@@ -76,11 +79,11 @@ open class ReaderPageModel: NSObject, NSCoding {
         
         page = aDecoder.decodeObject(forKey: "page") as? NSNumber
         
-        headTypeHeight = aDecoder.decodeObject(forKey: "headTypeHeight") as? CGFloat
+        headerInsetHeight = aDecoder.decodeObject(forKey: "headTypeHeight") as? CGFloat
         
         contentSize = aDecoder.decodeObject(forKey: "contentSize") as? CGSize
         
-        headTypeIndex = aDecoder.decodeObject(forKey: "headTypeIndex") as? NSNumber
+        headerKindRaw = aDecoder.decodeObject(forKey: "headTypeIndex") as? NSNumber
     }
     
     open func encode(with aCoder: NSCoder) {
@@ -91,11 +94,11 @@ open class ReaderPageModel: NSObject, NSCoding {
         
         aCoder.encode(page, forKey: "page")
         
-        aCoder.encode(headTypeHeight, forKey: "headTypeHeight")
+        aCoder.encode(headerInsetHeight, forKey: "headTypeHeight")
         
         aCoder.encode(contentSize, forKey: "contentSize")
         
-        aCoder.encode(headTypeIndex, forKey: "headTypeIndex")
+        aCoder.encode(headerKindRaw, forKey: "headTypeIndex")
     }
     
     public init(_ dict: Any? = nil) {

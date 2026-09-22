@@ -59,7 +59,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     /// 设置面板是否处于展开态
     ///
     /// 不用 `settingPanelView.isHidden` 当状态位：收起动画期间面板必须还看得见（靠
-    /// bottomView 裁剪逐步遮住），等动画结束再真正隐藏，否则会直接“啪”一下消失。
+    /// bottomBar 裁剪逐步遮住），等动画结束再真正隐藏，否则会直接“啪”一下消失。
     private var isSettingPanelExpanded: Bool = false
     
     // MARK: - 第一行：行高滑块
@@ -67,11 +67,11 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     /// 行高行容器
     private var lineHeightRowView: UIView!
     /// 行高减小图标按钮
-    private var lineHeightDecreaseButton: UIButton!
+    private var lineHeightDownButton: UIButton!
     /// 行高滑块
     private var lineHeightSlider: ReaderLineHeightSlider!
     /// 行高增大图标按钮
-    private var lineHeightIncreaseButton: UIButton!
+    private var lineHeightUpButton: UIButton!
     
     // MARK: - 第二行：字号
     
@@ -89,21 +89,21 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     // MARK: - 第三行：阅读背景主题色块
     
     /// 背景模式容器
-    private var bgColorRowView: UIView!
+    private var themeSwatchRow: UIView!
     /// 背景色圆形按钮数组，顺序与 ReaderThemeType.swatchOrder 一致
-    private var bgColorButtons: [UIButton] = []
+    private var themeSwatches: [UIButton] = []
     
     // MARK: - 第四行：阅读方向（上下滑动 / 左右翻页）
     
     /// 阅读方向分段控件容器（带 1pt 边框的胶囊）
-    private var readingModeRowView: UIView!
+    private var pageModeRow: UIView!
     /// 上下滑动按钮（滚动模式）
-    private var verticalModeButton: UIButton!
+    private var scrollModeButton: UIButton!
     /// 左右翻页按钮（平移模式）
-    private var horizontalModeButton: UIButton!
+    private var pageFlipModeButton: UIButton!
     
     /// 底部按钮栏（目录 / 日夜间 / 设置）
-    public private(set) var bottomTabBar: ReaderMenuTabRail!
+    public private(set) var tabRail: ReaderMenuTabRail!
     
     public override init(frame: CGRect) { super.init(frame: frame) }
     
@@ -140,19 +140,19 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         setupFontSizeControls()
         
         // 第三行：阅读背景主题色块
-        bgColorRowView = UIView()
-        settingPanelView.addSubview(bgColorRowView)
+        themeSwatchRow = UIView()
+        settingPanelView.addSubview(themeSwatchRow)
         
         setupBgColorButtons()
         
         // 第四行：阅读方向分段控件
-        readingModeRowView = UIView()
-        readingModeRowView.layer.borderWidth = 1
+        pageModeRow = UIView()
+        pageModeRow.layer.borderWidth = 1
         // 边框色必须在这里就给：adoptThemeColors 只在切换主题时才调，
         // 首次显示不走那条路，漏设就会渲染成 CALayer 默认的黑色边框
-        readingModeRowView.layer.borderColor = ReaderConfiguration.shared().currentThemeColors.dividerLine.cgColor
-        readingModeRowView.layer.masksToBounds = true
-        settingPanelView.addSubview(readingModeRowView)
+        pageModeRow.layer.borderColor = ReaderConfiguration.shared().currentThemeColors.separatorTint.cgColor
+        pageModeRow.layer.masksToBounds = true
+        settingPanelView.addSubview(pageModeRow)
         
         setupReadingModeButtons()
         
@@ -168,7 +168,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         fontSizeTitleLabel = UILabel()
         fontSizeTitleLabel.text = ReaderEnvironment.strings.settingSize
         fontSizeTitleLabel.font = ReaderEnvironment.fonts.uiRegular(12)
-        fontSizeTitleLabel.textColor = themeColors.textT1
+        fontSizeTitleLabel.textColor = themeColors.textBody
         fontSizeTitleLabel.textAlignment = .left
         fontSizeRowView.addSubview(fontSizeTitleLabel)
         
@@ -184,7 +184,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         fontSizeLabel = UILabel()
         fontSizeLabel.text = "\(ReaderConfiguration.shared().fontSize)"
         fontSizeLabel.font = ReaderEnvironment.fonts.uiRegular(12)
-        fontSizeLabel.textColor = themeColors.textT1
+        fontSizeLabel.textColor = themeColors.textBody
         fontSizeLabel.textAlignment = .center
         fontSizeRowView.addSubview(fontSizeLabel)
         
@@ -201,7 +201,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     private func craftFontSizeBtn(icon: UIImage?, colors: ReaderThemeColors) -> UIButton {
         let button = UIButton(type: .custom)
         button.setImage(icon, for: .normal)
-        button.tintColor = colors.iconDefault
+        button.tintColor = colors.iconStandard
         button.backgroundColor = colors.fillControl
         button.layer.cornerRadius = kFontSizeButtonHeight / 2
         button.layer.masksToBounds = true
@@ -214,12 +214,12 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         let themeColors = ReaderConfiguration.shared().currentThemeColors
         
         // 行高减小图标（设计稿是纯图标，不带底色胶囊）
-        lineHeightDecreaseButton = UIButton(type: .custom)
-        lineHeightDecreaseButton.setImage(ReaderEnvironment.images.lineSpacingDecrease(), for: .normal)
-        lineHeightDecreaseButton.tintColor = themeColors.iconDefault
-        lineHeightDecreaseButton.imageView?.contentMode = .scaleAspectFit
-        lineHeightDecreaseButton.addAction(UIAction { [weak self] _ in self?.handleDecreaseLineHeight() }, for: .touchUpInside)
-        lineHeightRowView.addSubview(lineHeightDecreaseButton)
+        lineHeightDownButton = UIButton(type: .custom)
+        lineHeightDownButton.setImage(ReaderEnvironment.images.lineSpacingDecrease(), for: .normal)
+        lineHeightDownButton.tintColor = themeColors.iconStandard
+        lineHeightDownButton.imageView?.contentMode = .scaleAspectFit
+        lineHeightDownButton.addAction(UIAction { [weak self] _ in self?.handleDecreaseLineHeight() }, for: .touchUpInside)
+        lineHeightRowView.addSubview(lineHeightDownButton)
         
         // 行高滑块
         lineHeightSlider = ReaderLineHeightSlider()
@@ -238,12 +238,12 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         lineHeightRowView.addSubview(lineHeightSlider)
         
         // 行高增大图标
-        lineHeightIncreaseButton = UIButton(type: .custom)
-        lineHeightIncreaseButton.setImage(ReaderEnvironment.images.lineSpacingIncrease(), for: .normal)
-        lineHeightIncreaseButton.tintColor = themeColors.iconDefault
-        lineHeightIncreaseButton.imageView?.contentMode = .scaleAspectFit
-        lineHeightIncreaseButton.addAction(UIAction { [weak self] _ in self?.handleIncreaseLineHeight() }, for: .touchUpInside)
-        lineHeightRowView.addSubview(lineHeightIncreaseButton)
+        lineHeightUpButton = UIButton(type: .custom)
+        lineHeightUpButton.setImage(ReaderEnvironment.images.lineSpacingIncrease(), for: .normal)
+        lineHeightUpButton.tintColor = themeColors.iconStandard
+        lineHeightUpButton.imageView?.contentMode = .scaleAspectFit
+        lineHeightUpButton.addAction(UIAction { [weak self] _ in self?.handleIncreaseLineHeight() }, for: .touchUpInside)
+        lineHeightRowView.addSubview(lineHeightUpButton)
     }
     
     /// 搭建背景色选择按钮（设计稿 5 个色块，不含夜间：夜间由 tab 栏的日/夜间按钮切换）
@@ -257,8 +257,8 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
             // 那是 target-action 只能传 sender 时代的写法 —— tag 当数据用一向容易和
             // 别处的 tag 语义撞车（本类另外四个按钮就用 tag 存「能不能点」）。
             button.addAction(UIAction { [weak self] _ in self?.selectTheme(theme) }, for: .touchUpInside)
-            bgColorRowView.addSubview(button)
-            bgColorButtons.append(button)
+            themeSwatchRow.addSubview(button)
+            themeSwatches.append(button)
         }
         
         reviseBgColorSelection()
@@ -266,19 +266,19 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     
     /// 搭建阅读方向（上下滑动 / 左右翻页）按钮
     private func setupReadingModeButtons() {
-        verticalModeButton = craftReadingVariantBtn(
+        scrollModeButton = craftReadingVariantBtn(
             icon: ReaderEnvironment.images.readingModeVertical(),
             title: ReaderEnvironment.strings.readingModeShort
         )
-        verticalModeButton.addAction(UIAction { [weak self] _ in self?.alterReadingVariant(to: .scroll) }, for: .touchUpInside)
-        readingModeRowView.addSubview(verticalModeButton)
+        scrollModeButton.addAction(UIAction { [weak self] _ in self?.alterReadingVariant(to: .scroll) }, for: .touchUpInside)
+        pageModeRow.addSubview(scrollModeButton)
         
-        horizontalModeButton = craftReadingVariantBtn(
+        pageFlipModeButton = craftReadingVariantBtn(
             icon: ReaderEnvironment.images.readingModeHorizontal(),
             title: ReaderEnvironment.strings.readingModeLong
         )
-        horizontalModeButton.addAction(UIAction { [weak self] _ in self?.alterReadingVariant(to: .translation) }, for: .touchUpInside)
-        readingModeRowView.addSubview(horizontalModeButton)
+        pageFlipModeButton.addAction(UIAction { [weak self] _ in self?.alterReadingVariant(to: .translation) }, for: .touchUpInside)
+        pageModeRow.addSubview(pageFlipModeButton)
         
         reviseReadingVariantSelection()
     }
@@ -299,53 +299,53 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         return button
     }
     
-    /// 更新阅读方向按钮的选中态（设计稿：选中段填 accent，未选中段透明，两态文字都用 textT1）
+    /// 更新阅读方向按钮的选中态（设计稿：选中段填 accent，未选中段透明，两态文字都用 textBody）
     private func reviseReadingVariantSelection() {
         let isVertical = ReaderConfiguration.shared().effectType == .scroll
         let themeColors = ReaderConfiguration.shared().currentThemeColors
         
-        adoptReadingVariantStyle(verticalModeButton, isSelected: isVertical, colors: themeColors)
-        adoptReadingVariantStyle(horizontalModeButton, isSelected: !isVertical, colors: themeColors)
+        adoptReadingVariantStyle(scrollModeButton, isSelected: isVertical, colors: themeColors)
+        adoptReadingVariantStyle(pageFlipModeButton, isSelected: !isVertical, colors: themeColors)
     }
     
     /// 应用阅读方向按钮样式
     private func adoptReadingVariantStyle(_ button: UIButton, isSelected: Bool, colors: ReaderThemeColors) {
         button.backgroundColor = isSelected ? colors.accent : .clear
-        button.tintColor = colors.iconDefault
-        button.setTitleColor(colors.textT1, for: .normal)
+        button.tintColor = colors.iconStandard
+        button.setTitleColor(colors.textBody, for: .normal)
     }
     
     /// 搭建底部按钮栏
     private func setupBottomTabBar() {
-        bottomTabBar = ReaderMenuTabRail()
-        bottomTabBar.delegate = self
-        addSubview(bottomTabBar)
+        tabRail = ReaderMenuTabRail()
+        tabRail.delegate = self
+        addSubview(tabRail)
     }
 
     // MARK: - ReaderMenuTabRailDelegate
     
     open func bottomTabBarDidClickCatalogue(_ tabBar: ReaderMenuTabRail) {
-        readMenu?.delegate?.readerMenuDidTapCatalogue(readMenu)
+        hostMenu?.delegate?.readerMenuDidTapCatalogue(hostMenu)
     }
     
     open func bottomTabBarDidClickNightMode(_ tabBar: ReaderMenuTabRail) {
         let config = ReaderConfiguration.shared()
         
         // 日/夜间切换：夜间 ↔ 浅色基准主题
-        config.themeType = config.isNightMode ? .lightDefault : .night
-        config.hasUserSelectedTheme = true
+        config.themeType = config.isDarkTheme ? .lightDefault : .night
+        config.themeChosenByUser = true
         config.save()
         
         // 更新背景色按钮选中状态
         reviseBgColorSelection()
         
         // 更新日/夜间按钮图标
-        bottomTabBar.isNightMode = config.isNightMode
+        tabRail.isDarkTheme = config.isDarkTheme
         
         // 通知阅读控制器刷新
-        readMenu?.delegate?.readerMenuDidChangeTheme(readMenu)
+        hostMenu?.delegate?.readerMenuDidChangeTheme(hostMenu)
         
-        // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
+        // [埋点下线] 原此处经 hostMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
     }
     
     open func bottomTabBarDidClickSetting(_ tabBar: ReaderMenuTabRail) {
@@ -356,22 +356,22 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     
     /// 关闭目录视图（供外部调用）
     open func closeCatalogView() {
-        bottomTabBar.catalogueButton.isSelected = false
+        tabRail.catalogueTab.isSelected = false
         
-        guard let bottomView = superview as? ReaderMenuBottomBar else { return }
-        bottomView.catalogView.isHidden = true
-        readMenu?.presentCatalogBackdrop(isShow: false, animated: true)
+        guard let bottomBar = superview as? ReaderMenuBottomBar else { return }
+        bottomBar.cataloguePanel.isHidden = true
+        hostMenu?.presentCatalogBackdrop(isShow: false, animated: true)
         
         reviseBaseViewHeight(animated: true)
     }
     
     /// 处理目录章节选中（供 ReaderMenuBottomBar 调用）
     open func processCatalogChapterPicked(_ chapterModel: ReaderChapterListItemModel) {
-        readMenu?.presentDropdown(isShow: false)
+        hostMenu?.presentDropdown(isShow: false)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            if let reader = self?.readMenu?.vc {
-                if reader.readModel.recordModel.chapterModel.id != chapterModel.id {
+            if let reader = self?.hostMenu?.vc {
+                if reader.bookModel.recordModel.chapterModel.id != chapterModel.id {
                     reader.goToChapter(chapterModel.id)
                 }
             }
@@ -379,12 +379,12 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     }
     
     /// 设置阅读模型
-    open func setReadModel(_ readModel: ReaderBookModel) {
-        guard let bottomView = superview as? ReaderMenuBottomBar else { return }
+    open func setReadModel(_ bookModel: ReaderBookModel) {
+        guard let bottomBar = superview as? ReaderMenuBottomBar else { return }
         
-        if readModel.recordModel.chapterModel == nil { return }
+        if bookModel.recordModel.chapterModel == nil { return }
         
-        bottomView.catalogView.readModel = readModel
+        bottomBar.cataloguePanel.bookModel = bookModel
     }
     
     // MARK: - 按钮状态更新
@@ -400,22 +400,22 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         
         let canDecrease = currentFontSize > READER_FONT_SIZE_MIN
         decreaseButton.tag = canDecrease ? 1 : 0
-        decreaseButton.tintColor = canDecrease ? themeColors.iconDefault : themeColors.iconDisable
+        decreaseButton.tintColor = canDecrease ? themeColors.iconStandard : themeColors.iconMuted
         
         let canIncrease = currentFontSize < READER_FONT_SIZE_MAX
         increaseButton.tag = canIncrease ? 1 : 0
-        increaseButton.tintColor = canIncrease ? themeColors.iconDefault : themeColors.iconDisable
+        increaseButton.tintColor = canIncrease ? themeColors.iconStandard : themeColors.iconMuted
         
         // 行高的当前值以滑块为准：拖动过程中配置还没落库，只有抬手才写入
         let currentLineHeight = lineHeightSlider.value
         
         let canDecreaseLineHeight = currentLineHeight > kLineHeightPercentMin
-        lineHeightDecreaseButton.tag = canDecreaseLineHeight ? 1 : 0
-        lineHeightDecreaseButton.tintColor = canDecreaseLineHeight ? themeColors.iconDefault : themeColors.iconDisable
+        lineHeightDownButton.tag = canDecreaseLineHeight ? 1 : 0
+        lineHeightDownButton.tintColor = canDecreaseLineHeight ? themeColors.iconStandard : themeColors.iconMuted
         
         let canIncreaseLineHeight = currentLineHeight < kLineHeightPercentMax
-        lineHeightIncreaseButton.tag = canIncreaseLineHeight ? 1 : 0
-        lineHeightIncreaseButton.tintColor = canIncreaseLineHeight ? themeColors.iconDefault : themeColors.iconDisable
+        lineHeightUpButton.tag = canIncreaseLineHeight ? 1 : 0
+        lineHeightUpButton.tintColor = canIncreaseLineHeight ? themeColors.iconStandard : themeColors.iconMuted
     }
     
     // MARK: - 字号操作
@@ -429,9 +429,9 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
             fontSizeLabel.text = "\(size)"
             ReaderConfiguration.shared().fontSize = size
             ReaderConfiguration.shared().save()
-            readMenu?.delegate?.readerMenuDidChangeFontSize(readMenu)
+            hostMenu?.delegate?.readerMenuDidChangeFontSize(hostMenu)
             
-            // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
+            // [埋点下线] 原此处经 hostMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
         }
         reviseBtnStates()
     }
@@ -445,9 +445,9 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
             fontSizeLabel.text = "\(size)"
             ReaderConfiguration.shared().fontSize = size
             ReaderConfiguration.shared().save()
-            readMenu?.delegate?.readerMenuDidChangeFontSize(readMenu)
+            hostMenu?.delegate?.readerMenuDidChangeFontSize(hostMenu)
             
-            // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
+            // [埋点下线] 原此处经 hostMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
         }
         reviseBtnStates()
     }
@@ -456,7 +456,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     
     /// 减小行高（吸附到 10 的整数档，避免滑块停在非整档时 -10 得到零头值）
     private func handleDecreaseLineHeight() {
-        guard lineHeightDecreaseButton.tag == 1 else { return }
+        guard lineHeightDownButton.tag == 1 else { return }
         let newValue = steppedLineHeight(from: lineHeightSlider.value, increasing: false)
         
         commitLineHeight(newValue)
@@ -464,7 +464,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     
     /// 增大行高（吸附到 10 的整数档）
     private func handleIncreaseLineHeight() {
-        guard lineHeightIncreaseButton.tag == 1 else { return }
+        guard lineHeightUpButton.tag == 1 else { return }
         let newValue = steppedLineHeight(from: lineHeightSlider.value, increasing: true)
         
         commitLineHeight(newValue)
@@ -500,7 +500,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         let now = CACurrentMediaTime()
         guard now - lastLiveLineHeightRelayout >= 0.1 else { return }
         lastLiveLineHeightRelayout = now
-        readMenu?.delegate?.readerMenuDidChangeLineHeight(readMenu)
+        hostMenu?.delegate?.readerMenuDidChangeLineHeight(hostMenu)
     }
     
     /// 抬手/轻点提交行高：落库 + 权威重排 + 埋点
@@ -511,9 +511,9 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         lineHeightSlider.setValue(value)
         reviseBtnStates()
         // 抬手必做一次重排：拖动节流可能把最后一帧丢了，这里保证正文停在最终行距上
-        readMenu?.delegate?.readerMenuDidChangeLineHeight(readMenu)
+        hostMenu?.delegate?.readerMenuDidChangeLineHeight(hostMenu)
         
-        // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
+        // [埋点下线] 原此处经 hostMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
     }
     
     /// 提交行高改动：落库 + 触发重排版 + 埋点（供两侧 +/- 图标调用）
@@ -528,9 +528,9 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         
         config.lineHeightPercent = newValue
         config.save()
-        readMenu?.delegate?.readerMenuDidChangeLineHeight(readMenu)
+        hostMenu?.delegate?.readerMenuDidChangeLineHeight(hostMenu)
         
-        // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
+        // [埋点下线] 原此处经 hostMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
     }
     
     // MARK: - 阅读模式操作
@@ -541,14 +541,14 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         guard config.effectType != mode else { return }
         
         config.effectType = mode
-        config.hasUserSelectedEffect = true
+        config.effectChosenByUser = true
         config.save()
         
         reviseReadingVariantSelection()
         
-        readMenu?.delegate?.readerMenuDidChangeReadingMode(readMenu)
+        hostMenu?.delegate?.readerMenuDidChangeReadingMode(hostMenu)
         
-        // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
+        // [埋点下线] 原此处经 hostMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
     }
     
     // MARK: - 背景色操作
@@ -559,29 +559,29 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         guard theme != config.themeType else { return }
         
         config.themeType = theme
-        config.hasUserSelectedTheme = true
+        config.themeChosenByUser = true
         config.save()
         
         // 更新所有按钮的选中状态
         reviseBgColorSelection()
         
-        readMenu?.delegate?.readerMenuDidChangeTheme(readMenu)
+        hostMenu?.delegate?.readerMenuDidChangeTheme(hostMenu)
         
-        // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
+        // [埋点下线] 原此处经 hostMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
     }
     
     /// 更新色块的填充与选中描边
     ///
     /// 设计稿分两套：浅色主题下色块用自己的浅色填充 + 浅色描边；夜间主题下换成更饱和的
-    /// 一套填充且不描边。两种情况下「当前选中」都用当前主题的 textT1 描 1pt。
+    /// 一套填充且不描边。两种情况下「当前选中」都用当前主题的 textBody 描 1pt。
     private func reviseBgColorSelection() {
         let config = ReaderConfiguration.shared()
         let currentTheme = config.themeType
         let themeProvider = ReaderPalette.shared
-        let isNight = config.isNightMode
-        let selectedBorderColor = config.currentThemeColors.textT1
+        let isNight = config.isDarkTheme
+        let selectedBorderColor = config.currentThemeColors.textBody
         
-        for (index, button) in bgColorButtons.enumerated() {
+        for (index, button) in themeSwatches.enumerated() {
             guard index < ReaderThemeType.swatchOrder.count else { continue }
             let theme = ReaderThemeType.swatchOrder[index]
             let style = themeProvider.swatchStyle(for: theme)
@@ -614,10 +614,10 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
             return
         }
         
-        // [埋点下线] 原此处经 readMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
+        // [埋点下线] 原此处经 hostMenu.vc 回引阅读器上报菜单埋点，埋点已下线，连带移除对具体控制器类型的反向依赖
         
-        bottomTabBar.catalogueButton.isSelected = false
-        bottomTabBar.settingButton.isSelected = true
+        tabRail.catalogueTab.isSelected = false
+        tabRail.settingButton.isSelected = true
         settingPanelView.isHidden = false
         isSettingPanelExpanded = true
         
@@ -629,26 +629,26 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         reviseBtnStates()
         
         // 隐藏目录和背景遮罩
-        guard let bottomView = superview as? ReaderMenuBottomBar else { return }
-        bottomView.catalogView.isHidden = true
-        bottomView.catalogView.alpha = 0
-        readMenu?.presentCatalogBackdrop(isShow: false, animated: true)
+        guard let bottomBar = superview as? ReaderMenuBottomBar else { return }
+        bottomBar.cataloguePanel.isHidden = true
+        bottomBar.cataloguePanel.alpha = 0
+        hostMenu?.presentCatalogBackdrop(isShow: false, animated: true)
         
         reviseBaseViewHeight(animated: true)
     }
     
     /// 重置按钮状态为 normal
     ///
-    /// 只标状态、不动 isHidden：收起动画期间面板要靠 bottomView 裁剪慢慢遮住，
+    /// 只标状态、不动 isHidden：收起动画期间面板要靠 bottomBar 裁剪慢慢遮住，
     /// 立刻 isHidden 会让面板瞬间消失。真正的隐藏放在 reviseBaseViewHeight 的动画回调里。
     open func restoreBtnStates() {
-        bottomTabBar.catalogueButton.isSelected = false
-        bottomTabBar.settingButton.isSelected = false
+        tabRail.catalogueTab.isSelected = false
+        tabRail.settingButton.isSelected = false
         isSettingPanelExpanded = false
         
-        guard let bottomView = superview as? ReaderMenuBottomBar else { return }
-        bottomView.catalogView.isHidden = true
-        readMenu?.presentCatalogBackdrop(isShow: false, animated: false)
+        guard let bottomBar = superview as? ReaderMenuBottomBar else { return }
+        bottomBar.cataloguePanel.isHidden = true
+        hostMenu?.presentCatalogBackdrop(isShow: false, animated: false)
     }
     
     /// 检查设置面板是否处于展开态
@@ -667,15 +667,15 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     
     // MARK: - 高度更新
     
-    /// 更新 bottomView 高度
+    /// 更新 bottomBar 高度
     ///
-    /// funcView 的绝对位置在展开/收起两种状态下完全一致（见 ReaderMenuBottomBar.layoutSubviews），
-    /// 所以这里只需要动 bottomView 的 frame，面板就是被容器顶边「拉开幕帘」露出来的，
+    /// settingsPanel 的绝对位置在展开/收起两种状态下完全一致（见 ReaderMenuBottomBar.layoutSubviews），
+    /// 所以这里只需要动 bottomBar 的 frame，面板就是被容器顶边「拉开幕帘」露出来的，
     /// 不会出现面板横穿 tab 栏的观感。
     private func reviseBaseViewHeight(animated: Bool = false) {
-        guard let bottomView = superview as? ReaderMenuBottomBar else { return }
+        guard let bottomBar = superview as? ReaderMenuBottomBar else { return }
         
-        let newHeight = bottomView.getCurrentHeight()
+        let newHeight = bottomBar.getCurrentHeight()
         let newY = READER_CONTENT_VIEW_HEIGHT - newHeight
         let expanded = isSettingPanelExpanded
         
@@ -684,19 +684,19 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         // 这是面板高度变化的唯一出口，挂在这里就覆盖了「点 Setting 展开 / 再点收起 /
         // 关目录」全部路径。dock 的锚点按收起态算死，所以不是「跟着面板上移」而是直接隐藏，
         // 省掉一条需要跟踪动画中间值的链路。
-        readMenu?.vc?.presentSpeechDock(isShow: !expanded, animated: animated)
+        hostMenu?.vc?.presentSpeechDock(isShow: !expanded, animated: animated)
         
         if animated {
             UIView.animate(withDuration: READER_MENU_MOTION_TIME, delay: 0, options: READER_MENU_MOTION_OPTIONS, animations: {
-                bottomView.frame = CGRect(x: 0, y: newY, width: READER_CONTENT_VIEW_WIDTH, height: newHeight)
-                bottomView.layoutIfNeeded()
+                bottomBar.frame = CGRect(x: 0, y: newY, width: READER_CONTENT_VIEW_WIDTH, height: newHeight)
+                bottomBar.layoutIfNeeded()
             }) { [weak self] _ in
                 // 收起动画结束后再真正隐藏，避免面板在动画首帧就消失
                 if !expanded { self?.settingPanelView.isHidden = true }
             }
         } else {
-            bottomView.frame = CGRect(x: 0, y: newY, width: READER_CONTENT_VIEW_WIDTH, height: newHeight)
-            bottomView.layoutIfNeeded()
+            bottomBar.frame = CGRect(x: 0, y: newY, width: READER_CONTENT_VIEW_WIDTH, height: newHeight)
+            bottomBar.layoutIfNeeded()
             if !expanded { settingPanelView.isHidden = true }
         }
     }
@@ -707,7 +707,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         
         super.layoutSubviews()
         
-        // funcView 的高度恒为「面板 + tab 栏 + 安全区」，与展开状态无关（由 bottomView 裁剪
+        // settingsPanel 的高度恒为「面板 + tab 栏 + 安全区」，与展开状态无关（由 bottomBar 裁剪
         // 决定露出多少），所以这里的内部布局是不变量，展开/收起过程中不会重排。
         let w = frame.size.width
         let contentWidth = w - kPanelMargin * 2
@@ -727,9 +727,9 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
                                          height: kLineHeightRowHeight + lineHeightRowInset * 2)
         
         let sliderWidth = contentWidth - (kLineHeightIconSize + kLineHeightIconGap) * 2
-        lineHeightDecreaseButton.frame = CGRect(x: 0, y: lineHeightRowInset, width: kLineHeightIconSize, height: kLineHeightRowHeight)
+        lineHeightDownButton.frame = CGRect(x: 0, y: lineHeightRowInset, width: kLineHeightIconSize, height: kLineHeightRowHeight)
         lineHeightSlider.frame = CGRect(x: kLineHeightIconSize + kLineHeightIconGap, y: lineHeightRowInset, width: max(0, sliderWidth), height: kLineHeightRowHeight)
-        lineHeightIncreaseButton.frame = CGRect(x: contentWidth - kLineHeightIconSize, y: lineHeightRowInset, width: kLineHeightIconSize, height: kLineHeightRowHeight)
+        lineHeightUpButton.frame = CGRect(x: contentWidth - kLineHeightIconSize, y: lineHeightRowInset, width: kLineHeightIconSize, height: kLineHeightRowHeight)
         
         // MARK: 第二行：字号（Size 24 + 20 + 胶囊 118 + 20 + 数值 15 + 20 + 胶囊 118）
         let fontSizeRowY = lineHeightRowY + kLineHeightRowHeight + kPanelRowGap
@@ -749,15 +749,15 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         
         // MARK: 第三行：主题色块（5 个 36 圆，两端对齐后均分间隙）
         let bgColorRowY = fontSizeRowY + kFontSizeRowHeight + kPanelRowGap
-        bgColorRowView.frame = CGRect(x: kPanelMargin, y: bgColorRowY, width: contentWidth, height: kBgColorRowHeight)
+        themeSwatchRow.frame = CGRect(x: kPanelMargin, y: bgColorRowY, width: contentWidth, height: kBgColorRowHeight)
         
-        let swatchCount = bgColorButtons.count
+        let swatchCount = themeSwatches.count
         if swatchCount > 0 {
             let swatchY = (kBgColorRowHeight - kBgColorSwatchSize) / 2
             let swatchGap = swatchCount > 1
                 ? (contentWidth - kBgColorSwatchSize * CGFloat(swatchCount)) / CGFloat(swatchCount - 1)
                 : 0
-            for (index, button) in bgColorButtons.enumerated() {
+            for (index, button) in themeSwatches.enumerated() {
                 let x = CGFloat(index) * (kBgColorSwatchSize + swatchGap)
                 button.frame = CGRect(x: x, y: swatchY, width: kBgColorSwatchSize, height: kBgColorSwatchSize)
             }
@@ -765,18 +765,18 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         
         // MARK: 第四行：阅读方向分段控件（外框 335×40 圆角 20，内部两段 32 高圆角 16）
         let readingModeRowY = bgColorRowY + kBgColorRowHeight + kPanelRowGap
-        readingModeRowView.frame = CGRect(x: kPanelMargin, y: readingModeRowY, width: contentWidth, height: kReadingModeRowHeight)
-        readingModeRowView.layer.cornerRadius = kReadingModeRowHeight / 2
+        pageModeRow.frame = CGRect(x: kPanelMargin, y: readingModeRowY, width: contentWidth, height: kReadingModeRowHeight)
+        pageModeRow.layer.cornerRadius = kReadingModeRowHeight / 2
         
         let segmentHeight = kReadingModeRowHeight - kReadingModeInset * 2
         let segmentWidth = (contentWidth - kReadingModeInset * 2 - kReadingModeSegmentGap) / 2
-        verticalModeButton.frame = CGRect(x: kReadingModeInset, y: kReadingModeInset, width: segmentWidth, height: segmentHeight)
-        verticalModeButton.layer.cornerRadius = segmentHeight / 2
-        horizontalModeButton.frame = CGRect(x: kReadingModeInset + segmentWidth + kReadingModeSegmentGap, y: kReadingModeInset, width: segmentWidth, height: segmentHeight)
-        horizontalModeButton.layer.cornerRadius = segmentHeight / 2
+        scrollModeButton.frame = CGRect(x: kReadingModeInset, y: kReadingModeInset, width: segmentWidth, height: segmentHeight)
+        scrollModeButton.layer.cornerRadius = segmentHeight / 2
+        pageFlipModeButton.frame = CGRect(x: kReadingModeInset + segmentWidth + kReadingModeSegmentGap, y: kReadingModeInset, width: segmentWidth, height: segmentHeight)
+        pageFlipModeButton.layer.cornerRadius = segmentHeight / 2
         
         // MARK: 底部 tab 栏：恒定紧贴面板下方，绝对位置与展开状态无关
-        bottomTabBar.frame = CGRect(x: 0, y: READER_MENU_SETTING_PANEL_HEIGHT, width: w, height: READER_MENU_BOTTOM_TAB_BAR_HEIGHT)
+        tabRail.frame = CGRect(x: 0, y: READER_MENU_SETTING_PANEL_HEIGHT, width: w, height: READER_MENU_BOTTOM_TAB_BAR_HEIGHT)
     }
     
     public required init?(coder aDecoder: NSCoder) {
@@ -787,19 +787,19 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     
     /// 应用主题颜色到 FuncView 及其子视图
     open func adoptThemeColors(_ colors: ReaderThemeColors) {
-        backgroundColor = colors.fillPopup
+        backgroundColor = colors.fillSheet
         
-        // 字号行：胶囊底色取 fillControl，文字取 textT1
+        // 字号行：胶囊底色取 fillControl，文字取 textBody
         decreaseButton.backgroundColor = colors.fillControl
         increaseButton.backgroundColor = colors.fillControl
-        fontSizeTitleLabel.textColor = colors.textT1
-        fontSizeLabel.textColor = colors.textT1
+        fontSizeTitleLabel.textColor = colors.textBody
+        fontSizeLabel.textColor = colors.textBody
         
         // 行高滑块
         lineHeightSlider.adoptThemeColors(colors)
         
         // 阅读方向分段控件外框
-        readingModeRowView.layer.borderColor = colors.dividerLine.cgColor
+        pageModeRow.layer.borderColor = colors.separatorTint.cgColor
         
         // 根据当前状态设置正确的图标和 tintColor
         reviseBtnStates()
@@ -811,6 +811,6 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         reviseReadingVariantSelection()
         
         // 底部按钮栏
-        bottomTabBar.adoptThemeColors(colors)
+        tabRail.adoptThemeColors(colors)
     }
 }

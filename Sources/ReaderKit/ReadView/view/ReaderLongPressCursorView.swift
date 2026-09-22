@@ -10,7 +10,7 @@ import UIKit
 open class ReaderLongPressCursorView: UIView {
 
     /// 光标圆圈显示位置: true -> 圆圈在上面 , false -> 圆圈在下面
-    open var isTorB: Bool = true {
+    open var isTopCursor: Bool = true {
         
         didSet{ setNeedsDisplay() }
     }
@@ -36,11 +36,11 @@ open class ReaderLongPressCursorView: UIView {
         
         let rectW: CGFloat = bounds.width / 2
         
-        ctx?.addRect(CGRect(x: (bounds.width - rectW) / 2, y: (isTorB ? 1 : 0), width: rectW, height: bounds.height - 1))
+        ctx?.addRect(CGRect(x: (bounds.width - rectW) / 2, y: (isTopCursor ? 1 : 0), width: rectW, height: bounds.height - 1))
         
         ctx?.fillPath()
         
-        if isTorB {
+        if isTopCursor {
             
             ctx?.addEllipse(in: CGRect(x: 0, y: 0, width: bounds.width, height: bounds.width))
             

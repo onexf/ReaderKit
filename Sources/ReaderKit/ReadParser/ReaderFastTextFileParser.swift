@@ -18,11 +18,11 @@ open class ReaderFastTextFileParser: NSObject {
         
         DispatchQueue.global().async {
             
-            let readModel = parser(url: url)
+            let bookModel = parser(url: url)
             
             DispatchQueue.main.async {
                 
-                completion?(readModel)
+                completion?(bookModel)
             }
         }
     }
@@ -74,43 +74,43 @@ open class ReaderFastTextFileParser: NSObject {
             }
             
             // 阅读模型
-            let readModel = ReaderBookModel.model(storyID: storyID)
+            let bookModel = ReaderBookModel.model(storyID: storyID)
             
             // 书籍类型
-            readModel.storySourceType = .local
+            bookModel.storySourceType = .local
             
             // 小说名称
-            readModel.storyName = storyName
+            bookModel.storyName = storyName
             
             // 解析内容并获得章节列表
-            parser(readModel: readModel, content: content)
+            parser(bookModel: bookModel, content: content)
             
-            // log("   - 解析后章节数量: \(readModel.chapterListModels?.count ?? 0)")
+            // log("   - 解析后章节数量: \(bookModel.chapterListModels?.count ?? 0)")
             
             // 解析内容失败
-            if readModel.chapterListModels.isEmpty { 
+            if bookModel.chapterListModels.isEmpty { 
                 // log("   - ❌ 章节列表为空")
                 return nil 
             }
             
             // 首章
-            let chapterListModel = readModel.chapterListModels.first!
+            let chapterListModel = bookModel.chapterListModels.first!
             // log("   - 第一章: \(chapterListModel.name ?? "未知")")
             
             // 加载首章
-            let chapterModel = parser(readModel: readModel, chapterID: chapterListModel.id)
+            let chapterModel = parser(bookModel: bookModel, chapterID: chapterListModel.id)
             // log("   - 首章加载结果: \(chapterModel != nil ? "成功" : "失败")")
             
             // 设置第一个章节为阅读记录
-            readModel.recordModel.modify(chapterID:  chapterListModel.id, toPage: 0)
+            bookModel.recordModel.modify(chapterID:  chapterListModel.id, toPage: 0)
             
             // 保存
-            readModel.save()
+            bookModel.save()
             
             // log("   - ✅ 解析完成，返回 readModel")
             
             // 返回
-            return readModel
+            return bookModel
             
         }else{ // 存在
             
@@ -124,9 +124,9 @@ open class ReaderFastTextFileParser: NSObject {
     /// 解析整本小说
     ///
     /// - Parameters:
-    ///   - readModel: readModel
+    ///   - bookModel: bookModel
     ///   - content: 小说内容
-    private class func parser(readModel: ReaderBookModel, content: String!) {
+    private class func parser(bookModel: ReaderBookModel, content: String!) {
         
         // log("📚 开始解析章节内容:")
         // log("   - 内容长度: \(content?.count ?? 0)")
@@ -198,7 +198,7 @@ open class ReaderFastTextFileParser: NSObject {
                 let chapterListModel = ReaderChapterListItemModel()
                 
                 // 书ID
-                chapterListModel.storyID = readModel.storyID
+                chapterListModel.storyID = bookModel.storyID
                 
                 // 章节ID
                 chapterListModel.id = NSNumber(value: (i + NSNumber(value: isHavePreface).intValue))
@@ -265,7 +265,7 @@ open class ReaderFastTextFileParser: NSObject {
             chapterListModel.name = ReaderEnvironment.strings.localBookPreface
             
             // 书ID
-            chapterListModel.storyID = readModel.storyID
+            chapterListModel.storyID = bookModel.storyID
             
             // 章节ID
             chapterListModel.id = NSNumber(value: 1)
@@ -285,20 +285,20 @@ open class ReaderFastTextFileParser: NSObject {
         // log("   - 最终章节数量: \(chapterListModels.count)")
         
         // 小说全文
-        readModel.fullText = content
+        bookModel.fullText = content
         
         // 章节列表
-        readModel.chapterListModels = chapterListModels
+        bookModel.chapterListModels = chapterListModels
         
         // 章节内容范围
-        readModel.ranges = ranges
+        bookModel.ranges = ranges
     }
     
     /// 获取单个指定章节
-    public class func parser(readModel: ReaderBookModel!, chapterID: NSNumber!, isUpdateFont: Bool = true) ->ReaderChapterModel? {
+    public class func parser(bookModel: ReaderBookModel!, chapterID: NSNumber!, isUpdateFont: Bool = true) ->ReaderChapterModel? {
         
         // 获得[章节优先级:章节内容Range]
-        let range = readModel.ranges[chapterID.stringValue]
+        let range = bookModel.ranges[chapterID.stringValue]
       
         // 没有了
         if range != nil {
@@ -310,19 +310,19 @@ open class ReaderFastTextFileParser: NSObject {
             let range = range!.values.first
             
             // 当前章节
-            let chapterListModel = readModel.chapterListModels[priority]
+            let chapterListModel = bookModel.chapterListModels[priority]
             
             /// 第一个章节
             let isFirstChapter: Bool = (priority == 0)
             
             /// 最后一个章节
-            let isLastChapter: Bool = (priority == (readModel.chapterListModels.count - 1))
+            let isLastChapter: Bool = (priority == (bookModel.chapterListModels.count - 1))
             
             // 上一个章节ID
-            let previousChapterID: NSNumber! = isFirstChapter ? READER_NO_MORE_CHAPTER : readModel.chapterListModels[priority - 1].id
+            let priorChapterID: NSNumber! = isFirstChapter ? READER_NO_MORE_CHAPTER : bookModel.chapterListModels[priority - 1].id
             
             // 下一个章节ID
-            let nextChapterID: NSNumber! = isLastChapter ? READER_NO_MORE_CHAPTER : readModel.chapterListModels[priority + 1].id
+            let followingChapterID: NSNumber! = isLastChapter ? READER_NO_MORE_CHAPTER : bookModel.chapterListModels[priority + 1].id
             
             // 章节内容
             let chapterModel = ReaderChapterModel()
@@ -340,13 +340,13 @@ open class ReaderFastTextFileParser: NSObject {
             chapterModel.priority = NSNumber(value: priority)
             
             // 上一个章节ID
-            chapterModel.previousChapterID = previousChapterID
+            chapterModel.priorChapterID = priorChapterID
             
             // 下一个章节ID
-            chapterModel.nextChapterID = nextChapterID
+            chapterModel.followingChapterID = followingChapterID
             
             // 章节内容
-            chapterModel.content = READER_PH_SPACE + readModel.fullText.substring(range!).removeSEHeadAndTail
+            chapterModel.content = READER_PH_SPACE + bookModel.fullText.substring(range!).removeSEHeadAndTail
 
             // 保存
             if isUpdateFont { chapterModel.reviseFont()

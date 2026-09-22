@@ -8,7 +8,7 @@
 import UIKit
 
 /// 解析完成
-public typealias ReaderParserCompletion = (_ readModel: ReaderBookModel?) ->Void
+public typealias ReaderParserCompletion = (_ bookModel: ReaderBookModel?) ->Void
 
 open class ReaderTypesetter: NSObject {
     
@@ -23,7 +23,7 @@ open class ReaderTypesetter: NSObject {
     /// - Returns: 内容分页列表
     public class func pageing(attrString: NSAttributedString, rect: CGRect, isFirstChapter: Bool = false) ->[ReaderPageModel] {
         
-        var pageModels: [ReaderPageModel] = []
+        var layoutPages: [ReaderPageModel] = []
         
         if isFirstChapter { // 第一页为书籍页面
             
@@ -33,7 +33,7 @@ open class ReaderTypesetter: NSObject {
             
             pageModel.contentSize = READER_VIEW_RECT.size
             
-            pageModels.append(pageModel)
+            layoutPages.append(pageModel)
         }
         
         let ranges = ReaderCoreText.pageRanges(attrString: attrString, rect: rect)
@@ -67,27 +67,27 @@ open class ReaderTypesetter: NSObject {
                 
                 
                 // 当前页面开头是什么数据开头 (滚动模式)
-                if i == 0 { pageModel.headType = .chapterName
+                if i == 0 { pageModel.headerKind = .chapterName
                     
-                }else if content.string.hasPrefix(READER_PH_SPACE) || content.string.hasPrefix("\n") { pageModel.headType = .paragraph
+                }else if content.string.hasPrefix(READER_PH_SPACE) || content.string.hasPrefix("\n") { pageModel.headerKind = .paragraph
                     
-                }else{ pageModel.headType = .line }
+                }else{ pageModel.headerKind = .line }
                 
                 
                 // 根据开头类型返回开头高度 (滚动模式)
-                if pageModel.headType == .chapterName { pageModel.headTypeHeight = 0
+                if pageModel.headerKind == .chapterName { pageModel.headerInsetHeight = 0
                     
-                }else if pageModel.headType == .paragraph { pageModel.headTypeHeight = ReaderConfiguration.shared().paragraphSpacing
+                }else if pageModel.headerKind == .paragraph { pageModel.headerInsetHeight = ReaderConfiguration.shared().paragraphSpacing
                     
-                }else{ pageModel.headTypeHeight = ReaderConfiguration.shared().lineSpacing }
+                }else{ pageModel.headerInsetHeight = ReaderConfiguration.shared().lineSpacing }
                 
                 // --- (滚动模式 || 长按菜单) 使用 ---
                 
-                pageModels.append(pageModel)
+                layoutPages.append(pageModel)
             }
         }
         
-        return pageModels
+        return layoutPages
     }
     
     
