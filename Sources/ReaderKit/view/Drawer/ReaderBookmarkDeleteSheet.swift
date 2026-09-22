@@ -71,7 +71,7 @@ final public class ReaderBookmarkDeleteSheet: UIView {
         dimView.frame = bounds
         dimView.backgroundColor = UIColor.black.withAlphaComponent(0.7)
         dimView.alpha = 0
-        dimView.addTarget(self, action: #selector(dismiss), for: .touchUpInside)
+        dimView.addAction(UIAction { [weak self] _ in self?.dismissSheet() }, for: .touchUpInside)
         addSubview(dimView)
 
         // 容器(底部白卡,顶部圆角 28)
@@ -98,9 +98,9 @@ final public class ReaderBookmarkDeleteSheet: UIView {
         containerView.addSubview(divider2)
 
         // 透明点击热区(覆盖整行,叠在 label 之上)
-        configurePressBtn(removeButton, action: #selector(clickRemove))
-        configurePressBtn(clearAllButton, action: #selector(clickClearAll))
-        configurePressBtn(cancelButton, action: #selector(clickCancel))
+        configurePressBtn(removeButton) { [weak self] in self?.handleRemove() }
+        configurePressBtn(clearAllButton) { [weak self] in self?.handleClearAll() }
+        configurePressBtn(cancelButton) { [weak self] in self?.handleCancel() }
     }
 
     private func configureChoiceLabel(_ label: UILabel, title: String, color: UIColor) {
@@ -111,9 +111,9 @@ final public class ReaderBookmarkDeleteSheet: UIView {
         containerView.addSubview(label)
     }
 
-    private func configurePressBtn(_ button: UIButton, action: Selector) {
+    private func configurePressBtn(_ button: UIButton, action: @escaping () -> Void) {
         button.backgroundColor = .clear
-        button.addTarget(self, action: action, for: .touchUpInside)
+        button.addAction(UIAction { _ in action() }, for: .touchUpInside)
         containerView.addSubview(button)
     }
 
@@ -183,7 +183,7 @@ final public class ReaderBookmarkDeleteSheet: UIView {
         }
     }
 
-    @objc private func dismiss() {
+    private func dismissSheet() {
         isAnimating = true
         UIView.animate(withDuration: 0.25, animations: {
             self.dimView.alpha = 0
@@ -194,17 +194,17 @@ final public class ReaderBookmarkDeleteSheet: UIView {
     }
     
     /// 点击 Cancel 按钮:上报取消(点遮罩关闭不算 Cancel 点击,不上报)
-    @objc private func clickCancel() {
+    private func handleCancel() {
         let cb = onCancel
         dismissThen { cb?() }
     }
 
-    @objc private func clickRemove() {
+    private func handleRemove() {
         let cb = onRemove
         dismissThen { cb?() }
     }
 
-    @objc private func clickClearAll() {
+    private func handleClearAll() {
         // 点击 Clear All 即上报点击(早于二次确认框,确认与否都算点过)
         onClearAllClick?()
         // 关闭 sheet 后弹出"全部清除"确认弹窗,确认后才真正清除
@@ -267,7 +267,7 @@ final public class ReaderBookmarkClearAllAlert: UIView {
         dimView.frame = bounds
         dimView.backgroundColor = UIColor.black.withAlphaComponent(0.7)
         dimView.alpha = 0
-        dimView.addTarget(self, action: #selector(dismiss), for: .touchUpInside)
+        dimView.addAction(UIAction { [weak self] _ in self?.dismissAlert() }, for: .touchUpInside)
         addSubview(dimView)
 
         // 卡片背景
@@ -291,7 +291,7 @@ final public class ReaderBookmarkClearAllAlert: UIView {
         confirmButton.backgroundColor = confirmBgColor
         confirmButton.layer.cornerRadius = 24
         confirmButton.clipsToBounds = true
-        confirmButton.addTarget(self, action: #selector(clickConfirm), for: .touchUpInside)
+        confirmButton.addAction(UIAction { [weak self] _ in self?.handleConfirm() }, for: .touchUpInside)
         cardView.addSubview(confirmButton)
 
         // Cancel:强调底 + 固定白字
@@ -301,7 +301,7 @@ final public class ReaderBookmarkClearAllAlert: UIView {
         cancelButton.backgroundColor = cancelBgColor
         cancelButton.layer.cornerRadius = 24
         cancelButton.clipsToBounds = true
-        cancelButton.addTarget(self, action: #selector(dismiss), for: .touchUpInside)
+        cancelButton.addAction(UIAction { [weak self] _ in self?.dismissAlert() }, for: .touchUpInside)
         cardView.addSubview(cancelButton)
     }
 
@@ -339,7 +339,7 @@ final public class ReaderBookmarkClearAllAlert: UIView {
         }
     }
 
-    @objc private func dismiss() {
+    private func dismissAlert() {
         UIView.animate(withDuration: 0.2, animations: {
             self.dimView.alpha = 0
             self.cardView.alpha = 0
@@ -348,7 +348,7 @@ final public class ReaderBookmarkClearAllAlert: UIView {
         }
     }
 
-    @objc private func clickConfirm() {
+    private func handleConfirm() {
         let cb = onConfirm
         UIView.animate(withDuration: 0.2, animations: {
             self.dimView.alpha = 0

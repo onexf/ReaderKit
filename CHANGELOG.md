@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.25.0
+
+26 处按钮的 `addTarget(self, action: #selector(…))` 换成 `UIAction` 闭包，
+连带去掉 28 个 `@objc`。**Swift 接入方无需改动**（改掉的方法全是 `private`，
+三个 `open` 的只去了 `@objc`、名字和签名没动）。
+
+### ⚠️ 这个改法有一个必须注意的陷阱
+
+`addTarget(_:action:for:)` 里 **UIControl 对 target 是弱引用**，换成 `UIAction` 闭包之后
+变成强持有，于是 `view → control → UIAction → self(view)` 成环。
+**漏写 `[weak self]` 就泄漏整个阅读页，而且不报错、不崩溃。**
+
+本次所有 27 处 `addAction` 都带了 `[weak self]`（唯一没带的是
+`ReaderBookmarkDeleteSheet.configurePressBtn`，它转发的闭包在调用点已经 weak 过）。
+后续新增按钮照这个写。
+
+### 顺带清掉的东西
+
+- **色块不再用 `button.tag` 传数据。** 以前 `button.tag = theme.rawValue`，点击时
+  `ReaderThemeType(rawValue: sender.tag)` 反查；现在闭包直接捕获 `theme`。
+  tag 当数据用一向容易和别处的 tag 语义撞车 —— 本类另外四个按钮就用 tag 存「能不能点」。
+- **`clickVerticalMode` / `clickHorizontalMode` 两个纯转发的壳子删掉**，闭包直接调
+  `alterReadingVariant(to:)`。
+- **`buttonType: String` 参数删掉**（`alterReadingVariant` 与 `commitLineHeight` 各一个）。
+  埋点下线之后它就没有读者了。
+- `ReaderContentView.clickCover` → `handleCoverTap`，`ReaderMenuTopBar.clickBack` →
+  `handleBackTap` 之类的改名，是因为 `clickXxx` 这个命名本来就是 target-action 的产物。
+
+### 剩下 25 处 `@objc` 及各自的理由
+
+| 用途 | 个数 | 能不能去 |
+| --- | --- | --- |
+| `UIGestureRecognizer` 的 target | 16 | 能，但要引入一个 target 代理对象（见下） |
+| `NotificationCenter.addObserver(_:selector:)` | 7 | 能，但有实际退化风险（见下） |
+| `UIMenuItem` + `canPerformAction(_:withSender:)` | 1 | **不能**。`UIMenuController` 没有闭包 API，`canPerformAction` 也是比 selector |
+| `ReaderLongPressView` 里长按功能关闭后留的两个 | 2 | 不该去。注册代码是注释掉的，它们是文档化的恢复路径 |
+
+**手势那 16 个**：UIKit 没给手势提供闭包 API，要去掉就得引入一个持有闭包的 `NSObject`
+代理（里面仍有一个 `@objc func invoke`）。净效果是 16 个 `@objc` 变 1 个，代价是多一个
+需要正确持有的对象 —— 漏持有的话手势静默失效。
+
+**通知那 7 个**：`addObserver(forName:object:queue:using:)` 的 block 版本需要自己存 token
+并在 `deinit` 里移除，而且不写 `[weak self]` 就强持有 self；而 selector 版本从 iOS 9 起
+observer 析构时自动摘除。也就是说换过去**更容易出错，不是更安全**。
+（`ReaderSpeechPlayer` 里已经在用 block 版本，那几个是播放期的短生命周期观察者、有显式移除。）
+
 ## 1.24.1
 
 修「跟随系统深色模式」从来没生效过。**无破坏性变更，接入方无需改动。**

@@ -177,7 +177,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
             icon: ReaderEnvironment.images.fontSizeDecrease(),
             colors: themeColors
         )
-        decreaseButton.addTarget(self, action: #selector(clickDecreaseFont), for: .touchUpInside)
+        decreaseButton.addAction(UIAction { [weak self] _ in self?.handleDecreaseFont() }, for: .touchUpInside)
         fontSizeRowView.addSubview(decreaseButton)
         
         // 字体大小显示
@@ -193,7 +193,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
             icon: ReaderEnvironment.images.fontSizeIncrease(),
             colors: themeColors
         )
-        increaseButton.addTarget(self, action: #selector(clickIncreaseFont), for: .touchUpInside)
+        increaseButton.addAction(UIAction { [weak self] _ in self?.handleIncreaseFont() }, for: .touchUpInside)
         fontSizeRowView.addSubview(increaseButton)
     }
     
@@ -218,7 +218,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         lineHeightDecreaseButton.setImage(ReaderEnvironment.images.lineSpacingDecrease(), for: .normal)
         lineHeightDecreaseButton.tintColor = themeColors.iconDefault
         lineHeightDecreaseButton.imageView?.contentMode = .scaleAspectFit
-        lineHeightDecreaseButton.addTarget(self, action: #selector(clickDecreaseLineHeight), for: .touchUpInside)
+        lineHeightDecreaseButton.addAction(UIAction { [weak self] _ in self?.handleDecreaseLineHeight() }, for: .touchUpInside)
         lineHeightRowView.addSubview(lineHeightDecreaseButton)
         
         // 行高滑块
@@ -242,7 +242,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         lineHeightIncreaseButton.setImage(ReaderEnvironment.images.lineSpacingIncrease(), for: .normal)
         lineHeightIncreaseButton.tintColor = themeColors.iconDefault
         lineHeightIncreaseButton.imageView?.contentMode = .scaleAspectFit
-        lineHeightIncreaseButton.addTarget(self, action: #selector(clickIncreaseLineHeight), for: .touchUpInside)
+        lineHeightIncreaseButton.addAction(UIAction { [weak self] _ in self?.handleIncreaseLineHeight() }, for: .touchUpInside)
         lineHeightRowView.addSubview(lineHeightIncreaseButton)
     }
     
@@ -251,11 +251,12 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         
         for theme in ReaderThemeType.swatchOrder {
             let button = UIButton(type: .custom)
-            // tag 存主题的 rawValue，点击时由它反查 ReaderThemeType
-            button.tag = theme.rawValue
             button.layer.cornerRadius = kBgColorSwatchSize / 2
             button.layer.masksToBounds = true
-            button.addTarget(self, action: #selector(clickBgColor(_:)), for: .touchUpInside)
+            // 闭包直接捕获 theme。以前靠 `button.tag = theme.rawValue` 传值，
+            // 那是 target-action 只能传 sender 时代的写法 —— tag 当数据用一向容易和
+            // 别处的 tag 语义撞车（本类另外四个按钮就用 tag 存「能不能点」）。
+            button.addAction(UIAction { [weak self] _ in self?.selectTheme(theme) }, for: .touchUpInside)
             bgColorRowView.addSubview(button)
             bgColorButtons.append(button)
         }
@@ -269,14 +270,14 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
             icon: ReaderEnvironment.images.readingModeVertical(),
             title: ReaderEnvironment.strings.readingModeShort
         )
-        verticalModeButton.addTarget(self, action: #selector(clickVerticalMode), for: .touchUpInside)
+        verticalModeButton.addAction(UIAction { [weak self] _ in self?.alterReadingVariant(to: .scroll) }, for: .touchUpInside)
         readingModeRowView.addSubview(verticalModeButton)
         
         horizontalModeButton = craftReadingVariantBtn(
             icon: ReaderEnvironment.images.readingModeHorizontal(),
             title: ReaderEnvironment.strings.readingModeLong
         )
-        horizontalModeButton.addTarget(self, action: #selector(clickHorizontalMode), for: .touchUpInside)
+        horizontalModeButton.addAction(UIAction { [weak self] _ in self?.alterReadingVariant(to: .translation) }, for: .touchUpInside)
         readingModeRowView.addSubview(horizontalModeButton)
         
         reviseReadingVariantSelection()
@@ -420,7 +421,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     // MARK: - 字号操作
     
     /// 减小字体
-    @objc private func clickDecreaseFont() {
+    private func handleDecreaseFont() {
         guard decreaseButton.tag == 1 else { return }
         let size = ReaderConfiguration.shared().fontSize - READER_FONT_SIZE_SPACE
         
@@ -436,7 +437,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     }
     
     /// 增大字体
-    @objc private func clickIncreaseFont() {
+    private func handleIncreaseFont() {
         guard increaseButton.tag == 1 else { return }
         let size = ReaderConfiguration.shared().fontSize + READER_FONT_SIZE_SPACE
         
@@ -454,19 +455,19 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     // MARK: - 行间距操作
     
     /// 减小行高（吸附到 10 的整数档，避免滑块停在非整档时 -10 得到零头值）
-    @objc private func clickDecreaseLineHeight() {
+    private func handleDecreaseLineHeight() {
         guard lineHeightDecreaseButton.tag == 1 else { return }
         let newValue = steppedLineHeight(from: lineHeightSlider.value, increasing: false)
         
-        commitLineHeight(newValue, buttonType: "line_size_small")
+        commitLineHeight(newValue)
     }
     
     /// 增大行高（吸附到 10 的整数档）
-    @objc private func clickIncreaseLineHeight() {
+    private func handleIncreaseLineHeight() {
         guard lineHeightIncreaseButton.tag == 1 else { return }
         let newValue = steppedLineHeight(from: lineHeightSlider.value, increasing: true)
         
-        commitLineHeight(newValue, buttonType: "line_size_big")
+        commitLineHeight(newValue)
     }
     
     /// 以 10 为档、朝指定方向取下一档行高值
@@ -516,7 +517,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     }
     
     /// 提交行高改动：落库 + 触发重排版 + 埋点（供两侧 +/- 图标调用）
-    private func commitLineHeight(_ newValue: Int, buttonType: String) {
+    private func commitLineHeight(_ newValue: Int) {
         let config = ReaderConfiguration.shared()
         let current = config.lineHeightPercent
         
@@ -534,18 +535,8 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     
     // MARK: - 阅读模式操作
     
-    /// 点击"上下滑动"按钮（滚动模式）
-    @objc private func clickVerticalMode() {
-        alterReadingVariant(to: .scroll, buttonType: "scroll")
-    }
-    
-    /// 点击"左右翻页"按钮（平移模式）
-    @objc private func clickHorizontalMode() {
-        alterReadingVariant(to: .translation, buttonType: "swipe")
-    }
-    
     /// 切换阅读模式
-    private func alterReadingVariant(to mode: ReaderEffectType, buttonType: String) {
+    private func alterReadingVariant(to mode: ReaderEffectType) {
         let config = ReaderConfiguration.shared()
         guard config.effectType != mode else { return }
         
@@ -562,10 +553,8 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     
     // MARK: - 背景色操作
     
-    /// 点击背景色按钮
-    @objc private func clickBgColor(_ sender: UIButton) {
-        // tag 存的是主题的 rawValue，见色块初始化处。
-        guard let theme = ReaderThemeType(rawValue: sender.tag) else { return }
+    /// 选中某个背景色块
+    private func selectTheme(_ theme: ReaderThemeType) {
         let config = ReaderConfiguration.shared()
         guard theme != config.themeType else { return }
         
@@ -615,7 +604,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     // MARK: - 设置按钮状态管理
     
     /// 点击设置
-    @objc open func clickSetting() {
+    open func clickSetting() {
         
         // 已展开则再次点击收起。判断依据统一用 isSettingPanelExpanded，
         // 不要再看 settingButton.isSelected —— 那是另一份状态，两边容易发散

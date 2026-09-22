@@ -59,7 +59,7 @@ open class ReaderStatusTopView: UIView {
         backButton = UIButton(type: .custom)
         backButton.setImage(ReaderEnvironment.images.statusBarBack(), for: .normal)
         backButton.tintColor = ReaderConfiguration.shared().currentThemeColors.textT2
-        backButton.addTarget(self, action: #selector(clickBack), for: .touchUpInside)
+        backButton.addAction(UIAction { [weak self] _ in self?.handleBackTap() }, for: .touchUpInside)
         backButton.isHidden = true
         addSubview(backButton)
         
@@ -122,7 +122,7 @@ open class ReaderStatusTopView: UIView {
     
     // MARK: - 返回
     
-    @objc private func clickBack() {
+    private func handleBackTap() {
         if let callback = onBackTapped {
             callback()
         } else {

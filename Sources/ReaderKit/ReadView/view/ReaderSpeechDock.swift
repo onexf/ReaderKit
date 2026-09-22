@@ -128,7 +128,7 @@ open class ReaderSpeechDock: UIView {
 
         let control = UIControl()
 
-        control.addTarget(self, action: #selector(clickEntry), for: .touchUpInside)
+        control.addAction(UIAction { [weak self] _ in self?.onStartAction?() }, for: .touchUpInside)
 
         return control
     }()
@@ -446,7 +446,6 @@ open class ReaderSpeechDock: UIView {
 
     // MARK: - 动作
 
-    @objc private func clickEntry() { onStartAction?() }
 
     @objc private func clickCover() { onCoverAction?() }
 }

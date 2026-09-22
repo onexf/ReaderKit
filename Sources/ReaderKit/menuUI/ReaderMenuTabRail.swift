@@ -78,7 +78,7 @@ open class ReaderMenuTabRail: UIView {
             title: ReaderEnvironment.strings.directory
         )
         catalogueButton.tintColor = iconColor
-        catalogueButton.addTarget(self, action: #selector(handleCatalogue), for: .touchUpInside)
+        catalogueButton.addAction(UIAction { [weak self] _ in self?.handleCatalogue() }, for: .touchUpInside)
         addSubview(catalogueButton)
 
         // 日/夜间切换按钮
@@ -87,7 +87,7 @@ open class ReaderMenuTabRail: UIView {
             title: ReaderEnvironment.strings.night
         )
         nightModeButton.tintColor = iconColor
-        nightModeButton.addTarget(self, action: #selector(handleNightMode), for: .touchUpInside)
+        nightModeButton.addAction(UIAction { [weak self] _ in self?.handleNightMode() }, for: .touchUpInside)
         addSubview(nightModeButton)
 
         // 设置按钮：常态描边六边形，设置面板展开时换成实心六边形
@@ -98,7 +98,7 @@ open class ReaderMenuTabRail: UIView {
             title: ReaderEnvironment.strings.setting
         )
         settingButton.tintColor = iconColor
-        settingButton.addTarget(self, action: #selector(handleSetting), for: .touchUpInside)
+        settingButton.addAction(UIAction { [weak self] _ in self?.handleSetting() }, for: .touchUpInside)
         addSubview(settingButton)
 
         reviseNightVariantBtn()
@@ -162,15 +162,15 @@ open class ReaderMenuTabRail: UIView {
 
     // MARK: - Actions
 
-    @objc private func handleCatalogue() {
+    private func handleCatalogue() {
         delegate?.bottomTabBarDidClickCatalogue(self)
     }
 
-    @objc private func handleNightMode() {
+    private func handleNightMode() {
         delegate?.bottomTabBarDidClickNightMode(self)
     }
 
-    @objc private func handleSetting() {
+    private func handleSetting() {
         delegate?.bottomTabBarDidClickSetting(self)
     }
 

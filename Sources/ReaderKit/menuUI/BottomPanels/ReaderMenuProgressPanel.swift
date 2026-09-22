@@ -31,7 +31,7 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
         previousChapter.titleLabel?.font = READER_FONT_SA_14
         previousChapter.setTitle(ReaderEnvironment.strings.previousChapter, for: .normal)
         previousChapter.setTitleColor(READER_COLOR_MENU_COLOR, for: .normal)
-        previousChapter.addTarget(self, action: #selector(clickPreviousChapter), for: .touchUpInside)
+        previousChapter.addAction(UIAction { [weak self] _ in self?.clickPreviousChapter() }, for: .touchUpInside)
         addSubview(previousChapter)
         
         // 下一章
@@ -39,7 +39,7 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
         nextChapter.titleLabel?.font = READER_FONT_SA_14
         nextChapter.setTitle(ReaderEnvironment.strings.nextChapter, for: .normal)
         nextChapter.setTitleColor(READER_COLOR_MENU_COLOR, for: .normal)
-        nextChapter.addTarget(self, action: #selector(clickNextChapter), for: .touchUpInside)
+        nextChapter.addAction(UIAction { [weak self] _ in self?.clickNextChapter() }, for: .touchUpInside)
         addSubview(nextChapter)
         
         // 进度条
@@ -102,13 +102,13 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
     }
     
     /// 上一章
-    @objc open func clickPreviousChapter() {
+    open func clickPreviousChapter() {
         
         readMenu?.delegate?.readerMenuDidTapPreviousChapter(readMenu)
     }
     
     /// 下一章
-    @objc open func clickNextChapter() {
+    open func clickNextChapter() {
         
         readMenu?.delegate?.readerMenuDidTapNextChapter(readMenu)
     }

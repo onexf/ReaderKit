@@ -48,38 +48,38 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
         // 返回
         back = UIButton(type:.custom)
         back.setImage(ReaderEnvironment.images.back(), for: .normal)
-        back.addTarget(self, action: #selector(clickBack), for: .touchUpInside)
+        back.addAction(UIAction { [weak self] _ in self?.handleBackTap() }, for: .touchUpInside)
         back.tintColor = iconColor
         addSubview(back)
         
         // 加入书架（template 模式 + 手动着色区分 normal/selected）
         addToBookshelf = UIButton(type:.custom)
         reviseAppendToBookshelfImages()
-        addToBookshelf.addTarget(self, action: #selector(clickAddToBookshelf), for: .touchUpInside)
+        addToBookshelf.addAction(UIAction { [weak self] _ in self?.handleAddToBookshelfTap() }, for: .touchUpInside)
         addSubview(addToBookshelf)
         
         // 反馈（Figma 中使用 iconDefault 颜色）
         feedback = UIButton(type:.custom)
         feedback.setImage(ReaderEnvironment.images.feedback(), for: .normal)
         feedback.tintColor = iconColor
-        feedback.addTarget(self, action: #selector(clickFeedback), for: .touchUpInside)
+        feedback.addAction(UIAction { [weak self] _ in self?.handleFeedbackTap() }, for: .touchUpInside)
         addSubview(feedback)
     }
     
     /// 点击返回
-    @objc private func clickBack() {
+    private func handleBackTap() {
         
         readMenu?.delegate?.readerMenuDidTapBack(readMenu)
     }
     
     /// 点击加入书架
-    @objc private func clickAddToBookshelf() {
+    private func handleAddToBookshelfTap() {
         
         readMenu?.delegate?.readerMenuDidTapAddToBookshelf(readMenu)
     }
     
     /// 点击反馈
-    @objc private func clickFeedback() {
+    private func handleFeedbackTap() {
         
         readMenu?.delegate?.readerMenuDidTapFeedback(readMenu)
     }

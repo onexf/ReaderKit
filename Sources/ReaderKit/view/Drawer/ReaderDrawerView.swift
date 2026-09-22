@@ -122,14 +122,14 @@ open class ReaderDrawerView: UIView {
         //   接入方关闭了书名页，目录抽屉这块书籍信息是详情页残留的最后一个入口，
         //   一并关掉，否则用户从这里仍能进到不该出现的页面。
         //   注意：该取舍由接入方的产品形态决定，恢复展示时接回即可。
-        //   恢复时：取消下面 addTarget 的注释，并去掉 isUserInteractionEnabled = false。
-        //   对应的回调链仍保留：`clickBookInfo` → `readLeftViewDidClickBookInfo`
+        //   恢复时：取消下面 addAction 的注释，并去掉 isUserInteractionEnabled = false。
+        //   对应的回调链仍保留：`handleBookInfoTap` → `readLeftViewDidClickBookInfo`
         //   → 由接入方跳转到书籍详情页。
         headerView = UIControl()
         headerView.backgroundColor = .clear
         // 置为不可交互而非仅移除 target，避免 UIControl 仍吃掉触摸并给出高亮反馈
         headerView.isUserInteractionEnabled = false
-//        headerView.addTarget(self, action: #selector(clickBookInfo), for: .touchUpInside)
+//        headerView.addAction(UIAction { [weak self] _ in self?.handleBookInfoTap() }, for: .touchUpInside)
         addSubview(headerView)
 
         // 书籍封面
@@ -182,8 +182,8 @@ open class ReaderDrawerView: UIView {
     /// 点击书籍信息区域，回调给阅读控制器
     ///
     /// 1.0 无书籍详情页，`headerView` 已置为不可交互，此方法当前不会被触发。
-    /// 保留实现与回调链，恢复详情页时只需在 `addSubviews()` 里放开 addTarget。
-    @objc private func clickBookInfo() {
+    /// 保留实现与回调链，恢复详情页时只需在 `addSubviews()` 里放开 addAction。
+    private func handleBookInfoTap() {
         delegate?.readLeftViewDidClickBookInfo(self)
     }
 

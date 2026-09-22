@@ -41,7 +41,7 @@ open class ReaderContentView: UIView {
         cover.alpha = 0
         cover.isUserInteractionEnabled = false
         cover.backgroundColor = .black
-        cover.addTarget(self, action: #selector(clickCover), for: .touchUpInside)
+        cover.addAction(UIAction { [weak self] _ in self?.handleCoverTap() }, for: .touchUpInside)
         addSubview(cover)
     }
     
@@ -51,7 +51,7 @@ open class ReaderContentView: UIView {
         return ReaderConfiguration.shared().isNightMode ? 0.8 : 0.6
     }
     
-    @objc private func clickCover() {
+    private func handleCoverTap() {
         
         cover.isUserInteractionEnabled = false
         

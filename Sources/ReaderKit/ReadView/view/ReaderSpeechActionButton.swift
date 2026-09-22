@@ -90,7 +90,7 @@ open class ReaderSpeechActionButton: UIView {
     /// 回到朗读位置。整个左段的点击区。
     private lazy var returnControl: UIControl = {
         let control = UIControl()
-        control.addTarget(self, action: #selector(clickReturn), for: .touchUpInside)
+        control.addAction(UIAction { [weak self] _ in self?.onReturnAction?() }, for: .touchUpInside)
         return control
     }()
 
@@ -105,7 +105,7 @@ open class ReaderSpeechActionButton: UIView {
     /// 主区域点击区。覆盖分隔线右侧的全部范围。
     private lazy var primaryControl: UIControl = {
         let control = UIControl()
-        control.addTarget(self, action: #selector(clickPrimary), for: .touchUpInside)
+        control.addAction(UIAction { [weak self] _ in self?.onPrimaryAction?() }, for: .touchUpInside)
         return control
     }()
 
@@ -397,7 +397,5 @@ open class ReaderSpeechActionButton: UIView {
 
     // MARK: - 事件
 
-    @objc private func clickPrimary() { onPrimaryAction?() }
 
-    @objc private func clickReturn() { onReturnAction?() }
 }
