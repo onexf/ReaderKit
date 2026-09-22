@@ -158,8 +158,13 @@ open class ReaderConfiguration {
         return themeType == .night
     }
     
-    /// 如果用户未手动选择过主题，根据系统深色模式同步阅读器主题
-    /// 返回 true 表示主题发生了变化，调用方需要刷新 UI
+    /// 用户没手动选过主题时，按系统深色开关同步阅读主题。
+    ///
+    /// - Returns: 主题是否变了。变了的话调用方要刷 UI。
+    ///
+    /// **调用点在 `ReaderViewController.initialize()` 与 `viewWillAppear`，由库自己管**
+    /// —— 接入方不需要调。1.24.1 之前这个方法一个调用者都没有，于是「跟随系统深色」整个功能
+    /// 是死的：全新安装 + 系统深色，第一次进阅读页是浅色。
     ///
     /// 检测方式见 `detectSystemDarkVariant()`：读 scene 级 traitCollection。
     /// 不接收调用方的 traitCollection —— VC 的 trait 继承自 window，而 window 被
@@ -188,15 +193,18 @@ open class ReaderConfiguration {
     /// 另需确保 base.plist 中没有 INFOPLIST_KEY_UIUserInterfaceStyle=Light，
     /// 否则连 scene 的 traitCollection 也会被锁成 .light（当前工程未设置该键）。
     public static func detectSystemDarkVariant() -> Bool {
-        let sceneStyle = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?
-            .traitCollection
-            .userInterfaceStyle
-        if let sceneStyle, sceneStyle != .unspecified {
-            return sceneStyle == .dark
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        // 多 scene（iPad 分屏）时取前台那个，取错会读到后台 scene 的陈旧 trait。
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        
+        if let style = scene?.traitCollection.userInterfaceStyle, style != .unspecified {
+            return style == .dark
         }
-        return false
+        
+        // scene 还没建起来（极早的启动时序）时退到屏幕的 trait。它同样不受 window
+        // override 影响，只是不区分多 scene。
+        let screenStyle = UIScreen.main.traitCollection.userInterfaceStyle
+        return screenStyle == .dark
     }
     
     /// 行间距(请设置整数,因为需要比较是否需要重新分页,小数点没法判断相等)

@@ -24,6 +24,44 @@ import UIKit
 /// 本类先承载与业务无关的**注入点**与**通用状态**，后续逐步把引擎逻辑上移。
 open class ReaderViewController: ReaderScreenController {
 
+    // MARK: - 生命周期
+
+    /// 在建任何视图之前把「跟随系统深色」这件事定下来。
+    ///
+    /// **必须早于 `addSubviews()`**：菜单顶栏底色、正文底色、页眉页脚都在那之后按配置取色，
+    /// 定得晚就会先用浅色渲染一帧再跳成夜间。放在这里首次进场没有闪烁，也不需要刷新 UI ——
+    /// 后面所有取色的代码读到的已经是同步后的配置。
+    ///
+    /// 用户手动选过主题之后这一步自动失效（`hasUserSelectedTheme`）。
+    open override func initialize() {
+        
+        super.initialize()
+        
+        ReaderConfiguration.shared().syncWithSystemDarkVariantIfRequired()
+    }
+    
+    /// 离开阅读页期间系统深色开关被改过 —— 再进来时跟上。
+    ///
+    /// 首次进场时 `initialize()` 已经同步过，所以这里拿到 `true` 就意味着真的变了。
+    ///
+    /// ⚠️ **阅读页正在前台时改系统开关不会即时跟随**，要退出再进。原因是接入方通常会
+    /// `window.overrideUserInterfaceStyle = .light` 把整个 App 锁成浅色，于是 VC 的 trait
+    /// 根本不变、`traitCollectionDidChange` 不会触发，库拿不到通知。
+    open override func viewWillAppear(_ animated: Bool) {
+        
+        super.viewWillAppear(animated)
+        
+        guard ReaderConfiguration.shared().syncWithSystemDarkVariantIfRequired() else { return }
+        
+        // 正文还没上屏（首屏还在加载、或停在失败页）时不刷：换肤路径会重建正文容器，
+        // 而那条路径要求阅读记录里已经有章节。这种情况下正文上屏时自然会按新配置取色。
+        guard readModel?.recordModel?.chapterModel != nil else { return }
+        
+        // 刷新走接入方那条现成的换肤路径（点色块换主题走的是同一个）——
+        // 主题一变要改的地方有七处，在这里另写一份必然漏。
+        if let readMenu { readMenu.delegate?.readerMenuDidChangeTheme(readMenu) }
+    }
+
     // MARK: - 注入点（Contracts）
 
     /// 书末页工厂。为 nil 时阅读器没有书末页（正文读完即到最后一页）。

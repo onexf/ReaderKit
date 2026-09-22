@@ -1,5 +1,43 @@
 # Changelog
 
+## 1.24.1
+
+修「跟随系统深色模式」从来没生效过。**无破坏性变更，接入方无需改动。**
+
+### 症状
+
+全新安装 + 系统开着深色模式，第一次进阅读页是浅色的。
+
+### 原因：`syncWithSystemDarkVariantIfRequired()` 一个调用者都没有
+
+这个方法和它那一大段关于「为什么必须读 scene 级 traitCollection」的说明一直在库里，
+但**库内和接入方都没有人调它**，所以整个功能是死代码。`hasUserSelectedTheme` 一直是 false，
+主题一直停在属性声明的默认值 `.lightDefault`。
+
+这是这个模块第二次出现同一类错误（上一次是「`.readerChapterListDidUpdate` 通知没人发，
+导致目录列表补页后不刷新」）：**能力做好了、注释写清了，就是没接上线**，而且不报错。
+
+### 接在哪
+
+调用点收进库自己的生命周期，接入方不需要知道这件事：
+
+- **`ReaderViewController.initialize()`** —— 建任何视图之前。必须早于 `addSubviews()`：
+  菜单顶栏底色、正文底色、页眉页脚都在那之后按配置取色，定得晚会先用浅色渲染一帧再跳成夜间。
+  放在这里首次进场没有闪烁，也不需要刷 UI。
+- **`ReaderViewController.viewWillAppear`** —— 离开阅读页期间系统开关被改过，再进来时跟上。
+  变了就走接入方现成的 `readerMenuDidChangeTheme` 换肤路径（点色块换主题走的是同一个）。
+  正文还没上屏时跳过刷新：换肤会重建正文容器，那条路径要求阅读记录里已经有章节。
+
+⚠️ **阅读页正在前台时改系统开关不会即时跟随**，要退出再进。因为接入方通常会
+`window.overrideUserInterfaceStyle = .light` 把 App 锁成浅色，于是 VC 的 trait 根本不变、
+`traitCollectionDidChange` 不触发，库拿不到通知。
+
+### `detectSystemDarkVariant()` 顺带加固
+
+- 多 scene（iPad 分屏）时取**前台**那个，原先取 `first` 可能读到后台 scene 的陈旧 trait。
+- scene 还没建起来时退到 `UIScreen.main.traitCollection`，原先直接返回 `false`（当成浅色）。
+  它同样不受 window override 影响。
+
 ## 1.24.0
 
 `ReaderConfiguration` 从「十个 `@objc NSNumber!` 索引 + KVC 落盘」改成普通 Swift 存储属性 +
