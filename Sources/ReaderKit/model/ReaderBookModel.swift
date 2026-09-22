@@ -10,8 +10,10 @@ import UIKit
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
 ///
-/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
-/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
+/// 归档键名与属性名保持一致，改属性名就一起改键名。**前提是 `model(...)` 工厂里有
+/// 「解档失败回落新实例」的兜底** —— 否则改键名会让 decode 得到 nil，而这些字段是
+/// 隐式解包可选，访问即崩。改键名等于丢弃已落盘的缓存：正文能重新下载，
+/// 阅读进度与书签不可恢复，所以只在没有正式用户的阶段才这么做。
 open class ReaderBookModel: NSObject, NSCoding {
 
     /// 小说ID
@@ -132,8 +134,10 @@ open class ReaderBookModel: NSObject, NSCoding {
         if ReaderBookModel.isExist(storyID: storyID) {
             
             bookModel = ReaderArchiver.unarchiver(folderName: storyID, fileName: READER_KEY_OBJECT) as? ReaderBookModel
-            
-        }else{
+        }
+        
+        // ⚠️ 解档失败必须回落成新实例，理由同 `ReaderChapterModel.model(storyID:chapterID:)`。
+        if bookModel == nil {
             
             bookModel = ReaderBookModel()
             
@@ -150,52 +154,52 @@ open class ReaderBookModel: NSObject, NSCoding {
         
         super.init()
         
-        storyID = aDecoder.decodeObject(forKey: "storyID") as? String
+        storyID = aDecoder.decodeObject(forKey: "bookKey") as? String
         
-        storyName = aDecoder.decodeObject(forKey: "storyName") as? String
+        storyName = aDecoder.decodeObject(forKey: "bookTitle") as? String
         
-        coverURL = aDecoder.decodeObject(forKey: "cover") as? String
+        coverURL = aDecoder.decodeObject(forKey: "coverURL") as? String
         
-        writer = aDecoder.decodeObject(forKey: "writer") as? String
+        writer = aDecoder.decodeObject(forKey: "author") as? String
         
-        externalBookCode = (aDecoder.decodeObject(forKey: "externalBookCode") as? NSNumber)?.intValue ?? 0
+        externalBookCode = (aDecoder.decodeObject(forKey: "bookCode") as? NSNumber)?.intValue ?? 0
         
-        totalChapterCount = (aDecoder.decodeObject(forKey: "totalChapterCount") as? NSNumber)?.intValue ?? 0
+        totalChapterCount = (aDecoder.decodeObject(forKey: "catalogueTotal") as? NSNumber)?.intValue ?? 0
         
-        storySourceType = ReaderBookSourceType(rawValue: (aDecoder.decodeObject(forKey: "storySourceType") as! NSNumber).intValue)
+        storySourceType = ReaderBookSourceType(rawValue: (aDecoder.decodeObject(forKey: "bookSourceKind") as! NSNumber).intValue)
         
-        chapterListModels = aDecoder.decodeObject(forKey: "chapterListModels") as? [ReaderChapterListItemModel]
+        chapterListModels = aDecoder.decodeObject(forKey: "catalogueEntries") as? [ReaderChapterListItemModel]
         
-        markModels = aDecoder.decodeObject(forKey: "markModels") as? [ReaderBookmarkModel]
+        markModels = aDecoder.decodeObject(forKey: "bookmarkEntries") as? [ReaderBookmarkModel]
         
-        fullText = aDecoder.decodeObject(forKey: "fullText") as? String
+        fullText = aDecoder.decodeObject(forKey: "rawText") as? String
         
-        ranges = aDecoder.decodeObject(forKey: "ranges") as? [String: [String: NSRange]]
+        ranges = aDecoder.decodeObject(forKey: "spans") as? [String: [String: NSRange]]
     }
     
     open func encode(with aCoder: NSCoder) {
         
-        aCoder.encode(storyID, forKey: "storyID")
+        aCoder.encode(storyID, forKey: "bookKey")
         
-        aCoder.encode(storyName, forKey: "storyName")
+        aCoder.encode(storyName, forKey: "bookTitle")
         
-        aCoder.encode(coverURL, forKey: "cover")
+        aCoder.encode(coverURL, forKey: "coverURL")
         
-        aCoder.encode(writer, forKey: "writer")
+        aCoder.encode(writer, forKey: "author")
         
-        aCoder.encode(NSNumber(value: externalBookCode), forKey: "externalBookCode")
+        aCoder.encode(NSNumber(value: externalBookCode), forKey: "bookCode")
         
-        aCoder.encode(NSNumber(value: totalChapterCount), forKey: "totalChapterCount")
+        aCoder.encode(NSNumber(value: totalChapterCount), forKey: "catalogueTotal")
         
-        aCoder.encode(NSNumber(value: storySourceType.rawValue), forKey: "storySourceType")
+        aCoder.encode(NSNumber(value: storySourceType.rawValue), forKey: "bookSourceKind")
         
-        aCoder.encode(chapterListModels, forKey: "chapterListModels")
+        aCoder.encode(chapterListModels, forKey: "catalogueEntries")
         
-        aCoder.encode(markModels, forKey: "markModels")
+        aCoder.encode(markModels, forKey: "bookmarkEntries")
         
-        aCoder.encode(fullText, forKey: "fullText")
+        aCoder.encode(fullText, forKey: "rawText")
         
-        aCoder.encode(ranges, forKey: "ranges")
+        aCoder.encode(ranges, forKey: "spans")
     }
     
     public init(_ dict: Any? = nil) {

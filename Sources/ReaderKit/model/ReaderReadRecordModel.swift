@@ -13,8 +13,10 @@ nonisolated(unsafe) public var READER_RECORD_CURRENT_CHAPTER_LOCATION: NSNumber!
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
 ///
-/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
-/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
+/// 归档键名与属性名保持一致，改属性名就一起改键名。**前提是 `model(...)` 工厂里有
+/// 「解档失败回落新实例」的兜底** —— 否则改键名会让 decode 得到 nil，而这些字段是
+/// 隐式解包可选，访问即崩。改键名等于丢弃已落盘的缓存：正文能重新下载，
+/// 阅读进度与书签不可恢复，所以只在没有正式用户的阶段才这么做。
 open class ReaderReadRecordModel: NSObject, NSCoding {
 
     /// 小说ID
@@ -244,8 +246,10 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
             
             // 不在此处调用 reviseFont()，避免不必要的重新分页导致 page 偏移
             // reviseFont() 会在 GetChapterModel / ReaderChapterModel.model() 中按需调用
-            
-        }else{
+        }
+        
+        // ⚠️ 解档失败必须回落成新实例，理由同 `ReaderChapterModel.model(storyID:chapterID:)`。
+        if recordModel == nil {
             
             recordModel = ReaderReadRecordModel()
             
@@ -259,24 +263,24 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         
         super.init()
         
-        storyID = aDecoder.decodeObject(forKey: "storyID") as? String
+        storyID = aDecoder.decodeObject(forKey: "bookKey") as? String
         
-        chapterModel = aDecoder.decodeObject(forKey: "chapterModel") as? ReaderChapterModel
+        chapterModel = aDecoder.decodeObject(forKey: "activeChapter") as? ReaderChapterModel
         
-        page = aDecoder.decodeObject(forKey: "page") as? NSNumber
+        page = aDecoder.decodeObject(forKey: "pageIndex") as? NSNumber
         
-        pageScrollAnchor = CGFloat(aDecoder.decodeDouble(forKey: "scrollOffsetInPage"))
+        pageScrollAnchor = CGFloat(aDecoder.decodeDouble(forKey: "pageScrollAnchor"))
     }
     
     open func encode(with aCoder: NSCoder) {
         
-        aCoder.encode(storyID, forKey: "storyID")
+        aCoder.encode(storyID, forKey: "bookKey")
         
-        aCoder.encode(chapterModel, forKey: "chapterModel")
+        aCoder.encode(chapterModel, forKey: "activeChapter")
         
-        aCoder.encode(page, forKey: "page")
+        aCoder.encode(page, forKey: "pageIndex")
         
-        aCoder.encode(Double(pageScrollAnchor), forKey: "scrollOffsetInPage")
+        aCoder.encode(Double(pageScrollAnchor), forKey: "pageScrollAnchor")
     }
     
     public init(_ dict: Any? = nil) {

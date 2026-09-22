@@ -198,7 +198,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     }
     
     /// 生成字号胶囊按钮（118×30，全圆角，底色取 fillControl）
-    private func craftFontSizeBtn(icon: UIImage?, colors: ReaderThemeColors) -> UIButton {
+    private func craftFontSizeBtn(icon: UIImage?, colors: ReaderTintPalette) -> UIButton {
         let button = UIButton(type: .custom)
         button.setImage(icon, for: .normal)
         button.tintColor = colors.iconStandard
@@ -309,7 +309,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     }
     
     /// 应用阅读方向按钮样式
-    private func adoptReadingVariantStyle(_ button: UIButton, isSelected: Bool, colors: ReaderThemeColors) {
+    private func adoptReadingVariantStyle(_ button: UIButton, isSelected: Bool, colors: ReaderTintPalette) {
         button.backgroundColor = isSelected ? colors.accent : .clear
         button.tintColor = colors.iconStandard
         button.setTitleColor(colors.textBody, for: .normal)
@@ -786,7 +786,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     // MARK: - 主题换肤
     
     /// 应用主题颜色到 FuncView 及其子视图
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
         backgroundColor = colors.fillSheet
         
         // 字号行：胶囊底色取 fillControl，文字取 textBody

@@ -19,7 +19,7 @@ import UIKit
 public protocol ReaderThemeProviding {
 
     /// 某个主题槽位的 16 个语义色。
-    func colors(for theme: ReaderThemeType) -> ReaderThemeColors
+    func colors(for theme: ReaderThemeType) -> ReaderTintPalette
 
     /// 某个主题在设置面板色块里的展示样式（填充、描边）。
     func swatchStyle(for theme: ReaderThemeType) -> ReaderSwatchStyle
@@ -32,7 +32,7 @@ public struct ReaderDefaultThemeProvider: ReaderThemeProviding {
 
     public init() {}
 
-    public func colors(for theme: ReaderThemeType) -> ReaderThemeColors {
+    public func colors(for theme: ReaderThemeType) -> ReaderTintPalette {
         switch theme {
         case .basicWhite: return Self.make(page: .white, ink: .black)
         case .warmWhite:  return Self.make(page: UIColor(white: 0.98, alpha: 1), ink: UIColor(white: 0.15, alpha: 1))

@@ -42,7 +42,7 @@ public enum ReaderThemeType: Int, CaseIterable {
 
 /// 每个主题需要提供的 16 个语义颜色，全部独立存储
 /// 即使当前值相同，也保持独立，方便 UI 后续单独调整
-public protocol ReaderThemeColors {
+public protocol ReaderTintPalette {
     // Reader BG
     var page: UIColor { get }
     
@@ -89,7 +89,7 @@ public protocol ReaderThemeColors {
 /// conformer 直接编译不过（`ReaderTintAssign` 的成员初始化器是显式声明的，
 /// 加字段等于改公开 API）。给默认实现则老接入方零改动即可拿到可用的高亮色，
 /// 有设计稿的接入方再覆盖。
-public extension ReaderThemeColors {
+public extension ReaderTintPalette {
 
     /// 默认取强调色的低透明度版本。
     ///
@@ -132,7 +132,7 @@ public extension ReaderThemeColors {
 // MARK: - 主题颜色结构体
 
 /// 16 个颜色全部独立存储，不做计算属性派生
-public struct ReaderTintAssign: ReaderThemeColors {
+public struct ReaderTintAssign: ReaderTintPalette {
     public let page: UIColor
     public let textStrong: UIColor
     public let textBody: UIColor

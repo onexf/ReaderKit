@@ -264,7 +264,7 @@ open class ReaderDrawerView: UIView {
     }
 
     /// 应用主题颜色
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
         backgroundColor = colors.fillSheet
 
         // 书籍信息区域

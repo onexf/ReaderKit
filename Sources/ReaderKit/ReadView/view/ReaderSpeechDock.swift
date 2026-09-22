@@ -433,7 +433,7 @@ open class ReaderSpeechDock: UIView {
 
     /// dock 在设计稿里是**固定深色**，不随阅读主题变化（六套主题下都是同一块深底白字），
     /// 所以这里只取主题里那一个语义色槽，不做明暗反转。
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
 
         backgroundColor = colors.fillSpeechDock
 

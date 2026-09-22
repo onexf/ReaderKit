@@ -103,7 +103,7 @@ open class ReaderLineHeightSlider: UIControl {
     }
     
     /// 主题换肤
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
         filledTrackView.backgroundColor = colors.accent
         remainTrackView.backgroundColor = colors.separatorTint
     }

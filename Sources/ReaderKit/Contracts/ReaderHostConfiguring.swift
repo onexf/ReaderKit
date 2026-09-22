@@ -48,7 +48,9 @@ public extension ReaderHostConfiguring {
     /// 2. 避免给已有实现方引入破坏性变更
     ///
     /// 英文等其它语言的内容需自行覆盖，例如 `"^Chapter\\s+\\d+.*"`。
-    var localChapterTitlePattern: String { "第[0-9一二三四五六七八九十百千]*[章回].*" }
+    ///
+    /// 相比最初版本多认「节」与「〇」，序号部分也接受阿拉伯数字（`\d` 含全角）。
+    var localChapterTitlePattern: String { "第[\\d〇零一二三四五六七八九十百千]*[章回节].*" }
 }
 
 /// 库内默认实现：不接 CDN、书签上限给保守默认值。宿主未注入时使用。

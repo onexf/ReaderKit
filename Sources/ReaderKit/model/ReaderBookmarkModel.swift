@@ -10,8 +10,10 @@ import UIKit
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
 ///
-/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
-/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
+/// 归档键名与属性名保持一致，改属性名就一起改键名。**前提是 `model(...)` 工厂里有
+/// 「解档失败回落新实例」的兜底** —— 否则改键名会让 decode 得到 nil，而这些字段是
+/// 隐式解包可选，访问即崩。改键名等于丢弃已落盘的缓存：正文能重新下载，
+/// 阅读进度与书签不可恢复，所以只在没有正式用户的阶段才这么做。
 open class ReaderBookmarkModel: NSObject, NSCoding {
 
     // 以下字段原为隐式解包可选（`String!`），是从 Objective-C 移植时留下的写法：
@@ -52,36 +54,36 @@ open class ReaderBookmarkModel: NSObject, NSCoding {
         super.init()
         
         // 解档缺字段时退化为默认值，不再留下 nil 触发后续崩溃
-        storyID = aDecoder.decodeObject(forKey: "storyID") as? String ?? ""
+        storyID = aDecoder.decodeObject(forKey: "bookKey") as? String ?? ""
 
-        chapterID = aDecoder.decodeObject(forKey: "chapterID") as? NSNumber ?? NSNumber(value: 0)
+        chapterID = aDecoder.decodeObject(forKey: "chapterKey") as? NSNumber ?? NSNumber(value: 0)
 
-        name = aDecoder.decodeObject(forKey: "name") as? String ?? ""
+        name = aDecoder.decodeObject(forKey: "label") as? String ?? ""
 
-        content = aDecoder.decodeObject(forKey: "content") as? String ?? ""
+        content = aDecoder.decodeObject(forKey: "body") as? String ?? ""
 
-        time = aDecoder.decodeObject(forKey: "time") as? NSNumber ?? NSNumber(value: 0)
+        time = aDecoder.decodeObject(forKey: "stampedAt") as? NSNumber ?? NSNumber(value: 0)
 
-        location = aDecoder.decodeObject(forKey: "location") as? NSNumber ?? NSNumber(value: 0)
+        location = aDecoder.decodeObject(forKey: "anchorOffset") as? NSNumber ?? NSNumber(value: 0)
         
-        remoteMarkID = aDecoder.decodeObject(forKey: "bookmarkId") as? NSNumber
+        remoteMarkID = aDecoder.decodeObject(forKey: "remoteMarkID") as? NSNumber
     }
     
     open func encode(with aCoder: NSCoder) {
         
-        aCoder.encode(storyID, forKey: "storyID")
+        aCoder.encode(storyID, forKey: "bookKey")
         
-        aCoder.encode(chapterID, forKey: "chapterID")
+        aCoder.encode(chapterID, forKey: "chapterKey")
         
-        aCoder.encode(name, forKey: "name")
+        aCoder.encode(name, forKey: "label")
         
-        aCoder.encode(content, forKey: "content")
+        aCoder.encode(content, forKey: "body")
         
-        aCoder.encode(time, forKey: "time")
+        aCoder.encode(time, forKey: "stampedAt")
         
-        aCoder.encode(location, forKey: "location")
+        aCoder.encode(location, forKey: "anchorOffset")
         
-        aCoder.encode(remoteMarkID, forKey: "bookmarkId")
+        aCoder.encode(remoteMarkID, forKey: "remoteMarkID")
     }
     
     open override func setValue(_ value: Any?, forUndefinedKey key: String) { }

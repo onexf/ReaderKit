@@ -376,7 +376,7 @@ open class ReaderSpeechActionButton: UIView {
 
     // MARK: - 主题换肤
 
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
 
         backgroundColor = colors.speechCapsuleFill
 

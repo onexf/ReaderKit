@@ -20,12 +20,12 @@ final public class ReaderPalette {
     private var provider: ReaderThemeProviding { ReaderEnvironment.themeProvider }
 
     /// 根据主题类型获取颜色集
-    public func colors(for theme: ReaderThemeType) -> ReaderThemeColors {
+    public func colors(for theme: ReaderThemeType) -> ReaderTintPalette {
         return provider.colors(for: theme)
     }
 
     /// 获取当前阅读器配置对应的主题颜色
-    public func activeColors() -> ReaderThemeColors {
+    public func activeColors() -> ReaderTintPalette {
         return colors(for: ReaderConfiguration.shared().themeType)
     }
 

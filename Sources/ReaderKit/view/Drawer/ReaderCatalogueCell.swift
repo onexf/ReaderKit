@@ -155,7 +155,7 @@ open class ReaderCatalogueCell: UITableViewCell {
                    isCurrent: Bool,
                    isLocked: Bool,
                    numberColumnWidth: CGFloat,
-                   colors: ReaderThemeColors) {
+                   colors: ReaderTintPalette) {
 
         isCurrentChapter = isCurrent
         isLockedChapter = isLocked

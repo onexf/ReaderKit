@@ -100,7 +100,7 @@ open class ReaderBookmarkSectionHeader: UITableViewHeaderFooterView {
         headingLabel.frame = CGRect(x: margin, y: titleTop, width: max(0, rightLimit - margin), height: titleHeight)
     }
 
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
         headingLabel.textColor = isLocked ? colors.textFaint : colors.textBody
         lockGlyph.tintColor = colors.textStrong
     }

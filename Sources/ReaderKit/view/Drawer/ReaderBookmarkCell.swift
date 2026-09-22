@@ -107,7 +107,7 @@ open class ReaderBookmarkCell: UITableViewCell {
     }
 
     /// 应用主题颜色
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
 
         iconBadge.backgroundColor = colors.fill
         badgeGlyph.tintColor = colors.textStrong

@@ -138,7 +138,7 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
     // MARK: - 主题换肤
     
     /// 应用主题颜色
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
         backgroundColor = colors.fillSheet
         back.tintColor = colors.iconStandard
         feedback.tintColor = colors.iconStandard

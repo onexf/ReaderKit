@@ -308,7 +308,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     // MARK: - 主题换肤
 
     /// 应用主题颜色
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
 
         // 指示视图整个重建而不是改色：接入方给的可能是 Lottie 那种颜色烤死在文件里的东西，
         // 库无从得知该改它哪个属性。重建的代价只是一次 addSubview。

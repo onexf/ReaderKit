@@ -328,7 +328,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     /// 应用主题颜色(日/夜间、护眼色切换时由外部调用)
     /// 列表 cell / section header 随 reloadData 用当前主题色重建,
     /// 此处负责刷新不随 reloadData 重建的空态(插图随主题切换、文案颜色)
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
 
         // 空态插图统一为通用 empty_no_content,自带底色不随主题切换;仅文案色跟随阅读主题
         emptyLabel.textColor = colors.textFaint

@@ -10,8 +10,10 @@ import UIKit
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
 ///
-/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
-/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
+/// 归档键名与属性名保持一致，改属性名就一起改键名。**前提是 `model(...)` 工厂里有
+/// 「解档失败回落新实例」的兜底** —— 否则改键名会让 decode 得到 nil，而这些字段是
+/// 隐式解包可选，访问即崩。改键名等于丢弃已落盘的缓存：正文能重新下载，
+/// 阅读进度与书签不可恢复，所以只在没有正式用户的阶段才这么做。
 open class ReaderPageModel: NSObject, NSCoding {
 
     // MARK: 常用属性
@@ -73,32 +75,32 @@ open class ReaderPageModel: NSObject, NSCoding {
         
         super.init()
         
-        content = aDecoder.decodeObject(forKey: "content") as? NSAttributedString
+        content = aDecoder.decodeObject(forKey: "body") as? NSAttributedString
         
-        range = aDecoder.decodeObject(forKey: "range") as? NSRange
+        range = aDecoder.decodeObject(forKey: "span") as? NSRange
         
-        page = aDecoder.decodeObject(forKey: "page") as? NSNumber
+        page = aDecoder.decodeObject(forKey: "pageIndex") as? NSNumber
         
-        headerInsetHeight = aDecoder.decodeObject(forKey: "headTypeHeight") as? CGFloat
+        headerInsetHeight = aDecoder.decodeObject(forKey: "headerInsetHeight") as? CGFloat
         
-        contentSize = aDecoder.decodeObject(forKey: "contentSize") as? CGSize
+        contentSize = aDecoder.decodeObject(forKey: "renderedSize") as? CGSize
         
-        headerKindRaw = aDecoder.decodeObject(forKey: "headTypeIndex") as? NSNumber
+        headerKindRaw = aDecoder.decodeObject(forKey: "headerKindRaw") as? NSNumber
     }
     
     open func encode(with aCoder: NSCoder) {
         
-        aCoder.encode(content, forKey: "content")
+        aCoder.encode(content, forKey: "body")
         
-        aCoder.encode(range, forKey: "range")
+        aCoder.encode(range, forKey: "span")
         
-        aCoder.encode(page, forKey: "page")
+        aCoder.encode(page, forKey: "pageIndex")
         
-        aCoder.encode(headerInsetHeight, forKey: "headTypeHeight")
+        aCoder.encode(headerInsetHeight, forKey: "headerInsetHeight")
         
-        aCoder.encode(contentSize, forKey: "contentSize")
+        aCoder.encode(contentSize, forKey: "renderedSize")
         
-        aCoder.encode(headerKindRaw, forKey: "headTypeIndex")
+        aCoder.encode(headerKindRaw, forKey: "headerKindRaw")
     }
     
     public init(_ dict: Any? = nil) {

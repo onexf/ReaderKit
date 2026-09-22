@@ -10,8 +10,10 @@ import UIKit
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
 ///
-/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
-/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
+/// 归档键名与属性名保持一致，改属性名就一起改键名。**前提是 `model(...)` 工厂里有
+/// 「解档失败回落新实例」的兜底** —— 否则改键名会让 decode 得到 nil，而这些字段是
+/// 隐式解包可选，访问即崩。改键名等于丢弃已落盘的缓存：正文能重新下载，
+/// 阅读进度与书签不可恢复，所以只在没有正式用户的阶段才这么做。
 open class ReaderChapterModel: NSObject, NSCoding {
     
     /// 小说ID
@@ -85,10 +87,21 @@ open class ReaderChapterModel: NSObject, NSCoding {
         let font = configure.font(isTitle: false)
         let titleFont = configure.font(isTitle: true)
         let rect = READER_VIEW_RECT!
-        // 将影响分页的所有参数拼成一个字符串
-        // titleGap / paraGap 必须在签名里：它们参与 CoreText 排版，改了却不进签名的话，
-        // 已归档章节反序列化后签名不变、不会重排，线上表现就是「改了间距没生效」
-        return "\(font.fontName)_\(font.pointSize)_\(titleFont.fontName)_\(titleFont.pointSize)_\(configure.lineHeightPercent)_\(configure.spacingType.rawValue)_\(isEnglish)_\(rect.width)_\(rect.height)_leftAlign_indent\(Int(READER_FIRST_LINE_HEAD_INDENT))_titleGap\(Int(READER_TITLE_BOTTOM_SPACING))_paraGap\(Int(READER_PARAGRAPH_SPACING))"
+        // 把影响分页的所有参数拼成一个字符串。**格式本身没有语义**，只要「参数变了串就变」，
+        // 所以随时可以改写 —— 改了等于让所有已归档章节重排一次。
+        // 标题间距 / 段间距必须在串里：它们参与 CoreText 排版，漏了的话已归档章节
+        // 反序列化后签名不变、不会重排，线上表现就是「改了间距没生效」。
+        return [
+            font.fontName, "\(font.pointSize)",
+            titleFont.fontName, "\(titleFont.pointSize)",
+            "lh\(configure.lineHeightPercent)",
+            "sp\(configure.spacingType.rawValue)",
+            "latin\(isEnglish)",
+            "\(rect.width)x\(rect.height)",
+            "ind\(Int(READER_FIRST_LINE_HEAD_INDENT))",
+            "tg\(Int(READER_TITLE_BOTTOM_SPACING))",
+            "pg\(Int(READER_PARAGRAPH_SPACING))",
+        ].joined(separator: "|")
     }
     
     /// 更新字体
@@ -216,8 +229,12 @@ open class ReaderChapterModel: NSObject, NSCoding {
             chapterModel = ReaderArchiver.unarchiver(folderName: storyID, fileName: chapterID.stringValue) as? ReaderChapterModel
             
             if isUpdateFont { chapterModel?.reviseFont() }
-            
-        }else{
+        }
+        
+        // ⚠️ 解档失败必须回落成新实例。返回类型非可选，而本类字段是隐式解包可选 ——
+        // 让 nil 流出去的后果是调用方访问 `name` / `content` 时崩。归档文件损坏、
+        // 或归档键名随版本变过，都会走到这条路上。
+        if chapterModel == nil {
             
             chapterModel = ReaderChapterModel()
             
@@ -234,52 +251,52 @@ open class ReaderChapterModel: NSObject, NSCoding {
         
         super.init()
         
-        storyID = aDecoder.decodeObject(forKey: "storyID") as? String
+        storyID = aDecoder.decodeObject(forKey: "bookKey") as? String
         
-        id = aDecoder.decodeObject(forKey: "id") as? NSNumber
+        id = aDecoder.decodeObject(forKey: "key") as? NSNumber
         
-        priorChapterID = aDecoder.decodeObject(forKey: "previousChapterID") as? NSNumber
+        priorChapterID = aDecoder.decodeObject(forKey: "priorChapterID") as? NSNumber
         
-        followingChapterID = aDecoder.decodeObject(forKey: "nextChapterID") as? NSNumber
+        followingChapterID = aDecoder.decodeObject(forKey: "followingChapterID") as? NSNumber
         
-        name = aDecoder.decodeObject(forKey: "name") as? String
+        name = aDecoder.decodeObject(forKey: "label") as? String
         
-        priority = aDecoder.decodeObject(forKey: "priority") as? NSNumber
+        priority = aDecoder.decodeObject(forKey: "sortWeight") as? NSNumber
         
-        content = aDecoder.decodeObject(forKey: "content") as? String
+        content = aDecoder.decodeObject(forKey: "body") as? String
         
-        typesetContent = aDecoder.decodeObject(forKey: "fullContent") as? NSAttributedString
+        typesetContent = aDecoder.decodeObject(forKey: "typesetContent") as? NSAttributedString
         
-        pageCount = aDecoder.decodeObject(forKey: "pageCount") as? NSNumber
+        pageCount = aDecoder.decodeObject(forKey: "pageTally") as? NSNumber
         
-        layoutPages = aDecoder.decodeObject(forKey: "pageModels") as? [ReaderPageModel]
+        layoutPages = aDecoder.decodeObject(forKey: "layoutPages") as? [ReaderPageModel]
         
-        layoutFingerprint = aDecoder.decodeObject(forKey: "pagingSignature") as? String ?? ""
+        layoutFingerprint = aDecoder.decodeObject(forKey: "layoutFingerprint") as? String ?? ""
     }
     
     open func encode(with aCoder: NSCoder) {
         
-        aCoder.encode(storyID, forKey: "storyID")
+        aCoder.encode(storyID, forKey: "bookKey")
         
-        aCoder.encode(id, forKey: "id")
+        aCoder.encode(id, forKey: "key")
         
-        aCoder.encode(priorChapterID, forKey: "previousChapterID")
+        aCoder.encode(priorChapterID, forKey: "priorChapterID")
         
-        aCoder.encode(followingChapterID, forKey: "nextChapterID");
+        aCoder.encode(followingChapterID, forKey: "followingChapterID");
         
-        aCoder.encode(name, forKey: "name")
+        aCoder.encode(name, forKey: "label")
         
-        aCoder.encode(priority, forKey: "priority")
+        aCoder.encode(priority, forKey: "sortWeight")
         
-        aCoder.encode(content, forKey: "content")
+        aCoder.encode(content, forKey: "body")
         
-        aCoder.encode(typesetContent, forKey: "fullContent")
+        aCoder.encode(typesetContent, forKey: "typesetContent")
         
-        aCoder.encode(pageCount, forKey: "pageCount")
+        aCoder.encode(pageCount, forKey: "pageTally")
         
-        aCoder.encode(layoutPages, forKey: "pageModels")
+        aCoder.encode(layoutPages, forKey: "layoutPages")
         
-        aCoder.encode(layoutFingerprint, forKey: "pagingSignature")
+        aCoder.encode(layoutFingerprint, forKey: "layoutFingerprint")
     }
     
     public init(_ dict: Any? = nil) {

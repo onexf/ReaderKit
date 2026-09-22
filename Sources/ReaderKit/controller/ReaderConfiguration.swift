@@ -134,7 +134,7 @@ open class ReaderConfiguration {
     // MARK: 快捷获取
     
     /// 当前主题颜色集
-    open var currentThemeColors: ReaderThemeColors {
+    open var currentThemeColors: ReaderTintPalette {
         return ReaderPalette.shared.activeColors()
     }
     
@@ -330,21 +330,21 @@ open class ReaderConfiguration {
     
     // MARK: - 持久化
     
-    /// 磁盘上的键名。
+    /// 磁盘上的键名。与属性名对齐。
     ///
-    /// **和属性名刻意不一致**：属性名是现在的命名，这几个字符串是已经写进用户
-    /// `UserDefaults` 的历史格式。一经发布就不要再改 —— 改了读不到旧键，用户的阅读设置
-    /// 会静默回到默认值。
+    /// 改键名的代价只有「用户的阅读设置回到默认值」：`load(from:)` 是逐键读、
+    /// 读不出就保留属性声明处的默认值，**不会崩、不会读到半份配置**。
+    /// 1.27.0 一次性把这一组换掉，之后发布了就别再动。
     private enum StoreKey {
-        static let theme = "bgColorIndex"
-        static let effect = "effectIndex"
-        static let font = "fontIndex"
-        static let spacing = "spacingIndex"
-        static let progress = "progressIndex"
-        static let fontSize = "fontSize"
-        static let lineHeight = "lineHeightMultipleValue"
-        static let userSelectedTheme = "hasUserSelectedTheme"
-        static let userSelectedEffect = "hasUserSelectedEffect"
+        static let theme = "themeType"
+        static let effect = "readingVariant"
+        static let font = "fontFace"
+        static let spacing = "paragraphSpacing"
+        static let progress = "progressScope"
+        static let fontSize = "bodyPointSize"
+        static let lineHeight = "lineHeightPercent"
+        static let userSelectedTheme = "themeChosenByUser"
+        static let userSelectedEffect = "effectChosenByUser"
         static let schemaVersion = "themeSchemaVersion"
     }
     

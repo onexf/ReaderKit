@@ -129,7 +129,7 @@ open class ReaderMenuBottomBar: ReaderMenuPanel {
     // MARK: - 主题换肤
     
     /// 应用主题颜色到所有子视图
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
         settingsPanel.adoptThemeColors(colors)
         cataloguePanel.adoptThemeColors(colors)
     }

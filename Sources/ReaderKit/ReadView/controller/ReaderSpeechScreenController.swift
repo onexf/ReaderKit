@@ -723,11 +723,11 @@ open class ReaderSpeechScreenController: UIViewController {
     /// 背景色罩取主题的页面底色（`page`）：设计稿两张图分别是 Gray 与另一套主题的底色，
     /// 规则就是「跟随当前阅读主题」而不是从书封取色 —— 那样六套主题自动都有值，
     /// 也不会出现深色正文配浅色底这种组合。
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
 
         tintView.backgroundColor = colors.page.withAlphaComponent(Self.tintAlpha)
 
-        // 明暗取自配置而非主题协议：给 `ReaderThemeColors` 加 `isDark` 会变成
+        // 明暗取自配置而非主题协议：给 `ReaderTintPalette` 加 `isDark` 会变成
         // 接入方必须实现的新成员（那个协议的实现由宿主提供），代价不值
         blurView.effect = UIBlurEffect(style: ReaderConfiguration.shared().isDarkTheme ? .dark : .light)
 

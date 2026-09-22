@@ -224,7 +224,7 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
     // MARK: - 主题换肤
     
     /// 应用主题颜色
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
         backgroundColor = colors.fillSheet
         storyTitleLabel.textColor = colors.textBody
         writerLabel.textColor = colors.textFaint

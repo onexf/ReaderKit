@@ -1,5 +1,74 @@
 # Changelog
 
+## 1.27.0
+
+接着 1.26.0 做完去同质化的另一半：**磁盘上的键名与二进制里的字符串常量**。
+
+1.26.0 只改了 Swift 标识符，`__cstring` 里还留着一批和对比方逐字相同的串 ——
+归档键名、阅读偏好的 `UserDefaults` 键、章节标题正则、分页签名格式。
+当时没动是怕老用户缓存解档崩，接入方确认本 App 尚未发布、没有老用户，故一并处理。
+
+### ⚠️ 破坏性：磁盘数据不兼容
+
+**装了 1.26.0 或更早版本的设备，升级后阅读缓存与阅读偏好会被丢弃。**
+
+| 数据 | 后果 |
+| --- | --- |
+| 章节正文归档 | 重新下载，无感 |
+| 阅读进度 / 书签 / 目录归档 | **丢失，不可恢复** |
+| 阅读偏好（主题 / 字号 / 行距 / 阅读方向） | 回到默认值 |
+
+没有写迁移代码 —— 迁移要同时保留两套键名读一遍，为一个未发布的 App 引入长期负担不值得。
+
+### 先补的兜底（这是改键名的前提）
+
+`ReaderBookModel` / `ReaderChapterModel` / `ReaderReadRecordModel` 三个
+`model(...)` 工厂原先是 `if isExist { 解档 } else { 新建 }`，解档失败（`as?` 得到 nil）
+就把 nil 顺着非可选返回类型漏出去 —— 而这些类的字段是隐式解包可选，调用方访问
+`name` / `content` 时崩。改成**先尝试解档，nil 则回落新实例**。
+
+这本身是个该修的健壮性问题：**归档文件损坏在旧版本里就会崩**，只是没人遇到过。
+
+### 归档键名与属性名对齐
+
+36 个键全部改成和 1.26.0 之后的属性名一致，不再有
+`priorChapterID = decodeObject(forKey: "previousChapterID")` 这种对不上的写法。
+几个和对比方相同的：`previousChapterID` → `priorChapterID`、
+`scrollOffsetInPage` → `pageScrollAnchor`、`chapterListModels` → `catalogueEntries`、
+`pagingSignature` → `layoutFingerprint`、`headTypeHeight` → `headerInsetHeight`。
+**注意 `ReaderArchiver.archivedClassNames` 里的类名字符串没动**，那张表和键名是两回事。
+
+### 阅读偏好的 UserDefaults 键
+
+`ReaderConfiguration.StoreKey` 九个键改成和属性名一致
+（`bgColorIndex` → `themeType`、`lineHeightMultipleValue` → `lineHeightPercent`…）。
+这一组本来就是安全的：`load(from:)` 逐键读、读不出保留属性声明处的默认值，
+不会崩也不会读到半份配置。
+
+### 章节标题正则
+
+`localChapterTitlePattern` 默认值从 `第[0-9一二三四五六七八九十百千]*[章回].*`
+改为 `第[\d〇零一二三四五六七八九十百千]*[章回节].*` —— 顺带多认「节」与「〇」。
+只影响本地 txt 导入，纯网络书源的接入方走不到。
+
+### 分页签名格式
+
+`activePagingSignature()` 的拼串格式改写（原来带 `_leftAlign_indent` 字样）。
+**格式本身没有语义**，只要「参数变了串就变」，所以随时可改；改了等于让已归档章节重排一次。
+参与签名的参数一个没少。
+
+### 协议改名
+
+`ReaderThemeColors` → `ReaderTintPalette`（对比方也有同名类型）。具体类型
+`ReaderTintAssign` 不变，接入方实现方只需改协议名。
+
+### 关联对象 key 不再用字符串
+
+`UIPageViewController+Extension` 里两个 `objc_setAssociatedObject` 的 key 从
+`private var x = "x"` 改成 `private nonisolated(unsafe) var x: UInt8 = 0`。
+关联对象只用变量**地址**，字符串值从来没人读，白留在 `__cstring` 里。
+**新增关联对象照这个写法**，不要再用字符串当 key。
+
 ## 1.26.0
 
 **破坏性变更：约 130 个成员 / 属性 / 实参标签改名。** 逻辑一行没动，纯改名。

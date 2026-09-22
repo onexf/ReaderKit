@@ -455,7 +455,7 @@ open class ReaderViewController: ReaderScreenController {
     }
 
     /// 胶囊换肤。接入方在主题切换时调用。
-    open func adoptSpeechActionButtonTheme(_ colors: ReaderThemeColors) {
+    open func adoptSpeechActionButtonTheme(_ colors: ReaderTintPalette) {
 
         createdSpeechActionButton?.adoptThemeColors(colors)
 

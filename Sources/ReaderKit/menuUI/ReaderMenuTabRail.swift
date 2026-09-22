@@ -124,7 +124,7 @@ open class ReaderMenuTabRail: UIView {
     }
 
     /// tab 文案颜色：6 套主题的设计稿都取主文字色（此前浅色主题误取了 textSubtle，偏灰）
-    private func laneTitleColor(_ colors: ReaderThemeColors) -> UIColor {
+    private func laneTitleColor(_ colors: ReaderTintPalette) -> UIColor {
         return colors.textBody
     }
 
@@ -191,7 +191,7 @@ open class ReaderMenuTabRail: UIView {
     // MARK: - 主题换肤
     
     /// 应用主题颜色
-    open func adoptThemeColors(_ colors: ReaderThemeColors) {
+    open func adoptThemeColors(_ colors: ReaderTintPalette) {
         backgroundColor = colors.fillSheet
         
         // 更新按钮文字颜色和图标 tintColor

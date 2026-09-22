@@ -10,8 +10,10 @@ import UIKit
 /// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
 /// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
 ///
-/// 同理，属性改名时 `forKey:` 里的键名要保持原样（所以下面会看到名字对不上的成对写法）。
-/// 键名跟着改的后果是已落盘的缓存解档拿到 nil，而这些字段是隐式解包可选 —— 访问即崩。
+/// 归档键名与属性名保持一致，改属性名就一起改键名。**前提是 `model(...)` 工厂里有
+/// 「解档失败回落新实例」的兜底** —— 否则改键名会让 decode 得到 nil，而这些字段是
+/// 隐式解包可选，访问即崩。改键名等于丢弃已落盘的缓存：正文能重新下载，
+/// 阅读进度与书签不可恢复，所以只在没有正式用户的阶段才这么做。
 open class ReaderChapterListItemModel: NSObject, NSCoding {
     
     /// 章节ID
@@ -53,40 +55,40 @@ open class ReaderChapterListItemModel: NSObject, NSCoding {
         
         super.init()
         
-        storyID = aDecoder.decodeObject(forKey: "storyID") as? String
+        storyID = aDecoder.decodeObject(forKey: "bookKey") as? String
         
-        id = aDecoder.decodeObject(forKey: "id") as? NSNumber
+        id = aDecoder.decodeObject(forKey: "key") as? NSNumber
         
-        name = aDecoder.decodeObject(forKey: "name") as? String
+        name = aDecoder.decodeObject(forKey: "label") as? String
         
-        priority = aDecoder.decodeObject(forKey: "priority") as? NSNumber
+        priority = aDecoder.decodeObject(forKey: "sortWeight") as? NSNumber
         
-        lock = (aDecoder.decodeObject(forKey: "lock") as? NSNumber)?.intValue ?? 1
+        lock = (aDecoder.decodeObject(forKey: "gateFlag") as? NSNumber)?.intValue ?? 1
         
-        unlockState = (aDecoder.decodeObject(forKey: "alreadyLock") as? NSNumber)?.intValue ?? 2
+        unlockState = (aDecoder.decodeObject(forKey: "unlockState") as? NSNumber)?.intValue ?? 2
         
-        price = (aDecoder.decodeObject(forKey: "price") as? NSNumber)?.intValue ?? 0
+        price = (aDecoder.decodeObject(forKey: "unlockCost") as? NSNumber)?.intValue ?? 0
         
-        premiumZoneFlag = (aDecoder.decodeObject(forKey: "isVipContent") as? NSNumber)?.intValue ?? 0
+        premiumZoneFlag = (aDecoder.decodeObject(forKey: "premiumZoneFlag") as? NSNumber)?.intValue ?? 0
     }
     
     open func encode(with aCoder: NSCoder) {
         
-        aCoder.encode(storyID, forKey: "storyID")
+        aCoder.encode(storyID, forKey: "bookKey")
         
-        aCoder.encode(id, forKey: "id")
+        aCoder.encode(id, forKey: "key")
         
-        aCoder.encode(name, forKey: "name")
+        aCoder.encode(name, forKey: "label")
         
-        aCoder.encode(priority, forKey: "priority")
+        aCoder.encode(priority, forKey: "sortWeight")
         
-        aCoder.encode(NSNumber(value: lock), forKey: "lock")
+        aCoder.encode(NSNumber(value: lock), forKey: "gateFlag")
         
-        aCoder.encode(NSNumber(value: unlockState), forKey: "alreadyLock")
+        aCoder.encode(NSNumber(value: unlockState), forKey: "unlockState")
         
-        aCoder.encode(NSNumber(value: price), forKey: "price")
+        aCoder.encode(NSNumber(value: price), forKey: "unlockCost")
         
-        aCoder.encode(NSNumber(value: premiumZoneFlag), forKey: "isVipContent")
+        aCoder.encode(NSNumber(value: premiumZoneFlag), forKey: "premiumZoneFlag")
     }
     
     public init(_ dict: Any? = nil) {
