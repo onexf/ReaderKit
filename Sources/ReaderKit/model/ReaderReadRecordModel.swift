@@ -234,7 +234,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     // MARK: 构造
     
     /// 获取阅读记录对象,如果则创建对象返回
-    @objc public class func model(storyID: String!) ->ReaderReadRecordModel {
+    public class func model(storyID: String!) ->ReaderReadRecordModel {
         
         var recordModel: ReaderReadRecordModel!
         

@@ -21,7 +21,7 @@ open class ReaderTypesetter: NSObject {
     ///   - rect: 显示范围
     ///   - isFirstChapter: 是否为本文章第一个展示章节,如果是则加入书籍首页。(小技巧:如果不需要书籍首页,可不用传,默认就是不带书籍首页)
     /// - Returns: 内容分页列表
-    @objc public class func pageing(attrString: NSAttributedString, rect: CGRect, isFirstChapter: Bool = false) ->[ReaderPageModel] {
+    public class func pageing(attrString: NSAttributedString, rect: CGRect, isFirstChapter: Bool = false) ->[ReaderPageModel] {
         
         var pageModels: [ReaderPageModel] = []
         
@@ -97,7 +97,7 @@ open class ReaderTypesetter: NSObject {
     ///
     /// - Parameter content: 内容
     /// - Returns: 整理好的内容
-    @objc public class func contentTypesetting(content: String) ->String {
+    public class func contentTypesetting(content: String) ->String {
         
         // 替换单换行
         var content = content.replacingOccurrences(of: "\r", with: "")
@@ -116,7 +116,7 @@ open class ReaderTypesetter: NSObject {
     ///
     /// - Parameter url: 文件路径
     /// - Returns: 内容
-    @objc public class func encode(url: URL) ->String {
+    public class func encode(url: URL) ->String {
         
         var content = ""
         
@@ -141,7 +141,7 @@ open class ReaderTypesetter: NSObject {
     ///   - url: 文件路径
     ///   - encoding: 进制编码
     /// - Returns: 内容
-    @objc public class func encode(url: URL, encoding: UInt) ->String {
+    public class func encode(url: URL, encoding: UInt) ->String {
         
         do{
             return try NSString(contentsOf: url, encoding: encoding) as String

@@ -207,7 +207,7 @@ open class ReaderChapterModel: NSObject, NSCoding {
     // MARK: 构造
     
     /// 获取章节对象,如果则创建对象返回
-    @objc public class func model(storyID: String!, chapterID: NSNumber!, isUpdateFont: Bool = true) ->ReaderChapterModel {
+    public class func model(storyID: String!, chapterID: NSNumber!, isUpdateFont: Bool = true) ->ReaderChapterModel {
         
         var chapterModel: ReaderChapterModel!
         

@@ -17,7 +17,7 @@ open class ReaderCoreText: NSObject {
     ///   - attrString: 内容
     ///   - rect: 显示范围
     /// - Returns: CTFrame
-    @objc public class func makeFrame(attrString: NSAttributedString, rect: CGRect) ->CTFrame {
+    public class func makeFrame(attrString: NSAttributedString, rect: CGRect) ->CTFrame {
         
         let framesetter = CTFramesetterCreateWithAttributedString(attrString)
         
@@ -34,7 +34,7 @@ open class ReaderCoreText: NSObject {
     ///   - attrString: 内容
     ///   - rect: 显示范围
     /// - Returns: 内容分页列表
-    @objc public class func pageRanges(attrString: NSAttributedString, rect: CGRect) ->[NSRange] {
+    public class func pageRanges(attrString: NSAttributedString, rect: CGRect) ->[NSRange] {
         
         var rangeArray: [NSRange] = []
         
@@ -67,7 +67,7 @@ open class ReaderCoreText: NSObject {
     ///   - point: 触摸位置
     ///   - frameRef: 内容 CTFrame
     /// - Returns: 触摸位置的Index
-    @objc public class func touchedCharacterIndex(point: CGPoint, frameRef: CTFrame?) ->CFIndex {
+    public class func touchedCharacterIndex(point: CGPoint, frameRef: CTFrame?) ->CFIndex {
         
         var location: CFIndex = -1
         
@@ -87,7 +87,7 @@ open class ReaderCoreText: NSObject {
     ///   - point: 触摸位置
     ///   - frameRef: 内容 CTFrame
     /// - Returns: 一行的 NSRange
-    @objc public class func touchedLineRange(point: CGPoint, frameRef: CTFrame?) ->NSRange {
+    public class func touchedLineRange(point: CGPoint, frameRef: CTFrame?) ->NSRange {
         
         let line = touchedLine(point: point, frameRef: frameRef)
         
@@ -101,7 +101,7 @@ open class ReaderCoreText: NSObject {
     ///   - frameRef: 内容 CTFrame
     ///   - content: 内容字符串，传了则获取长按的段落 NSRange，没传则获取一行文字的 NSRange
     /// - Returns: 一个段落的 NSRange || 一行文字的 NSRange
-    @objc public class func touchedParagraphRange(point: CGPoint, frameRef: CTFrame?, content: String? = nil) ->NSRange {
+    public class func touchedParagraphRange(point: CGPoint, frameRef: CTFrame?, content: String? = nil) ->NSRange {
         
         let line = touchedLine(point: point, frameRef: frameRef)
         
@@ -175,7 +175,7 @@ open class ReaderCoreText: NSObject {
     ///   - point: 触摸位置
     ///   - frameRef: 内容 CTFrame
     /// - Returns: CTLine
-    @objc public class func touchedLine(point: CGPoint, frameRef: CTFrame?) ->CTLine? {
+    public class func touchedLine(point: CGPoint, frameRef: CTFrame?) ->CTLine? {
         
         var line: CTLine? = nil
         
@@ -238,7 +238,7 @@ open class ReaderCoreText: NSObject {
     ///   - frameRef: 内容 CTFrame
     ///   - content: 内容字符串，也就是生成 frameRef 的正文内容
     /// - Returns: [NSRange] 传入内容的所有断尾 NSRange
-    @objc public class func paragraphEndRanges (frameRef: CTFrame?, content: String?) -> [NSRange] {
+    public class func paragraphEndRanges (frameRef: CTFrame?, content: String?) -> [NSRange] {
         
         var ranges: [NSRange] = []
         
@@ -267,7 +267,7 @@ open class ReaderCoreText: NSObject {
     ///   - frameRef: 内容 CTFrame
     ///   - content: 内容字符串，也就是生成 frameRef 的正文内容
     /// - Returns: [CGRect] 传入内容的所有断尾 CGRect
-    @objc public class func paragraphEndRects (frameRef: CTFrame?, content: String?) -> [CGRect] {
+    public class func paragraphEndRects (frameRef: CTFrame?, content: String?) -> [CGRect] {
         
         var rects: [CGRect] = []
         
@@ -289,7 +289,7 @@ open class ReaderCoreText: NSObject {
     /// - Parameter frameRef: 内容 CTFrame
     /// - Parameter content: 内容字符串(有值则可以去除选中每一行区域内的 开头空格 - 尾部换行符 - 所占用的区域,不传默认返回每一行实际占用区域)
     /// - Returns: 覆盖位置
-    @objc public class func rangeRects(range: NSRange, frameRef: CTFrame?, content: String? = nil) -> [CGRect] {
+    public class func rangeRects(range: NSRange, frameRef: CTFrame?, content: String? = nil) -> [CGRect] {
         
         var rects: [CGRect] = []
         
@@ -389,7 +389,7 @@ open class ReaderCoreText: NSObject {
     /// - Parameter viewFrame: 目标ViewFrame
     /// - Parameter content: 内容字符串
     /// - Returns: MenuRect
-    @objc public class func menuRect(range: NSRange, frameRef: CTFrame?, viewFrame: CGRect, content: String? = nil) ->CGRect {
+    public class func menuRect(range: NSRange, frameRef: CTFrame?, viewFrame: CGRect, content: String? = nil) ->CGRect {
         
         let rects = rangeRects(range: range, frameRef: frameRef, content: content)
         
@@ -401,7 +401,7 @@ open class ReaderCoreText: NSObject {
     /// - Parameter rects: [CGRect]
     /// - Parameter viewFrame: 目标ViewFrame
     /// - Returns: MenuRect
-    @objc public class func menuRect(rects: [CGRect], viewFrame: CGRect) ->CGRect {
+    public class func menuRect(rects: [CGRect], viewFrame: CGRect) ->CGRect {
         
         var menuRect: CGRect = CGRect.zero
         
@@ -494,7 +494,7 @@ open class ReaderCoreText: NSObject {
     ///
     /// - Parameter line: CTLine
     /// - Returns: 一行文字的 Range
-    @objc public class func lineRange(line: CTLine?) ->NSRange {
+    public class func lineRange(line: CTLine?) ->NSRange {
         
         var range: NSRange = NSMakeRange(NSNotFound, 0)
         
@@ -512,7 +512,7 @@ open class ReaderCoreText: NSObject {
     ///
     /// - Parameter line: CTLine
     /// - Returns: 行高
-    @objc public class func lineHeight(frameRef: CTFrame?) ->CGFloat {
+    public class func lineHeight(frameRef: CTFrame?) ->CGFloat {
         
         if frameRef == nil { return 0 }
         
@@ -529,7 +529,7 @@ open class ReaderCoreText: NSObject {
     ///
     /// - Parameter line: CTLine
     /// - Returns: 行高
-    @objc public class func lineHeight(line: CTLine?) ->CGFloat {
+    public class func lineHeight(line: CTLine?) ->CGFloat {
         
         if line == nil { return 0 }
         

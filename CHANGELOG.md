@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.22.1
+
+去掉 23 处没有任何调用方的 `@objc`。**Swift 接入方无需改动**（`@objc` 不影响 Swift 侧调用）。
+
+### 去掉了哪些
+
+全部是 `@objc public class func`：`ReaderCoreText` 14 个、`ReaderTypesetter` 4 个、
+`ReaderTextFileParser` / `ReaderFastTextFileParser` 各 1 个、三个 model 的 `model(storyID:...)`
+工厂方法。
+
+库里没有一个 `.m` / `.h` 文件，接入方也是纯 Swift —— 这些 `@objc` 是从 DZMeBookRead
+继承下来的历史残留，白搭一份 ObjC thunk，还把参数类型钉在 ObjC 可表达的范围内。
+性质与 1.21.0 那批协议一样：只有代价，没有用处。
+
+### 剩下的 `@objc` 都是必需的，不要顺手清掉
+
+`@objc` 在本库还有三处用法，每一处去掉都会出问题，而且**都不报错**：
+
+1. **`@objc(ReaderXxxModel)` 固定类名 × 6** —— `NSKeyedArchiver` 把类名写进归档文件。
+   改掉之后老用户的阅读进度、书签、已缓存章节全部反序列化不出来。
+   `ReaderArchiver.swift` 里有专门的注释盯这件事。
+
+2. **`ReaderConfiguration` 的 10 个 `@objc open var`** —— 阅读配置是以
+   `[String: NSNumber]` 字典存进 `UserDefaults` 的，读回来走 `setValuesForKeys`（KVC），
+   而 KVC 只认 `@objc` 属性。更要命的是 `setValue(_:forUndefinedKey:)` 被覆盖成空实现，
+   所以去掉 `@objc` 既不报错也不崩溃，**每次启动静默把字号 / 行距 / 主题 / 翻页模式
+   重置成默认值**。
+
+3. **53 处 `@objc private/open func`** —— 全是 `#selector` 的靶子（按钮、手势、通知）。
+   `#selector` 是编译期检查的，没有 `@objc optional` 那个静默失效的毛病。要去掉得把按钮
+   换成 `UIAction`、手势包一层 proxy、通知换 block API 并自行管理 token，换来的是更多
+   样板代码，不是改进。
+
 ## 1.22.0
 
 抽屉头部的「全书共多少章」改成完整的文案注入点。**无破坏性变更**，不注入时默认值是

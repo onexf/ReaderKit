@@ -125,7 +125,7 @@ open class ReaderBookModel: NSObject, NSCoding {
     // MARK: 构造
     
     /// 获取阅读对象,如果则创建对象返回
-    @objc public class func model(storyID: String!) ->ReaderBookModel {
+    public class func model(storyID: String!) ->ReaderBookModel {
         
         var readModel: ReaderBookModel!
         

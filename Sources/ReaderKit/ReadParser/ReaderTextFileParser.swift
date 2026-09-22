@@ -14,7 +14,7 @@ open class ReaderTextFileParser: NSObject {
     /// - Parameters:
     ///   - url: 本地文件地址
     ///   - completion: 解析完成
-    @objc public class func parser(url: URL!, completion: ReaderParserCompletion!) {
+    public class func parser(url: URL!, completion: ReaderParserCompletion!) {
         
         DispatchQueue.global().async {
             
