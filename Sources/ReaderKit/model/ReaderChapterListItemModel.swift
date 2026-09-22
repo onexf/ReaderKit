@@ -7,15 +7,12 @@
 
 import UIKit
 
-/// 归档用的固定 ObjC 类名。Swift 类归档时写入「模块名.类名」，
-/// 一旦模块名或 Swift 类名变化，旧归档就反序列化不出来（老用户进度与书签丢失）。
-/// 用 @objc 固定为无模块前缀的名字后，归档格式与模块名、Swift 名解耦。
-/// **该名字一经发布不可再改。**
-@objc(ReaderChapterListItemModel)
+/// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
+/// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
 open class ReaderChapterListItemModel: NSObject, NSCoding {
     
     /// 章节ID
-    @objc open var id: NSNumber!
+    open var id: NSNumber!
 
     /// 小说ID
     open var storyID: String!

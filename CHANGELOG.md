@@ -1,5 +1,47 @@
 # Changelog
 
+## 1.23.0
+
+归档类名从 6 个类上的 `@objc(名字)` 挪进 `ReaderArchiver` 的一张映射表。
+**磁盘格式一个字节都没变**（写下去的还是同样那 6 个字符串），Swift 接入方无需改动。
+至此库内再无 `@objc` 类。
+
+### 为什么挪
+
+要解决的问题没变：Swift 类归档写入的类名默认是「模块名.Swift 类名」，于是改模块名或改
+类名都会让已有归档读不出来 —— 而且是静默的（解档返回 nil → 上层当成本地没缓存 →
+用户的进度、书签、已下载章节凭空消失）。
+
+原先的办法是给 6 个类各挂一个 `@objc(Reader*Model)`。挪进映射表有两个好处：
+
+- **不必为了归档把这些类暴露进 ObjC 运行时。** 本库没有任何 Objective-C 代码，
+  那份暴露是白付的代价。
+- **归档格式收在存储层一个文件里**，而不是散在 6 个文件的类声明上。改名字只看一处。
+
+```swift
+// ReaderArchiver.swift
+private static let archivedClassNames: [(AnyClass, String)] = [
+    (ReaderBookModel.self, "ReaderBookModel"),
+    …
+]
+```
+
+写盘改用 `NSKeyedArchiver(requiringSecureCoding: false)` + `setClassName(_:for:)`
+（`archiveRootObject(_:toFile:)` 那条便捷方法不给机会设类名，而且 iOS 12 起已废弃）；
+读盘改用 `NSKeyedUnarchiver(forReadingFrom:)` + `setClass(_:forClassName:)`
+（顺带让原先那个抓不到任何错误的 `do/catch` 真正起作用）。
+
+### 维护规则（比过去更要紧，因为编译器不再帮你）
+
+**表里的字符串一经发布不可再改。** 新增归档类型必须在表里登记 —— **漏登记不报错**，
+写盘时退回「模块名.类名」，于是下次改模块名它就悄悄失联。过去这条约束由 `@objc(名字)`
+写在类声明上、比较难漏；现在集中了，代价是新增类型时要记得回来加一行。
+
+### 顺带
+
+`ReaderChapterListItemModel.id` 的 `@objc` 也去掉了：这个类只以 `init()` 构造，
+从来没走过 `setValuesForKeys`，那个 `@objc` 没有用处。
+
 ## 1.22.1
 
 去掉 23 处没有任何调用方的 `@objc`。**Swift 接入方无需改动**（`@objc` 不影响 Swift 侧调用）。

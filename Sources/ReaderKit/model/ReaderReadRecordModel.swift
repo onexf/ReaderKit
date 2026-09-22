@@ -10,11 +10,8 @@ import UIKit
 /// 记录当前章节阅读到的坐标
 nonisolated(unsafe) public var READER_RECORD_CURRENT_CHAPTER_LOCATION: NSNumber!
 
-/// 归档用的固定 ObjC 类名。Swift 类归档时写入「模块名.类名」，
-/// 一旦模块名或 Swift 类名变化，旧归档就反序列化不出来（老用户进度与书签丢失）。
-/// 用 @objc 固定为无模块前缀的名字后，归档格式与模块名、Swift 名解耦。
-/// **该名字一经发布不可再改。**
-@objc(ReaderReadRecordModel)
+/// ⚠️ 本类参与归档，磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`。
+/// 改 Swift 类名不影响归档，但**不要改那张表里的字符串**。
 open class ReaderReadRecordModel: NSObject, NSCoding {
 
     /// 小说ID

@@ -186,9 +186,10 @@ ReaderEnvironment.fonts = fonts
 
 ## 已知遗留
 
-- 归档 model 用 `@objc(Reader*Model)` 固定了 ObjC 类名，与模块名、Swift 类名解耦。
-  **改动这些固定名会破坏已发布版本的归档数据**，届时必须在 `ReaderArchiver`
-  里重新引入 `setClass(_:forClassName:)` 映射。
+- 归档 model 在磁盘上的类名登记在 `ReaderArchiver.archivedClassNames`，与模块名、
+  Swift 类名解耦。Swift 侧随便改名，但**改那张表里的字符串会让已发布版本的归档数据
+  全部失联，而且是静默的**（解档返回 nil → 上层当成没有缓存 → 进度书签消失）。
+  新增归档类型必须在表里登记，漏登记不报错。
 - 埋点处于整体下线状态（代码注释保留）。恢复时应经协议由接入方实现，
   引擎不直连任何埋点 SDK。
 
