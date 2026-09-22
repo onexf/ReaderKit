@@ -365,9 +365,9 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// 初始化底部目录视图
     private func initBaseCatalogView() {
         bottomCatalogView = ReaderCatalogueView()
-        // 代理设为 vc 才能触发 catalogViewClickChapter。
+        // 代理设为 vc 才能触发章节点击。
         // 目录面板代理目前实现在子类，故按协议做条件转换，避免菜单反向依赖具体子类类型。
-        bottomCatalogView.delegate = vc as? ReaderCatalogueDelegate
+        bottomCatalogView.delegate = vc as? any ReaderCatalogueDelegate
         bottomCatalogView.readModel = vc.readModel
         bottomCatalogView.backgroundColor = ReaderConfiguration.shared().bgColor
         bottomCatalogView.layer.cornerRadius = 12

@@ -7,19 +7,19 @@
 
 import UIKit
 
-@objc public protocol ReaderCatalogueDelegate: NSObjectProtocol {
-    
-    /// 点击章节
-    @objc optional func catalogViewClickChapter(catalogView: ReaderCatalogueView, chapterListModel: ReaderChapterListItemModel)
-    
-    /// 目录列表滚动到接近底部、且目录尚未加载完整时触发（用于自动补目录 / 上拉加载更多）
-    @objc optional func catalogViewDidReachBottomEdge(catalogView: ReaderCatalogueView)
-    
-    /// 目录补页失败后，用户点了列表末尾的失败提示。
+public protocol ReaderCatalogueDelegate: AnyObject {
+
+    /// 点了目录里的一章。
+    func catalogueView(_ catalogueView: ReaderCatalogueView, didSelect chapter: ReaderChapterListItemModel)
+
+    /// 列表滚到接近底部、且目录尚未加载完整 —— 该补下一页了。
+    func catalogueViewDidReachBottomEdge(_ catalogueView: ReaderCatalogueView)
+
+    /// 补页失败后用户点了列表末尾的失败提示。
     ///
-    /// 与 `catalogViewDidReachBottomEdge` 分开：那条是滚动自动触发、可以静默失败，
+    /// 与 `catalogueViewDidReachBottomEdge` 分开：那条是滚动自动触发、可以静默失败，
     /// 这条是用户明确要求重试，宿主应当绕开失败计数一类的节流。
-    @objc optional func catalogViewDidRequestRetry(catalogView: ReaderCatalogueView)
+    func catalogueViewDidRequestRetry(_ catalogueView: ReaderCatalogueView)
 }
 
 open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSource {
@@ -33,7 +33,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     private let failureFooterHeight: CGFloat = 56
 
     /// 代理
-    open weak var delegate: ReaderCatalogueDelegate!
+    open weak var delegate: (any ReaderCatalogueDelegate)?
     
     /// 宿主报告的「补页失败」。
     ///
@@ -160,7 +160,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     
     @objc private func touchRetry() {
         
-        delegate?.catalogViewDidRequestRetry?(catalogView: self)
+        delegate?.catalogueViewDidRequestRetry(self)
     }
     
     /// 装（或重装）加载中的指示视图。
@@ -388,7 +388,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
             return
         }
         
-        delegate?.catalogViewClickChapter?(catalogView: self, chapterListModel: readModel.chapterListModels[indexPath.row])
+        delegate?.catalogueView(self, didSelect: readModel.chapterListModels[indexPath.row])
     }
     
     open func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
@@ -399,7 +399,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         // ensureDirectoryLoaded 内部已做防重入与「已完整则跳过」，频繁触发安全。
         let count = readModel.chapterListModels?.count ?? 0
         if count > 0, indexPath.row >= count - 3, !readModel.isChapterListComplete {
-            delegate?.catalogViewDidReachBottomEdge?(catalogView: self)
+            delegate?.catalogueViewDidReachBottomEdge(self)
         }
     }
     

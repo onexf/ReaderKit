@@ -1,5 +1,75 @@
 # Changelog
 
+## 1.21.0
+
+最后四个 `@objc` 协议改成原生 Swift 协议。**破坏性变更**，四个协议的方法名与代理属性
+类型都变了，接入方必须跟着改，迁移对照表在下面。
+
+### 为什么要改
+
+这四个协议没有一个需要 Objective-C 运行时：没有 `respondsToSelector:` 判断、
+没有 `performSelector`、没有 ObjC 侧的实现者。`@objc` 在这里只带来三样代价：
+
+- **`@objc optional` 的方法签名写错不报错**，只会静默不被调用 —— 漏接表现为
+  「点了没反应」，要靠运行时发现。
+- **IUO 到处传染**：`open weak var delegate: XxxDelegate!` 与
+  `viewController: UIViewController!`，调用方拿到的每个值都要自己判空。
+- 参数类型被限制在 ObjC 可表达的范围内，`didClickMenuButton button: Int` 这种
+  1/2/3 魔法数字只能用 `Int` 表达，而它本该是枚举。
+
+改完之后：能不能不实现由协议扩展的默认实现明确表达，签名写错是**编译错误**。
+
+### 迁移对照表
+
+| 1.20.0 | 1.21.0 |
+| --- | --- |
+| `ReaderSheetController.aDelegate` | `ReaderSheetController.pageTapDelegate` |
+| `pageViewController(_:getViewControllerBefore:)` | `sheetControllerDidRequestPreviousPage(_:)` |
+| `pageViewController(_:getViewControllerAfter:)` | `sheetControllerDidRequestNextPage(_:)` |
+| `contentViewClickCover(contentView:)` | `contentViewDidTapCover(_:)` |
+| `catalogViewClickChapter(catalogView:chapterListModel:)` | `catalogueView(_:didSelect:)` |
+| `catalogViewDidReachBottomEdge(catalogView:)` | `catalogueViewDidReachBottomEdge(_:)` |
+| `catalogViewDidRequestRetry(catalogView:)` | `catalogueViewDidRequestRetry(_:)` |
+| `markViewClickMark(markView:markModel:)` | `bookmarkListView(_:didSelect:)` |
+| `markViewDidChangeMarks(markView:)` | `bookmarkListViewDidChangeBookmarks(_:)` |
+| `markView(_:willExposeMark:)` | `bookmarkListView(_:willExpose:)` |
+| `markView(_:willShowMenuForMark:)` | `bookmarkListView(_:willShowMenuFor:)` |
+| `markView(_:didClickMenuButton:forMark:)` | `bookmarkListView(_:didSelectMenuAction:for:)` |
+| `markView(_:requestDeleteMarks:completion:)` | `bookmarkListView(_:requestDelete:completion:)` |
+| `markViewRequestClearAll(_:completion:)` | `bookmarkListView(_:requestClearAllWithCompletion:)` |
+
+两个被删掉的参数：点击翻页那两个方法原来带 `viewController: UIViewController!`
+（当前页），没有任何接入方用它，且用它就意味着接入方要自己管容器内部状态。
+
+### 哪些方法现在是必须实现的
+
+`ReaderSheetControllerDelegate`、`ReaderContentViewDelegate`、`ReaderCatalogueDelegate`
+的全部方法都是**必须实现**的 —— 它们每一个都关系到基本可用性（翻不了页、收不起抽屉、
+目录补不上），可选没有意义。
+
+`ReaderBookmarkListDelegate` 只有两个必须实现：`bookmarkListView(_:didSelect:)` 与
+`bookmarkListViewDidChangeBookmarks(_:)`。其余五个在协议扩展里有默认实现：
+
+- 三个埋点回调默认什么都不做。
+- **两个删除请求默认回 `completion(false)`，也就是不删。** 与 1.20.0 下
+  「不实现 → completion 永远不被调用 → 列表不移除」的实际行为一致。书签要与服务端对账，
+  宿主没接删除接口时本地不该自己删，否则换设备再进来它又回来了。
+
+### `didClickMenuButton` 的魔法数字换成枚举
+
+```swift
+public enum ReaderBookmarkMenuAction {
+    case remove     // 原 button: 1
+    case clearAll   // 原 button: 2
+    case cancel     // 原 button: 3
+}
+```
+
+### 代理属性不再是 IUO
+
+四个视图的 `delegate` 从 `XxxDelegate!` 变成 `(any XxxDelegate)?`。赋值方式不变，
+只有「读出来直接用」的代码要补 `?`。
+
 ## 1.20.0
 
 目录列表的「加载中」指示视图改成注入点。**无破坏性变更**，不注入的行为与 1.19.0 一致。

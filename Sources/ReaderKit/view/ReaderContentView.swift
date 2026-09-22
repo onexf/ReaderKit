@@ -11,16 +11,16 @@ import UIKit
 public let READER_CONTENT_VIEW_WIDTH: CGFloat = ReaderScreenMetrics.screenWidth
 public let READER_CONTENT_VIEW_HEIGHT: CGFloat = ReaderScreenMetrics.screenHeight
 
-@objc public protocol ReaderContentViewDelegate: NSObjectProtocol {
-    
-    /// 点击遮罩
-    @objc optional func contentViewClickCover(contentView: ReaderContentView)
+public protocol ReaderContentViewDelegate: AnyObject {
+
+    /// 点了正文上的遮罩。抽屉 / 浮层开着时用它收起。
+    func contentViewDidTapCover(_ contentView: ReaderContentView)
 }
 
 open class ReaderContentView: UIView {
 
     /// 代理
-    open weak var delegate: ReaderContentViewDelegate!
+    open weak var delegate: (any ReaderContentViewDelegate)?
     
     /// 遮盖
     public private(set) var cover: UIControl!
@@ -55,7 +55,7 @@ open class ReaderContentView: UIView {
         
         cover.isUserInteractionEnabled = false
         
-        delegate?.contentViewClickCover?(contentView: self)
+        delegate?.contentViewDidTapCover(self)
         
         presentOverlay(isShow: false)
     }

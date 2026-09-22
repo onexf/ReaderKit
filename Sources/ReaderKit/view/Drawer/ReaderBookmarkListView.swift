@@ -7,35 +7,94 @@
 
 import UIKit
 
-@objc public protocol ReaderBookmarkListDelegate: NSObjectProtocol {
-    
-    /// 点击书签
-    @objc optional func markViewClickMark(markView: ReaderBookmarkListView, markModel: ReaderBookmarkModel)
-    
-    /// 书签 cell 曝光(已过滤锁定章节,且仅在列表真正可见时回调),供外部上报曝光埋点
-    @objc optional func markView(_ markView: ReaderBookmarkListView, willExposeMark markModel: ReaderBookmarkModel)
-    
-    /// 长按书签弹出操作 sheet 时回调,供外部上报 sheet 曝光埋点
-    @objc optional func markView(_ markView: ReaderBookmarkListView, willShowMenuForMark markModel: ReaderBookmarkModel)
-    
-    /// 点击操作 sheet 按钮时回调,供外部上报点击埋点(button:1 remove、2 clear all、3 cancel)
-    @objc optional func markView(_ markView: ReaderBookmarkListView, didClickMenuButton button: Int, forMark markModel: ReaderBookmarkModel)
-    
-    /// 书签数据发生变化(删除/清空后),供外部刷新菜单书签按钮状态
-    @objc optional func markViewDidChangeMarks(markView: ReaderBookmarkListView)
-    
-    /// 请求删除书签(悲观,以服务端结果为准):由外部调服务端删除,成功(或服务端已无)回调 completion(true),
-    /// view 收到 true 才移除本地并刷新;false 表示删除失败,view 不移除
-    @objc optional func markView(_ markView: ReaderBookmarkListView, requestDeleteMarks marks: [ReaderBookmarkModel], completion:@escaping (Bool) -> Void)
-    
-    /// 请求清空当前书全部书签(悲观,走 /app/bookmark/deleteByBook):成功回调 completion(true),view 才清空本地
-    @objc optional func markViewRequestClearAll(_ markView: ReaderBookmarkListView, completion:@escaping (Bool) -> Void)
+/// 长按书签弹出的操作菜单里的按钮。
+public enum ReaderBookmarkMenuAction {
+
+    /// 删除这一条。
+    case remove
+
+    /// 清空本书全部书签。
+    case clearAll
+
+    /// 取消。
+    case cancel
+}
+
+public protocol ReaderBookmarkListDelegate: AnyObject {
+
+    /// 点了一条书签。
+    func bookmarkListView(_ listView: ReaderBookmarkListView, didSelect bookmark: ReaderBookmarkModel)
+
+    /// 书签数据变了（删除 / 清空之后）。供宿主刷新菜单上的书签按钮状态。
+    func bookmarkListViewDidChangeBookmarks(_ listView: ReaderBookmarkListView)
+
+    /// 请求删除书签。**悲观删除，以服务端结果为准。**
+    ///
+    /// 宿主调服务端删，成功（或服务端本来就没有）回 `completion(true)`，列表才移除本地那条；
+    /// 回 `false` 则列表原样不动。
+    func bookmarkListView(
+        _ listView: ReaderBookmarkListView,
+        requestDelete bookmarks: [ReaderBookmarkModel],
+        completion: @escaping (Bool) -> Void
+    )
+
+    /// 请求清空本书全部书签。同样是悲观删除。
+    func bookmarkListView(
+        _ listView: ReaderBookmarkListView,
+        requestClearAllWithCompletion completion: @escaping (Bool) -> Void
+    )
+
+    /// 书签 cell 曝光。已过滤锁定章节，且只在列表真正可见时回调。曝光埋点用。
+    func bookmarkListView(_ listView: ReaderBookmarkListView, willExpose bookmark: ReaderBookmarkModel)
+
+    /// 长按弹出操作菜单。菜单曝光埋点用。
+    func bookmarkListView(_ listView: ReaderBookmarkListView, willShowMenuFor bookmark: ReaderBookmarkModel)
+
+    /// 点了操作菜单里的某个按钮。点击埋点用。
+    func bookmarkListView(
+        _ listView: ReaderBookmarkListView,
+        didSelectMenuAction action: ReaderBookmarkMenuAction,
+        for bookmark: ReaderBookmarkModel
+    )
+}
+
+/// 可以不实现的那几个。
+///
+/// 三个埋点回调默认什么都不做。两个删除请求**默认回 `false`，也就是不删** ——
+/// 书签是要与服务端对账的数据，宿主没接上删除接口时本地就不该自己删掉，
+/// 否则换设备再进来它又回来了，用户会以为删除失效。
+public extension ReaderBookmarkListDelegate {
+
+    func bookmarkListView(_ listView: ReaderBookmarkListView, willExpose bookmark: ReaderBookmarkModel) {}
+
+    func bookmarkListView(_ listView: ReaderBookmarkListView, willShowMenuFor bookmark: ReaderBookmarkModel) {}
+
+    func bookmarkListView(
+        _ listView: ReaderBookmarkListView,
+        didSelectMenuAction action: ReaderBookmarkMenuAction,
+        for bookmark: ReaderBookmarkModel
+    ) {}
+
+    func bookmarkListView(
+        _ listView: ReaderBookmarkListView,
+        requestDelete bookmarks: [ReaderBookmarkModel],
+        completion: @escaping (Bool) -> Void
+    ) {
+        completion(false)
+    }
+
+    func bookmarkListView(
+        _ listView: ReaderBookmarkListView,
+        requestClearAllWithCompletion completion: @escaping (Bool) -> Void
+    ) {
+        completion(false)
+    }
 }
 
 open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataSource {
     
     /// 代理
-    open weak var delegate: ReaderBookmarkListDelegate!
+    open weak var delegate: (any ReaderBookmarkListDelegate)?
     
     /// 数据源
     open var readModel: ReaderBookModel! {
@@ -170,13 +229,13 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         if groups[indexPath.section].isLocked { return }
         
         // sheet 曝光上报(由外部用统一锁定逻辑判定 bookmark_type)
-        delegate?.markView?(self, willShowMenuForMark: mark)
+        delegate?.bookmarkListView(self, willShowMenuFor: mark)
         
         ReaderBookmarkDeleteSheet.show(onRemove: { [weak self] in
             
             guard let self = self else { return }
             
-            self.delegate?.markView?(self, didClickMenuButton: 1, forMark: mark)
+            self.delegate?.bookmarkListView(self, didSelectMenuAction: .remove, for: mark)
             
             self.discardMark(mark)
             
@@ -190,13 +249,13 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
             guard let self = self else { return }
             
             // 点击 Clear All 按钮即上报(无论后续是否确认)
-            self.delegate?.markView?(self, didClickMenuButton: 2, forMark: mark)
+            self.delegate?.bookmarkListView(self, didSelectMenuAction: .clearAll, for: mark)
             
         }, onCancel: { [weak self] in
             
             guard let self = self else { return }
             
-            self.delegate?.markView?(self, didClickMenuButton: 3, forMark: mark)
+            self.delegate?.bookmarkListView(self, didSelectMenuAction: .cancel, for: mark)
         })
     }
     
@@ -204,12 +263,12 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     private func discardMark(_ mark: ReaderBookmarkModel) {
         
         // 悲观删除:先请求服务端,成功(或服务端已无)才移除本地并刷新;失败不移除
-        delegate?.markView?(self, requestDeleteMarks: [mark], completion: { [weak self] success in
+        delegate?.bookmarkListView(self, requestDelete: [mark], completion: { [weak self] success in
             guard let self = self, success else { return }
             guard let realIndex = self.readModel.markModels.firstIndex(of: mark) else { return }
             _ = self.readModel.discardMark(index: realIndex)
             self.reloadMarks()
-            self.delegate?.markViewDidChangeMarks?(markView: self)
+            self.delegate?.bookmarkListViewDidChangeBookmarks(self)
         })
     }
     
@@ -217,11 +276,11 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     private func clearAllMarks() {
         
         // 悲观清空:走按书清空接口(deleteByBook)一次删该书全部,成功才清空本地并刷新;失败不清空
-        delegate?.markViewRequestClearAll?(self, completion: { [weak self] success in
+        delegate?.bookmarkListView(self, requestClearAllWithCompletion: { [weak self] success in
             guard let self = self, success else { return }
             self.readModel.discardAllMarks()
             self.reloadMarks()
-            self.delegate?.markViewDidChangeMarks?(markView: self)
+            self.delegate?.bookmarkListViewDidChangeBookmarks(self)
         })
     }
     
@@ -395,7 +454,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         // 锁定章节的提示 cell 不响应点击
         guard !group.isLocked, indexPath.row < group.marks.count else { return }
         
-        delegate?.markViewClickMark?(markView: self, markModel: group.marks[indexPath.row])
+        delegate?.bookmarkListView(self, didSelect: group.marks[indexPath.row])
     }
     
     open func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
@@ -410,7 +469,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         // 上锁章节的书签无需上报(锁定章节仅展示一个锁定提示 cell)
         guard !group.isLocked, indexPath.row < group.marks.count else { return }
         
-        delegate?.markView?(self, willExposeMark: group.marks[indexPath.row])
+        delegate?.bookmarkListView(self, willExpose: group.marks[indexPath.row])
     }
     
     /// 书签列表是否真正可见(自身及祖先均未隐藏、未透明,且在窗口可见区域内)
@@ -449,11 +508,11 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         let mark = groups[indexPath.section].marks[indexPath.row]
         
         // 悲观删除:先请求服务端,成功才移除本地;成功/失败都整体刷新(成功移除该行、失败让滑动复位)
-        delegate?.markView?(self, requestDeleteMarks: [mark], completion: { [weak self] success in
+        delegate?.bookmarkListView(self, requestDelete: [mark], completion: { [weak self] success in
             guard let self = self else { return }
             if success, let realIndex = self.readModel.markModels.firstIndex(of: mark) {
                 _ = self.readModel.discardMark(index: realIndex)
-                self.delegate?.markViewDidChangeMarks?(markView: self)
+                self.delegate?.bookmarkListViewDidChangeBookmarks(self)
             }
             self.reloadMarks()
         })

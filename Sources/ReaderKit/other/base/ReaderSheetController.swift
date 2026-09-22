@@ -21,19 +21,24 @@ public enum ReaderPageDragDirection {
     case backward
 }
 
-@objc public protocol ReaderSheetControllerDelegate: NSObjectProtocol {
-    
-    /// 获取上一页
-    @objc optional func pageViewController(_ pageViewController: ReaderSheetController, getViewControllerBefore viewController: UIViewController!)
-    
-    /// 获取下一页
-    @objc optional func pageViewController(_ pageViewController: ReaderSheetController, getViewControllerAfter viewController: UIViewController!)
+/// 点击左右两侧区域翻页的回调。
+///
+/// **不是 `UIPageViewControllerDataSource` 的替代品。** 这里只报「用户点了哪一侧」，
+/// 翻不翻、翻到哪由接入方决定并自己调 `setViewControllers`。点击不走数据源，是因为
+/// 数据源返回 nil 时容器只会静静不动，而点击必须有反馈（邻章没缓存要下载）。
+public protocol ReaderSheetControllerDelegate: AnyObject {
+
+    /// 用户点了左侧三分之一 —— 想往前翻一页。
+    func sheetControllerDidRequestPreviousPage(_ sheetController: ReaderSheetController)
+
+    /// 用户点了右侧三分之一 —— 想往后翻一页。
+    func sheetControllerDidRequestNextPage(_ sheetController: ReaderSheetController)
 }
 
 open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDelegate {
 
-    // 自定义tap手势的相关代理
-    open weak var aDelegate: ReaderSheetControllerDelegate?
+    /// 点击翻页的代理。`delegate` / `dataSource` 归 UIPageViewController，所以另起一个名。
+    open weak var pageTapDelegate: (any ReaderSheetControllerDelegate)?
     
     // 自定义Tap手势
     public private(set) var customTapGestureRecognizer: UITapGestureRecognizer!
@@ -109,7 +114,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     ///
     /// `UIPageViewControllerDataSource` 返回 nil 时，UIPageViewController **只是不让翻，
     /// 不会告诉任何人用户试过**。于是「邻章还没下载」这种情况下滑动就是死路：橡皮筋弹回来，
-    /// 没有任何反馈。而点击翻页有 `aDelegate` 那条路可以兜底。
+    /// 没有任何反馈。而点击翻页有 `pageTapDelegate` 那条路可以兜底。
     /// 接入方拿这个回调把滑动也接到同一个兜底实现上。
     ///
     /// ## 只报方向，「容器接手了没有」由接入方自己判
@@ -251,7 +256,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
             if touchPoint.x < LeftWidth {
                 isTapAnimating = true
                 didStartTransition = false
-                aDelegate?.pageViewController?(self, getViewControllerBefore: viewControllers?.first)
+                pageTapDelegate?.sheetControllerDidRequestPreviousPage(self)
                 if !didStartTransition {
                     isTapAnimating = false
                 }
@@ -267,7 +272,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
             
             isTapAnimating = true
             didStartTransition = false
-            aDelegate?.pageViewController?(self, getViewControllerBefore: viewControllers?.first)
+            pageTapDelegate?.sheetControllerDidRequestPreviousPage(self)
             // If delegate didn't call setViewControllers (no previous page / locked chapter), reset immediately
             if !didStartTransition {
                 isTapAnimating = false
@@ -277,7 +282,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
             
             isTapAnimating = true
             didStartTransition = false
-            aDelegate?.pageViewController?(self, getViewControllerAfter: viewControllers?.first)
+            pageTapDelegate?.sheetControllerDidRequestNextPage(self)
             // If delegate didn't call setViewControllers (no next page / locked chapter), reset immediately
             if !didStartTransition {
                 isTapAnimating = false
