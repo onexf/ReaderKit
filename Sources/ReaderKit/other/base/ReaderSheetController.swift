@@ -96,16 +96,17 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     /// 没有任何反馈。而点击翻页有 `aDelegate` 那条路可以兜底。
     /// 接入方拿这个回调把滑动也接到同一个兜底实现上。
     ///
-    /// ## 只报方向，不判断「翻成功了没有」
+    /// ## 只在「容器确实没翻过去」时回调
     ///
-    /// 那件事要看宿主的阅读记录（是不是本章最后一页、邻章在不在本地），库这边判不了 ——
-    /// 内部 scrollView 的 contentOffset 在边界处含义不稳定：`viewControllerBefore` 返回 nil
-    /// 时静止 offset 是 0 而不是一页宽，按「偏离中心」判会把每一次拖动都当成越界。
-    /// 所以这里只给方向，宿主用自己那套守卫去决定要不要加载。
+    /// 判据是内部 scrollView 在拖动结束那一刻**越出了 contentSize 的范围**（橡皮筋），
+    /// 见 `handlePageDrag(_:)`。方向内还有页可去时不回调 —— 那时候容器会自己翻，
+    /// 宿主再插一脚会和进行中的动画打架。
+    ///
+    /// 所以接入方拿到这个回调就可以直接动作，不需要自己判「刚才翻成功了没有」。
     open var onPageDragEnded: ((ReaderPageDragDirection) -> Void)?
     
-    /// 方向判定的位移阈值。小于它的当抖动忽略。
-    private static let dragDirectionThreshold: CGFloat = 20
+    /// 判定「越界」的容差。小于它的当抖动忽略。
+    private static let overscrollThreshold: CGFloat = 10
     
     /// 是否已经挂上拖动监听。
     private var isObservingPageDrag = false
@@ -129,13 +130,29 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     
     @objc private func handlePageDrag(_ pan: UIPanGestureRecognizer) {
         
-        guard pan.state == .ended, let onPageDragEnded else { return }
+        guard pan.state == .ended,
+              let onPageDragEnded,
+              let scrollView = internalScrollView else { return }
         
-        // 手指往左推 = 想往后翻（forward）。
-        let translationX = pan.translation(in: view).x
-        guard abs(translationX) > Self.dragDirectionThreshold else { return }
+        let offsetX = scrollView.contentOffset.x
+        let maxOffsetX = max(0, scrollView.contentSize.width - scrollView.bounds.width)
         
-        onPageDragEnded(translationX < 0 ? .forward : .backward)
+        // **只有越界才算「翻不过去」。**
+        //
+        // 那个方向还有页可去时，offset 始终落在 [0, maxOffsetX] 内，容器会自己完成翻页 ——
+        // 这时候回调宿主是有害的：宿主再 `setViewControllers` 一次就会和进行中的动画打架，
+        // 表现是连翻两页或者画面错乱。
+        //
+        // 没有页可去时内部 scrollView 会橡皮筋越过边界再弹回，于是拖动结束的这一刻
+        // offset 在区间外 —— 这是「容器确实没动」的可靠信号。
+        //
+        // 不按「offset 偏离一页宽」判：静止 offset 只在前后都有页时才等于一页宽，
+        // 缺前一页时它是 0、两边都缺时也是 0，按偏离判会把正常拖动也算成越界。
+        if offsetX > maxOffsetX + Self.overscrollThreshold {
+            onPageDragEnded(.forward)
+        } else if offsetX < -Self.overscrollThreshold {
+            onPageDragEnded(.backward)
+        }
     }
     
     /// 暂停 / 恢复【滑动】翻页。菜单呼出期间由 `ReaderMenu.presentDropdown` 调用。
