@@ -74,6 +74,9 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
 
     /// 失败态的提示文案，整块可点重试
     private var failureLabel: UILabel!
+
+    /// 有一次「定位到当前章」还没做成 —— 尺寸就绪后补做。见 `scrollEntry()`。
+    private var needsScrollToCurrentChapter = false
     
     public override init(frame: CGRect) {
         
@@ -124,6 +127,13 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         tableView.separatorStyle = .none
         // 设计稿首行内容与分割线下方 12pt 处严格对齐，这里不再额外留顶部内边距
         tableView.contentInset = .zero
+        // 关掉自动安全区调整。
+        //
+        // 抽屉以 `.zero` 创建（也就是暂时贴在屏幕左上角），表格在那一刻会被判成
+        // 「贴着安全区顶边」而自动加上一段顶部 inset；等抽屉拿到真实 frame、inset 归零时，
+        // contentOffset 未必跟着回位 —— 症状是列表顶部多出一段空白，首行看起来缺失了。
+        // 这个列表永远嵌在抽屉里、不贴屏幕边，自动调整对它没有意义。
+        tableView.contentInsetAdjustmentBehavior = .never
         tableView.showsVerticalScrollIndicator = false
         addSubview(tableView)
 
@@ -155,37 +165,39 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     }
     
     /// 滚动到阅读记录
+    ///
+    /// ⚠️ **本方法可能在自身还没有尺寸时被调用。** 抽屉的既有装配顺序是「先灌数据、
+    /// 再设 frame」（`ReaderDrawerView` 以 `.zero` 创建），此时 `scrollToRow` 在零尺寸
+    /// 表格上**无效且不报错** —— 症状是目录永远停在第一条，从不定位到当前章。
+    /// 所以尺寸不可用时先记下来，等 `layoutSubviews` 拿到尺寸再补做。
     open func scrollEntry() {
         
-        if readModel != nil {
-            
-            tableView.reloadData()
-       
-            if !readModel.chapterListModels.isEmpty {
-                
-                var row = -1
-                
-                // 安全检查 chapterModel 是否存在
-                guard let currentChapterId = readModel.recordModel.chapterModel?.id else {
-                    return
-                }
-                
-                for (index, item) in readModel.chapterListModels.enumerated() {
-                    
-                    if (item.id == currentChapterId) {
-                        
-                        row = index
-                        
-                        break
-                    }
-                }
-                
-                if row != -1 {
-                    
-                    tableView.scrollToRow(at: IndexPath(row: row, section: 0), at: .middle, animated: false)
-                }
-            }
+        guard readModel != nil else { return }
+        
+        guard bounds.height > 0 else {
+            needsScrollToCurrentChapter = true
+            return
         }
+        
+        performScrollToCurrentChapter()
+    }
+    
+    private func performScrollToCurrentChapter() {
+        
+        guard let readModel, !readModel.chapterListModels.isEmpty else { return }
+        
+        tableView.reloadData()
+        
+        // 安全检查 chapterModel 是否存在
+        guard let currentChapterId = readModel.recordModel.chapterModel?.id else { return }
+        
+        guard let row = readModel.chapterListModels.firstIndex(where: { $0.id == currentChapterId }) else {
+            // 当前章还不在已加载目录里（分页目录常态）。不滚，等补到了再说 ——
+            // 滚到一个错的位置比停在顶部更难判断。
+            return
+        }
+        
+        tableView.scrollToRow(at: IndexPath(row: row, section: 0), at: .middle, animated: false)
     }
 
     // MARK: - 加载态
@@ -291,6 +303,14 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         // footer 宽度跟随列表宽度变化（不重新挂载，避免布局递归）
         if tableView.tableFooterView === loadingFooter {
             layoutLoadingFooter(height: loadingFooter.frame.height)
+        }
+
+        // 补做那次落空的定位（`scrollEntry()` 在还没有尺寸时被调用过）。
+        // 先清标记再做：`performScrollToCurrentChapter` 里的 `reloadData` 只会让表格
+        // 这个子视图重新布局，不会回头触发本方法，但清了更稳。
+        if needsScrollToCurrentChapter, bounds.height > 0 {
+            needsScrollToCurrentChapter = false
+            performScrollToCurrentChapter()
         }
     }
     

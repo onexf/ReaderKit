@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.16.0
+
+修「目录抽屉从不定位到当前章」，并补上「滑动到边界」的回调。**无破坏性变更，全部是追加或内部修复。**
+
+### 修复：目录列表从不定位到当前章
+
+`ReaderCatalogueView.scrollEntry()` 里的 `scrollToRow` 在**自身还没有尺寸**时是无效的
+（而且不报错）。而抽屉的既有装配顺序是「先灌数据、再设 frame」—— `ReaderDrawerView` 以
+`.zero` 创建，接入方在 `presentDrawer` 里先赋 `readModel`（`didSet` 链里就调了
+`scrollEntry()`）、后设 frame。于是首次打开时定位必然落空，列表停在第一条。
+
+当前章靠后时看起来像「没滚到位」，当前章是第 1 章时干脆看不出异常 —— 这也是它一直没被
+发现的原因。
+
+改法：尺寸不可用时记下待办，`layoutSubviews` 拿到尺寸后补做。同时把找行的 for 循环换成
+`firstIndex(where:)`，并为「当前章不在已加载目录里」加了显式早退（分页目录下这是常态，
+原先会走到 `row == -1` 然后静默什么都不做）。
+
+### 修复：列表顶部偶发多出一段空白
+
+`tableView.contentInsetAdjustmentBehavior` 设为 `.never`。抽屉以 `.zero` 创建时表格
+恰好贴在屏幕左上角，会被判成「贴着安全区顶边」而自动加一段顶部 inset；等抽屉拿到真实
+frame、inset 归零时 contentOffset 未必跟着回位。这个列表永远嵌在抽屉里、不贴屏幕边，
+自动调整对它没有意义。
+
+### 新增：`ReaderSheetController.onPageDragEnded`
+
+```swift
+public enum ReaderPageDragDirection { case forward, backward }
+open var onPageDragEnded: ((ReaderPageDragDirection) -> Void)?
+```
+
+`UIPageViewControllerDataSource` 返回 nil 时，UIPageViewController **只是不让翻，不会
+告诉任何人用户试过**。于是「邻章还没下载」这种情况下滑动就是死路：橡皮筋弹回来，没有任何
+反馈 —— 而点击翻页有 `aDelegate` 那条路可以兜底。接入方拿这个回调把滑动也接到同一个
+兜底实现上。
+
+两个实现上的选择，接入方改这块前先看：
+
+- **挂在内部 scrollView 已有的 pan 手势上，没有动 `scrollView.delegate`。**
+  UIPageViewController 自己就是那个 delegate，它靠那些回调驱动转场与
+  `didFinishAnimating`，换掉等于把容器的翻页记账拆了。同一个手势挂多个 target 是
+  文档化的行为。
+- **只报方向，不判断「翻成功了没有」。** 那件事要看宿主的阅读记录（是不是本章最后一页、
+  邻章在不在本地）。内部 scrollView 的 contentOffset 在边界处含义不稳定：
+  `viewControllerBefore` 返回 nil 时静止 offset 是 0 而不是一页宽，按「偏离中心」判会把
+  每一次拖动都当成越界。
+
 ## 1.15.0
 
 目录列表的加载态：修转圈跑到列表顶部，并补上失败态。**无破坏性变更，全部是追加。**

@@ -13,6 +13,14 @@ private let LeftWidth: CGFloat = ReaderScreenMetrics.screenWidth / 3
 // 右边下一页点击区域
 private let RightWidth: CGFloat = ReaderScreenMetrics.screenWidth / 3
 
+/// 翻页的方向。
+public enum ReaderPageDragDirection {
+    /// 往后翻（下一页 / 下一章）。手指往左推。
+    case forward
+    /// 往前翻（上一页 / 上一章）。手指往右推。
+    case backward
+}
+
 @objc public protocol ReaderSheetControllerDelegate: NSObjectProtocol {
     
     /// 获取上一页
@@ -56,6 +64,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         
         // Find the internal UIScrollView for later use
         ensurePrivateScrollView()
+        observePageDrag()
     }
     
     /// 查找并缓存 UIPageViewController 内部的 UIScrollView（.scroll 样式下存在）。
@@ -76,6 +85,57 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     open func requirePageScrollToFail(_ gesture: UIGestureRecognizer) {
         ensurePrivateScrollView()
         internalScrollView?.panGestureRecognizer.require(toFail: gesture)
+    }
+    
+    /// 用户拖动结束时回调，带上「想往哪翻」。
+    ///
+    /// ## 为什么需要它
+    ///
+    /// `UIPageViewControllerDataSource` 返回 nil 时，UIPageViewController **只是不让翻，
+    /// 不会告诉任何人用户试过**。于是「邻章还没下载」这种情况下滑动就是死路：橡皮筋弹回来，
+    /// 没有任何反馈。而点击翻页有 `aDelegate` 那条路可以兜底。
+    /// 接入方拿这个回调把滑动也接到同一个兜底实现上。
+    ///
+    /// ## 只报方向，不判断「翻成功了没有」
+    ///
+    /// 那件事要看宿主的阅读记录（是不是本章最后一页、邻章在不在本地），库这边判不了 ——
+    /// 内部 scrollView 的 contentOffset 在边界处含义不稳定：`viewControllerBefore` 返回 nil
+    /// 时静止 offset 是 0 而不是一页宽，按「偏离中心」判会把每一次拖动都当成越界。
+    /// 所以这里只给方向，宿主用自己那套守卫去决定要不要加载。
+    open var onPageDragEnded: ((ReaderPageDragDirection) -> Void)?
+    
+    /// 方向判定的位移阈值。小于它的当抖动忽略。
+    private static let dragDirectionThreshold: CGFloat = 20
+    
+    /// 是否已经挂上拖动监听。
+    private var isObservingPageDrag = false
+    
+    /// 监听内部横向 pan 的结束。
+    ///
+    /// **往【已有】手势上挂一个 target，不要去换 `scrollView.delegate`** ——
+    /// UIPageViewController 自己就是那个 delegate，换掉它等于把容器的翻页记账拆了
+    /// （它靠那些回调驱动自己的转场与 `didFinishAnimating`）。
+    /// 同一个手势可以有多个 target，彼此互不影响，这条是文档化的行为。
+    private func observePageDrag() {
+        
+        guard !isObservingPageDrag else { return }
+        
+        ensurePrivateScrollView()
+        guard let pan = internalScrollView?.panGestureRecognizer else { return }
+        
+        pan.addTarget(self, action: #selector(handlePageDrag(_:)))
+        isObservingPageDrag = true
+    }
+    
+    @objc private func handlePageDrag(_ pan: UIPanGestureRecognizer) {
+        
+        guard pan.state == .ended, let onPageDragEnded else { return }
+        
+        // 手指往左推 = 想往后翻（forward）。
+        let translationX = pan.translation(in: view).x
+        guard abs(translationX) > Self.dragDirectionThreshold else { return }
+        
+        onPageDragEnded(translationX < 0 ? .forward : .backward)
     }
     
     /// 暂停 / 恢复【滑动】翻页。菜单呼出期间由 `ReaderMenu.presentDropdown` 调用。
@@ -108,6 +168,8 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         // 新建出来的内部 pan 默认是开的，不在这里补一次的话：改完字号菜单还开着，
         // 却又能滑动翻页了。`viewDidLoad` 里做不了，那时 parent 还没挂上。
         suspendPageTurn(isReaderMenuShowing)
+        // 内部 scrollView 在 `viewDidLoad` 时可能还没建出来，补挂一次（幂等）。
+        observePageDrag()
     }
     
     /// Override to track animation completion for tap-triggered transitions
