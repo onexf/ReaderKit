@@ -94,7 +94,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     public private(set) weak var delegate: ReaderMenuDelegate?
     
     /// 菜单显示状态
-    open var isMenuShow: Bool = false
+    open var isMenuVisible: Bool = false
     
     /// 单击手势
     public private(set) var singleTap: UITapGestureRecognizer!
@@ -102,7 +102,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// 收起菜单的滑动手势。
     ///
     /// 菜单呼出期间在半透明区域**拖动**也要能收起菜单，不只是点一下。
-    /// 只在 `isMenuShow` 为真时才允许开始（见 `gestureRecognizerShouldBegin`），
+    /// 只在 `isMenuVisible` 为真时才允许开始（见 `gestureRecognizerShouldBegin`），
     /// 菜单没呼出时它立刻失败，不参与正常的翻页 / 滚动。
     public private(set) var dismissPan: UIPanGestureRecognizer!
     
@@ -196,7 +196,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         // 这条限制只管【唤起】。菜单已经呼出时任意位置点一下都要能收起 ——
         // 此时正文被遮罩盖着，用户点的是遮罩，语义就是「关掉菜单」，
         // 再按左右 1/3 判一次的话点两侧会毫无反应。
-        if !isMenuShow, ReaderConfiguration.shared().effectType == .scroll {
+        if !isMenuVisible, ReaderConfiguration.shared().effectType == .scroll {
             let tapLocation = singleTap.location(in: vc.contentView)
             let viewWidth = vc.contentView.bounds.width
             let leftBoundary = viewWidth / 3.0
@@ -208,7 +208,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
             }
         }
         
-        presentDropdown(isShow: !isMenuShow)
+        presentDropdown(isShow: !isMenuVisible)
     }
     
     /// 触发收起菜单的滑动手势
@@ -218,7 +218,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// `suspendPageTurn(true)` 关掉，中途重新打开也不会接管已经开始的这串触摸。
     @objc private func handleMenuDismissDrag() {
         
-        guard dismissPan.state == .began, isMenuShow else { return }
+        guard dismissPan.state == .began, isMenuVisible else { return }
         
         presentDropdown(isShow: false)
     }
@@ -230,7 +230,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// 菜单没呼出时返回 false，它立刻进入 failed，不会延迟或干扰翻页 / 滚动手势。
     open func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         
-        if gestureRecognizer === dismissPan { return isMenuShow }
+        if gestureRecognizer === dismissPan { return isMenuVisible }
         
         return true
     }
@@ -276,7 +276,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         // 必须排在下面那些按位置/按页型的判断之前：那些规则是为【唤起】菜单定的
         // （书末页只让顶部空白区的中间 1/3 唤起），拿来管收起会留下死区 ——
         // 点了既不收菜单、又因为翻页已被掐掉而什么都不发生。
-        if isMenuShow { return true }
+        if isMenuVisible { return true }
         
         // On END page, only allow menu tap in the top blank area (above recommend content)
         if let endVC = vc.pageViewController?.viewControllers?.first as? ReaderTerminalPageController {
@@ -423,8 +423,8 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         
         menuBackdrop = UIView()
         menuBackdrop.backgroundColor = .black
-        menuBackdrop.alpha = isMenuShow ? menuBackdropAlpha : 0
-        menuBackdrop.isHidden = !isMenuShow
+        menuBackdrop.alpha = isMenuVisible ? menuBackdropAlpha : 0
+        menuBackdrop.isHidden = !isMenuVisible
         
         // 不拦截手势,点击仍由 contentView 的单击手势统一处理
         //
@@ -460,7 +460,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// 切换主题后同步遮罩深度(浅色 ←→ 夜间深度不同)
     open func reviseMenuBackdropAlpha() {
         
-        guard isMenuShow else { return }
+        guard isMenuVisible else { return }
         menuBackdrop.alpha = menuBackdropAlpha
     }
     
@@ -471,11 +471,11 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         
         topView = ReaderMenuTopBar(hostMenu: self)
         
-        topView.isHidden = !isMenuShow
+        topView.isHidden = !isMenuVisible
         
         contentView.addSubview(topView)
         
-        let y = isMenuShow ? 0 : -READER_MENU_TOP_VIEW_HEIGHT
+        let y = isMenuVisible ? 0 : -READER_MENU_TOP_VIEW_HEIGHT
         
         topView.frame = CGRect(x: 0, y: y, width: READER_CONTENT_VIEW_WIDTH, height: READER_MENU_TOP_VIEW_HEIGHT)
     }
@@ -487,12 +487,12 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         
         bottomBar = ReaderMenuBottomBar(hostMenu: self)
     
-        bottomBar.isHidden = !isMenuShow
+        bottomBar.isHidden = !isMenuVisible
         
         contentView.addSubview(bottomBar)
         
         let currentHeight = bottomBar.getCurrentHeight()
-        let y = isMenuShow ? (READER_CONTENT_VIEW_HEIGHT - currentHeight) : READER_CONTENT_VIEW_HEIGHT
+        let y = isMenuVisible ? (READER_CONTENT_VIEW_HEIGHT - currentHeight) : READER_CONTENT_VIEW_HEIGHT
         
         bottomBar.frame = CGRect(x: 0, y: y, width: READER_CONTENT_VIEW_WIDTH, height: currentHeight)
         
@@ -550,13 +550,13 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     // MARK: 菜单展示
     
     /// 动画是否完成
-    private var isAnimateComplete: Bool = true
+    private var transitionSettled: Bool = true
     
     open func presentDropdown(isShow: Bool) {
         
-        if isMenuShow == isShow || !isAnimateComplete {return}
+        if isMenuVisible == isShow || !transitionSettled {return}
         
-        isAnimateComplete = false
+        transitionSettled = false
         
         if isShow {
             delegate?.readerMenuWillPresent(self)
@@ -567,17 +567,17 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
             presentCatalogBackdrop(isShow: false)
         }
         
-        isMenuShow = isShow
+        isMenuVisible = isShow
         
         // 菜单呼出期间不许滑动翻页。
         //
-        // 点击翻页由 `ReaderSheetController` 自己按 `isMenuShow` 拒掉，不需要在这里管；
+        // 点击翻页由 `ReaderSheetController` 自己按 `isMenuVisible` 拒掉，不需要在这里管；
         // 滑动那条是 UIPageViewController 内部的 pan,只能从外面显式开关。
         // 滚动模式没有这个容器（`pageViewController` 为 nil）,可选链直接跳过。
         vc?.pageViewController?.suspendPageTurn(isShow)
         
         // 更新状态栏
-        UIApplication.shared.setStatusBarHidden(!isMenuShow, with: .fade)
+        UIApplication.shared.setStatusBarHidden(!isMenuVisible, with: .fade)
         
         presentMenuBackdrop(isShow: isShow)
         
@@ -592,7 +592,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
             
             guard let self else { return }
             
-            self.isAnimateComplete = true
+            self.transitionSettled = true
             
             if isShow {
                 self.delegate?.readerMenuDidPresent(self)

@@ -36,10 +36,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
     private var chapterCache: [String: ReaderChapterModel] = [:]
     
     /// 记录滚动坐标
-    private var scrollPoint: CGPoint!
+    private var lastContentOffset: CGPoint!
     
     /// 是否为向上滚动
-    private var isScrollUp: Bool = true
+    private var isDraggingUpward: Bool = true
     
     /// 标记用户是否已经开始主动滚动（防止初始加载时误触发）
     private var userDidScroll: Bool = false
@@ -77,7 +77,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         chapterCache.removeAll()
         
         // 记录目标章节ID（用于定位时查找正确的 section）
-        let targetChapterID = vc.bookModel.recordModel.chapterModel.id!
+        let targetChapterID = vc.bookModel.readingRecord.chapterModel.id!
         
         // 添加当前章节
         sectionChapterIDs.append(targetChapterID)
@@ -88,8 +88,8 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         
         // 定位到目标位置
         let targetSection = sectionChapterIDs.firstIndex(of: targetChapterID) ?? 0
-        let page = vc.bookModel.recordModel.page.intValue
-        let offset = vc.bookModel.recordModel.pageScrollAnchor
+        let page = vc.bookModel.readingRecord.page.intValue
+        let offset = vc.bookModel.readingRecord.pageScrollAnchor
         let numberOfRows = tableView.numberOfRows(inSection: targetSection)
         
         if page < numberOfRows {
@@ -446,7 +446,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         // 顶部状态栏
         topView = ReaderStatusTopView()
         topView.storyName.text = vc.bookModel.storyName
-        topView.chapterTitleLabel.text = vc.bookModel.recordModel.chapterModel.name
+        topView.chapterTitleLabel.text = vc.bookModel.readingRecord.chapterModel.name
         view.addSubview(topView)
         topView.frame = CGRect(x: readRect.minX, y: readRect.minY, width: readRect.width, height: READER_STATUS_TOP_VIEW_HEIGHT)
         
@@ -725,8 +725,8 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         vc.hostMenu.presentDropdown(isShow: false)
         
         // 重置属性
-        isScrollUp = true
-        scrollPoint = CGPoint.zero
+        isDraggingUpward = true
+        lastContentOffset = CGPoint.zero
         
         // 标记用户已开始主动滚动
         userDidScroll = true
@@ -743,21 +743,21 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
     open func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         
         // 更新阅读记录
-        reviseReadEntry(isRollingUp: isScrollUp)
+        reviseReadEntry(isRollingUp: isDraggingUpward)
     }
     
     // 开始减速
     open func scrollViewWillBeginDecelerating(_ scrollView: UIScrollView) {
         
         // 更新阅读记录
-        reviseReadEntry(isRollingUp: isScrollUp)
+        reviseReadEntry(isRollingUp: isDraggingUpward)
     }
     
     // 结束减速
     open func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         
         // 更新阅读记录
-        reviseReadEntry(isRollingUp: isScrollUp)
+        reviseReadEntry(isRollingUp: isDraggingUpward)
     }
     
     /// 系统功能，点击状态栏自动滚动到顶部；更新阅读章节
@@ -782,30 +782,30 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
     // 正在滚动
     open func scrollViewDidScroll(_ scrollView: UIScrollView) {
         
-        // 页码必须在下面那道 scrollPoint 守卫**之前**刷新：scrollPoint 只在用户首次拖拽
+        // 页码必须在下面那道 lastContentOffset 守卫**之前**刷新：lastContentOffset 只在用户首次拖拽
         // （scrollViewWillBeginDragging）时才被赋值，程序化改 contentOffset（定位、换肤恢复、
         // 滚到书末）都会被那道守卫直接拦掉，页码就会停在旧值上。
         revisePageNumber()
         
-        if scrollPoint == nil { return }
+        if lastContentOffset == nil { return }
         
         let point = scrollView.panGestureRecognizer.translation(in: scrollView)
         
-        if point.y < scrollPoint.y { // 上滚
+        if point.y < lastContentOffset.y { // 上滚
             
-            isScrollUp = true
+            isDraggingUpward = true
             
-        }else if point.y > scrollPoint.y { // 下滚
+        }else if point.y > lastContentOffset.y { // 下滚
             
-            isScrollUp = false
+            isDraggingUpward = false
             
         }else{ }
         
         // 记录坐标
-        scrollPoint = point
+        lastContentOffset = point
         
         // 实时检测是否接近底部锁定章节（滚动过程中即触发，更灵敏）
-        if userDidScroll && isScrollUp {
+        if userDidScroll && isDraggingUpward {
             verifyIfReachedBase(scrollView)
         }
         
@@ -824,7 +824,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         let scrollViewHeight = scrollView.frame.size.height
         
         // 向下滚动（查看前面内容）且接近顶部时，重试加载上一章
-        if !isScrollUp && contentOffsetY < 50 {
+        if !isDraggingUpward && contentOffsetY < 50 {
             let firstChapterID = sectionChapterIDs.first!
             if let chapterModel = chapterCache[firstChapterID.stringValue] {
                 preloadingPrior(chapterModel)
@@ -832,7 +832,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         }
         
         // 向上滚动（查看后面内容）且接近底部时，重试加载下一章
-        if isScrollUp && (contentOffsetY + scrollViewHeight) > (contentHeight - 50) {
+        if isDraggingUpward && (contentOffsetY + scrollViewHeight) > (contentHeight - 50) {
             let lastChapterID = sectionChapterIDs.last!
             if let chapterModel = chapterCache[lastChapterID.stringValue] {
                 preloadingFollowing(chapterModel)
@@ -843,7 +843,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
     /// 检查是否滚动到底部，触发解锁回调
     private func verifyIfReachedBase(_ scrollView: UIScrollView) {
         // 只在用户主动滚动且向上滚动（内容向上=手指向上=看更多内容）时检查
-        guard userDidScroll && isScrollUp else { return }
+        guard userDidScroll && isDraggingUpward else { return }
         
         // 节流：2秒内最多触发一次，防止短时间内重复弹窗
         let now = Date().timeIntervalSince1970
@@ -861,7 +861,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         guard distanceFromBottom < -10 else { return }
         
         // 直接通过可见cell判断是否已到达最后加载章节的末尾区域
-        // 不再依赖 recordModel.isLastPage（它在滚动结束后才更新，导致延迟）
+        // 不再依赖 readingRecord.isLastPage（它在滚动结束后才更新，导致延迟）
         guard let visibleIndexPaths = tableView.indexPathsForVisibleRows,
               let lastVisibleIndexPath = visibleIndexPaths.last else { return }
         
@@ -883,7 +883,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
             }
             return
         }
-        guard let nextChapterListModel = vc.bookModel.chapterListModels.first(where: { $0.id == followingChapterID }) else { return }
+        guard let nextChapterListModel = vc.bookModel.catalogueEntries.first(where: { $0.id == followingChapterID }) else { return }
         
         if nextChapterListModel.isLocked {
             // 下一章仍然锁定，走正常解锁流程
@@ -936,10 +936,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         }
         
         // 检测章节是否切换（用于自动加书架）
-        let oldChapterID = vc.bookModel.recordModel.chapterModel?.id.intValue
+        let oldChapterID = vc.bookModel.readingRecord.chapterModel?.id.intValue
         let newChapterID = chapterModel.id.intValue
         
-        // 章节切换时，先上报旧章节数据（在 recordModel 被更新之前）
+        // 章节切换时，先上报旧章节数据（在 readingRecord 被更新之前）
         if oldChapterID != newChapterID, reportedChapterID != oldChapterID {
             reportedChapterID = oldChapterID
             vc.submitOnChapterAlter()
@@ -968,13 +968,13 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         if recordSection < sectionChapterIDs.count {
             let recordChapterID = sectionChapterIDs[recordSection]
             if let recordChapterModel = resolveChapterModel(chapterID: recordChapterID) {
-                vc.bookModel.recordModel.modify(chapterModel: recordChapterModel, page: recordIndexPath.row, isSave: false)
-                vc.bookModel.recordModel.pageScrollAnchor = recordOffset
-                vc.bookModel.recordModel.save()
+                vc.bookModel.readingRecord.modify(chapterModel: recordChapterModel, page: recordIndexPath.row, isSave: false)
+                vc.bookModel.readingRecord.pageScrollAnchor = recordOffset
+                vc.bookModel.readingRecord.save()
             }
         }
         
-        READER_RECORD_CURRENT_CHAPTER_LOCATION = vc.bookModel.recordModel.locationFirst
+        READER_RECORD_CURRENT_CHAPTER_LOCATION = vc.bookModel.readingRecord.locationFirst
         
         // 如果章节切换了，记录新章节并检查条件
         if oldChapterID != newChapterID {
@@ -1025,14 +1025,14 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                 
                 // 更新章节链接关系（防止使用旧的缓存数据）
                 if let model = chapterModel,
-                   let chapterIndex = vc.bookModel.chapterListModels.firstIndex(where: { $0.id == chapterID }) {
+                   let chapterIndex = vc.bookModel.catalogueEntries.firstIndex(where: { $0.id == chapterID }) {
                     if chapterIndex > 0 {
-                        model.priorChapterID = vc.bookModel.chapterListModels[chapterIndex - 1].id
+                        model.priorChapterID = vc.bookModel.catalogueEntries[chapterIndex - 1].id
                     } else {
                         model.priorChapterID = READER_NO_MORE_CHAPTER
                     }
-                    if chapterIndex < vc.bookModel.chapterListModels.count - 1 {
-                        model.followingChapterID = vc.bookModel.chapterListModels[chapterIndex + 1].id
+                    if chapterIndex < vc.bookModel.catalogueEntries.count - 1 {
+                        model.followingChapterID = vc.bookModel.catalogueEntries[chapterIndex + 1].id
                     } else {
                         model.followingChapterID = READER_NO_MORE_CHAPTER
                     }
@@ -1096,7 +1096,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         
         let storyID = chapterModel.storyID
         let bookModel = vc.bookModel!
-        let chapterListModels = bookModel.chapterListModels!
+        let catalogueEntries = bookModel.catalogueEntries!
         let isLocal = bookModel.storySourceType == .local
         let currentChapterModelId = chapterModel.id!
         
@@ -1117,14 +1117,14 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     tempChapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID!, isUpdateFont: false)
                     
                     if let model = tempChapterModel,
-                       let chapterIndex = chapterListModels.firstIndex(where: { $0.id == chapterID }) {
+                       let chapterIndex = catalogueEntries.firstIndex(where: { $0.id == chapterID }) {
                         if chapterIndex > 0 {
-                            model.priorChapterID = chapterListModels[chapterIndex - 1].id
+                            model.priorChapterID = catalogueEntries[chapterIndex - 1].id
                         } else {
                             model.priorChapterID = READER_NO_MORE_CHAPTER
                         }
-                        if chapterIndex < chapterListModels.count - 1 {
-                            model.followingChapterID = chapterListModels[chapterIndex + 1].id
+                        if chapterIndex < catalogueEntries.count - 1 {
+                            model.followingChapterID = catalogueEntries[chapterIndex + 1].id
                         } else {
                             model.followingChapterID = READER_NO_MORE_CHAPTER
                         }
@@ -1170,7 +1170,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     guard let self = self else { return }
                     
                     // 检查上一章是否锁定（付费墙已移除，恒为 false）
-                    if let previousChapterListModel = self.vc.bookModel.chapterListModels.first(where: { $0.id == chapterID }) {
+                    if let previousChapterListModel = self.vc.bookModel.catalogueEntries.first(where: { $0.id == chapterID }) {
                         if previousChapterListModel.isLocked {
                             if let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID!) {
                                 self.inflightChapterIDs.remove(at: loadIndex)
@@ -1241,7 +1241,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         
         let storyID = chapterModel.storyID
         let bookModel = vc.bookModel!
-        let chapterListModels = bookModel.chapterListModels!
+        let catalogueEntries = bookModel.catalogueEntries!
         let isLocal = bookModel.storySourceType == .local
         let currentChapterModelId = chapterModel.id!
         
@@ -1262,14 +1262,14 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     tempChapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID!, isUpdateFont: false)
                     
                     if let model = tempChapterModel,
-                       let chapterIndex = chapterListModels.firstIndex(where: { $0.id == chapterID }) {
+                       let chapterIndex = catalogueEntries.firstIndex(where: { $0.id == chapterID }) {
                         if chapterIndex > 0 {
-                            model.priorChapterID = chapterListModels[chapterIndex - 1].id
+                            model.priorChapterID = catalogueEntries[chapterIndex - 1].id
                         } else {
                             model.priorChapterID = READER_NO_MORE_CHAPTER
                         }
-                        if chapterIndex < chapterListModels.count - 1 {
-                            model.followingChapterID = chapterListModels[chapterIndex + 1].id
+                        if chapterIndex < catalogueEntries.count - 1 {
+                            model.followingChapterID = catalogueEntries[chapterIndex + 1].id
                         } else {
                             model.followingChapterID = READER_NO_MORE_CHAPTER
                         }
@@ -1306,7 +1306,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     guard let self = self else { return }
                     
                     // 检查下一章是否锁定（付费墙已移除，恒为 false）
-                    if let nextChapterListModel = self.vc.bookModel.chapterListModels.first(where: { $0.id == chapterID }) {
+                    if let nextChapterListModel = self.vc.bookModel.catalogueEntries.first(where: { $0.id == chapterID }) {
                         if nextChapterListModel.isLocked {
                             if let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID!) {
                                 self.inflightChapterIDs.remove(at: loadIndex)

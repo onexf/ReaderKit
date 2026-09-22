@@ -207,17 +207,17 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     /// 拷贝阅读记录
     open func duplicateModel() ->ReaderReadRecordModel {
         
-        let recordModel = ReaderReadRecordModel()
+        let readingRecord = ReaderReadRecordModel()
         
-        recordModel.storyID = storyID
+        readingRecord.storyID = storyID
         
-        recordModel.chapterModel = chapterModel
+        readingRecord.chapterModel = chapterModel
         
-        recordModel.page = page
+        readingRecord.page = page
         
-        recordModel.pageScrollAnchor = pageScrollAnchor
+        readingRecord.pageScrollAnchor = pageScrollAnchor
         
-        return recordModel
+        return readingRecord
     }
     
     /// 保存记录
@@ -238,25 +238,25 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     /// 获取阅读记录对象,如果则创建对象返回
     public class func model(storyID: String!) ->ReaderReadRecordModel {
         
-        var recordModel: ReaderReadRecordModel!
+        var readingRecord: ReaderReadRecordModel!
         
         if ReaderReadRecordModel.isExist(storyID) {
             
-            recordModel = ReaderArchiver.unarchiver(folderName: storyID, fileName: READER_KEY_RECORD) as? ReaderReadRecordModel
+            readingRecord = ReaderArchiver.unarchiver(folderName: storyID, fileName: READER_KEY_RECORD) as? ReaderReadRecordModel
             
             // 不在此处调用 reviseFont()，避免不必要的重新分页导致 page 偏移
             // reviseFont() 会在 GetChapterModel / ReaderChapterModel.model() 中按需调用
         }
         
         // ⚠️ 解档失败必须回落成新实例，理由同 `ReaderChapterModel.model(storyID:chapterID:)`。
-        if recordModel == nil {
+        if readingRecord == nil {
             
-            recordModel = ReaderReadRecordModel()
+            readingRecord = ReaderReadRecordModel()
             
-            recordModel.storyID = storyID
+            readingRecord.storyID = storyID
         }
         
-        return recordModel
+        return readingRecord
     }
     
     public required init?(coder aDecoder: NSCoder) {

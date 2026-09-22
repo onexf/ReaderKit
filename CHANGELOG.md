@@ -1,5 +1,78 @@
 # Changelog
 
+## 1.28.0
+
+去同质化的收尾：把对比报告里**还落在本库自己代码上**的名字清完。
+1.26.0 改 Swift 标识符、1.27.0 改磁盘键名与字符串常量，这一版处理剩下的
+存储属性与 `@objc` 选择器。
+
+### 先纠正 1.26.0 的一个语义错误（这条最要紧）
+
+`ReaderBookmarkDeleteSheet` 有两个清空回调，1.26.0 改名时**改反了**：
+
+| 参数 | 真实语义 | 1.26.0 错叫 | 现在 |
+| --- | --- | --- | --- |
+| 点 Clear All 按钮即回调（埋点，早于二次确认） | 点击 | `onClearAllConfirmed` ❌ | `onClearAllTapped` |
+| 二次确认后真正执行清除 | 确认 | `onClearAll` | `onClearAllConfirmed` |
+
+也就是说 1.26.0 之后，名字叫「已确认」的那个其实在「刚点下去」就触发。
+接在它上面做删除动作会**跳过二次确认**。本库内的调用点没有踩到（走的是另一个），
+但接入方如果按名字接线就会中招。**1.26.0 / 1.27.0 的接入方请检查这两个回调。**
+
+### 存储属性改名
+
+Swift 存储属性名进 `__swift5_reflstr`，`private` 也躲不掉。这一批是阅读器专有语义的：
+
+| 旧 | 新 | | 旧 | 新 |
+| --- | --- | --- | --- | --- |
+| `chapterListModels` | `catalogueEntries` | | `isMenuShow` | `isMenuVisible` |
+| `markModels` | `bookmarkEntries` | | `isAnimateComplete` | `transitionSettled` |
+| `recordModel` | `readingRecord` | | `isTapAnimating` | `tapTurnInFlight` |
+| `markView` | `bookmarkList` | | `isTouchCursor` | `isCursorGrabbed` |
+| `scrollController` | `flowController` | | `selectRange` | `selectedSpan` |
+| `scrollPoint` | `lastContentOffset` | | `isScrollUp` | `isDraggingUpward` |
+| `settingPanelView` | `contentContainer` | | `openLongPress` | `longPressSelectionEnabled` |
+| `nightModeButton` | `themeToggleButton` | | `onBackTapped` | `onLeaveTapped` |
+| `settingButton` | `settingsTab` | | `emptyLabel` | `placeholderLabel` |
+| `fontSizeLabel` | `sizeReadout` | | `decreaseButton` | `fontSizeDownButton` |
+| | | | `increaseButton` | `fontSizeUpButton` |
+
+`addToBookshelf` 一名两用，拆开了：注入点里的图标提供者
+`ReaderEnvironment.images.addToBookshelf` → `shelfAddIcon`，
+`ReaderMenuTopBar` 里那个按钮 → `shelfButton`。
+
+### `@objc` 选择器改名
+
+只有 `@objc` 成员会进 ObjC 选择器表，普通 Swift 方法不会。这几个是手势 target：
+
+`ReaderSpeechDock.clickCover` → `dismissByArtworkTap`、
+`ReaderSpeechDockToggle.handleTap` → `toggleTapped`、
+`ReaderSpeechDockCloseButton.handleTap` → `closeTapped`、
+`ReaderSpeechScreenController.handleDismissPan` → `screenDismissDragged`、
+`ReaderSpeechScreenChevron/SkipButton/ToggleButton.handleTap` →
+`chevronTapped` / `skipTapped` / `playToggleTapped`。
+
+五个类共用一个 `handleTap` 本来就不好读 —— 顺手按各自职责分开了。
+
+### 为什么没把手势换成闭包
+
+`UIGestureRecognizer` 没有闭包 API（`UIAction` 只有 `UIControl` 有）。要去掉 `@objc`
+得引入一个持闭包的 `NSObject` 代理，而**那个代理里仍然有一个 `@objc func invoke`** ——
+净效果是 N 个 `@objc` 收成 1 个，代价是多一个必须被正确持有的对象，漏持有则手势静默失效。
+报告给这几个选择器的是「一般」强度，不值得拿泄漏风险换。结论同 1.25.0。
+
+### 通知 observer 可以换 Combine（本版未做，接入方可参考）
+
+1.25.0 说「通知那 7 个能去但有退化风险」，理由是
+`addObserver(forName:queue:using:)` 的 block 版本要自己存 token 并在 `deinit` 里移除。
+**这条对 Combine 不成立**：`NotificationCenter.publisher(for:)` + `AnyCancellable`，
+持有者析构即自动取消，不需要注销代码。唯一代价是 `sink` 闭包必须写 `[weak self]`
+（否则 `self → cancellables → 闭包 → self` 成环，泄漏且不报错）。
+
+本库内这 8 个（`handleInterruption` / `handleRouteAlter` / `handleMediaServicesReset` /
+`handleDidBecomeActive` / `handleCatalogueRefresh` ×3 / `handleBookmarkMerge`）
+**已不在对比报告的命中里**，换过去属于额外改动，本版没做。哪天动它们照上面的写法。
+
 ## 1.27.0
 
 接着 1.26.0 做完去同质化的另一半：**磁盘上的键名与二进制里的字符串常量**。

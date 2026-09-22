@@ -85,16 +85,16 @@ open class ReaderFastTextFileParser: NSObject {
             // 解析内容并获得章节列表
             parser(bookModel: bookModel, content: content)
             
-            // log("   - 解析后章节数量: \(bookModel.chapterListModels?.count ?? 0)")
+            // log("   - 解析后章节数量: \(bookModel.catalogueEntries?.count ?? 0)")
             
             // 解析内容失败
-            if bookModel.chapterListModels.isEmpty { 
+            if bookModel.catalogueEntries.isEmpty { 
                 // log("   - ❌ 章节列表为空")
                 return nil 
             }
             
             // 首章
-            let chapterListModel = bookModel.chapterListModels.first!
+            let chapterListModel = bookModel.catalogueEntries.first!
             // log("   - 第一章: \(chapterListModel.name ?? "未知")")
             
             // 加载首章
@@ -102,7 +102,7 @@ open class ReaderFastTextFileParser: NSObject {
             // log("   - 首章加载结果: \(chapterModel != nil ? "成功" : "失败")")
             
             // 设置第一个章节为阅读记录
-            bookModel.recordModel.modify(chapterID:  chapterListModel.id, toPage: 0)
+            bookModel.readingRecord.modify(chapterID:  chapterListModel.id, toPage: 0)
             
             // 保存
             bookModel.save()
@@ -132,7 +132,7 @@ open class ReaderFastTextFileParser: NSObject {
         // log("   - 内容长度: \(content?.count ?? 0)")
         
         // 章节列表
-        var chapterListModels: [ReaderChapterListItemModel] = []
+        var catalogueEntries: [ReaderChapterListItemModel] = []
         
         // 章节范围列表 [章节ID:[章节优先级:章节内容Range]]
         var ranges: [String: [String: NSRange]] = [:]
@@ -249,7 +249,7 @@ open class ReaderFastTextFileParser: NSObject {
                 lastRange = range
                 
                 // 通过章节内容生成章节列表
-                chapterListModels.append(chapterListModel)
+                catalogueEntries.append(chapterListModel)
                 
                 // log("     - 添加章节 \(i): \(chapterListModel.name ?? "未知")")
             }
@@ -277,18 +277,18 @@ open class ReaderFastTextFileParser: NSObject {
             ranges[chapterListModel.id.stringValue] = [priority.stringValue: NSMakeRange(0, content.length)]
             
             // 添加章节列表模型
-            chapterListModels.append(chapterListModel)
+            catalogueEntries.append(chapterListModel)
             
             // log("     - 创建默认章节: \(chapterListModel.name ?? "未知")")
         }
         
-        // log("   - 最终章节数量: \(chapterListModels.count)")
+        // log("   - 最终章节数量: \(catalogueEntries.count)")
         
         // 小说全文
         bookModel.fullText = content
         
         // 章节列表
-        bookModel.chapterListModels = chapterListModels
+        bookModel.catalogueEntries = catalogueEntries
         
         // 章节内容范围
         bookModel.ranges = ranges
@@ -310,19 +310,19 @@ open class ReaderFastTextFileParser: NSObject {
             let range = range!.values.first
             
             // 当前章节
-            let chapterListModel = bookModel.chapterListModels[priority]
+            let chapterListModel = bookModel.catalogueEntries[priority]
             
             /// 第一个章节
             let isFirstChapter: Bool = (priority == 0)
             
             /// 最后一个章节
-            let isLastChapter: Bool = (priority == (bookModel.chapterListModels.count - 1))
+            let isLastChapter: Bool = (priority == (bookModel.catalogueEntries.count - 1))
             
             // 上一个章节ID
-            let priorChapterID: NSNumber! = isFirstChapter ? READER_NO_MORE_CHAPTER : bookModel.chapterListModels[priority - 1].id
+            let priorChapterID: NSNumber! = isFirstChapter ? READER_NO_MORE_CHAPTER : bookModel.catalogueEntries[priority - 1].id
             
             // 下一个章节ID
-            let followingChapterID: NSNumber! = isLastChapter ? READER_NO_MORE_CHAPTER : bookModel.chapterListModels[priority + 1].id
+            let followingChapterID: NSNumber! = isLastChapter ? READER_NO_MORE_CHAPTER : bookModel.catalogueEntries[priority + 1].id
             
             // 章节内容
             let chapterModel = ReaderChapterModel()

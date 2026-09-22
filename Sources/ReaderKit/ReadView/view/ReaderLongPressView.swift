@@ -54,7 +54,7 @@ open class ReaderLongPressView: ReaderPageView {
     public private(set) var isDragActive: Bool = false
     
     /// 选中区域
-    private var selectRange: NSRange!
+    private var selectedSpan: NSRange!
     
     /// 选中区域CGRect数组
     private var rects: [CGRect] = []
@@ -75,7 +75,7 @@ open class ReaderLongPressView: ReaderPageView {
     private var isDraggingStartCursor: Bool = true
     
     /// 是否触摸到左右光标
-    private var isTouchCursor: Bool = false
+    private var isCursorGrabbed: Bool = false
     
     /// 动画时间
     private var duration: TimeInterval = READER_AD_TIME
@@ -158,10 +158,10 @@ open class ReaderLongPressView: ReaderPageView {
         }else{ // 触摸结束
 
             // 获得选中区域
-            selectRange = ReaderCoreText.touchedParagraphRange(point: point, ctFrame: ctFrame, content: pageModel.content?.string)
+            selectedSpan = ReaderCoreText.touchedParagraphRange(point: point, ctFrame: ctFrame, content: pageModel.content?.string)
 
             // 获得选中选中范围
-            rects = ReaderCoreText.rangeRects(range: selectRange!, ctFrame: ctFrame, content: pageModel.content?.string)
+            rects = ReaderCoreText.rangeRects(range: selectedSpan!, ctFrame: ctFrame, content: pageModel.content?.string)
 
             // 显示光标
             cursor(isShow: true)
@@ -246,7 +246,7 @@ open class ReaderLongPressView: ReaderPageView {
                 
                 isDraggingStartCursor = true
                 
-                isTouchCursor = true
+                isCursorGrabbed = true
                 
             }else if endCursor.frame.insetBy(dx: READER_LONG_PRESS_CURSOR_VIEW_OFFSET, dy: READER_LONG_PRESS_CURSOR_VIEW_OFFSET).contains(point) { // 触摸到右边光标
                 
@@ -255,15 +255,15 @@ open class ReaderLongPressView: ReaderPageView {
                 
                 isDraggingStartCursor = false
                 
-                isTouchCursor = true
+                isCursorGrabbed = true
                 
             }else{ // 没有触摸到光标
                 
-                isTouchCursor = false
+                isCursorGrabbed = false
             }
             
             // 触摸到了光标
-            if isTouchCursor {
+            if isCursorGrabbed {
                 
                 // 放大镜
                 creatMagnifierView(windowPoint: windowPoint)
@@ -274,7 +274,7 @@ open class ReaderLongPressView: ReaderPageView {
             // 拖动光标时放大镜跟随：恢复长按功能时在此更新放大镜位置
             
             // 判断触摸
-            if isTouchCursor && selectRange != nil {
+            if isCursorGrabbed && selectedSpan != nil {
                 
                 // 触摸到的位置
                 let location = ReaderCoreText.touchedCharacterIndex(point: point, ctFrame: ctFrame)
@@ -286,7 +286,7 @@ open class ReaderLongPressView: ReaderPageView {
                 reviseChooseRange(location: location)
                 
                 // 获得选中选中范围
-                rects = ReaderCoreText.rangeRects(range: selectRange, ctFrame: ctFrame, content: pageModel.content?.string)
+                rects = ReaderCoreText.rangeRects(range: selectedSpan, ctFrame: ctFrame, content: pageModel.content?.string)
                 
                 // 更新光标位置
                 reviseCursorFrame()
@@ -295,7 +295,7 @@ open class ReaderLongPressView: ReaderPageView {
         }else{ // 触摸结束
    
             // 触摸到光标
-            if isTouchCursor {
+            if isCursorGrabbed {
                 
                 // 显示复制菜单
                 // 注：原实现挂在放大镜移除动画的回调里，恢复长按功能时同 handleLongPressAction 一并调整
@@ -303,7 +303,7 @@ open class ReaderLongPressView: ReaderPageView {
             }
             
             // 结束触摸
-            isTouchCursor = false
+            isCursorGrabbed = false
         }
         
         // 重绘
@@ -314,8 +314,8 @@ open class ReaderLongPressView: ReaderPageView {
     private func reviseChooseRange(location: Int) {
         
         // 左右 Location 位置
-        let LLocation = selectRange!.location
-        let RLocation = selectRange!.location + selectRange!.length
+        let LLocation = selectedSpan!.location
+        let RLocation = selectedSpan!.location + selectedSpan!.length
         
         // 判断触摸
         if isDraggingStartCursor { // 左边
@@ -324,15 +324,15 @@ open class ReaderLongPressView: ReaderPageView {
                 
                 if location > LLocation {
                     
-                    selectRange!.length -= location - LLocation
+                    selectedSpan!.length -= location - LLocation
                     
-                    selectRange!.location = location
+                    selectedSpan!.location = location
                     
                 }else if location < LLocation {
                     
-                    selectRange!.length += LLocation - location
+                    selectedSpan!.length += LLocation - location
                     
-                    selectRange!.location = location
+                    selectedSpan!.location = location
                 }
                 
             }else{
@@ -345,9 +345,9 @@ open class ReaderLongPressView: ReaderPageView {
                 
                 length = (length == 0 ? 1 : length)
                 
-                selectRange?.length = length
+                selectedSpan?.length = length
                 
-                selectRange?.location = RLocation - tempLength
+                selectedSpan?.location = RLocation - tempLength
                 
                 reviseChooseRange(location: location)
             }
@@ -358,11 +358,11 @@ open class ReaderLongPressView: ReaderPageView {
                 
                 if location > RLocation {
                     
-                    selectRange!.length += location - RLocation
+                    selectedSpan!.length += location - RLocation
                     
                 }else if location < RLocation {
                     
-                    selectRange!.length -= RLocation - location
+                    selectedSpan!.length -= RLocation - location
                 }
                 
             }else{
@@ -373,9 +373,9 @@ open class ReaderLongPressView: ReaderPageView {
                 
                 let length = (tempLength == 0 ? 1 : tempLength)
                 
-                selectRange?.length = length
+                selectedSpan?.length = length
                 
-                selectRange?.location = LLocation - tempLength
+                selectedSpan?.location = LLocation - tempLength
                 
                 reviseChooseRange(location: location)
             }
@@ -449,7 +449,7 @@ open class ReaderLongPressView: ReaderPageView {
         presentDropdown(isShow: false)
         
         // 清空选中
-        selectRange = nil
+        selectedSpan = nil
         rects.removeAll()
         
         // 移除光标
@@ -512,9 +512,9 @@ open class ReaderLongPressView: ReaderPageView {
     /// 复制事件
     @objc private func handleCopyTap() {
         
-        if selectRange != nil {
+        if selectedSpan != nil {
             
-            let temSelectRange = selectRange!
+            let temSelectRange = selectedSpan!
             
             let tempContent = pageModel.content
             
@@ -534,11 +534,11 @@ open class ReaderLongPressView: ReaderPageView {
     ///
     /// 这里只画选区，坐标翻转与正文绘制都由父类 `draw(_:)` 负责。
     /// 本类**曾经**整个重写 `draw(_:)`，结果是朗读高亮从来没显示过 —— 实际渲染正文的
-    /// 就是本类（`openLongPress` 默认开启），父类那段带高亮的绘制根本不会执行。
+    /// 就是本类（`longPressSelectionEnabled` 默认开启），父类那段带高亮的绘制根本不会执行。
     /// 所以这里必须走钩子，不要再改回重写 `draw(_:)`。
     open override func drawUnderlay(in ctx: CGContext) {
         
-        guard selectRange != nil, !rects.isEmpty else { return }
+        guard selectedSpan != nil, !rects.isEmpty else { return }
         
         let path = CGMutablePath()
         

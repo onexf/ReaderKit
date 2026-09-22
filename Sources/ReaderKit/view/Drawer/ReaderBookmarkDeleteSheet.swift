@@ -28,8 +28,8 @@ final public class ReaderBookmarkDeleteSheet: UIView {
     private let divider2 = UIView()
 
     private var onRemove: (() -> Void)?
-    private var onClearAll: (() -> Void)?
     private var onClearAllConfirmed: (() -> Void)?
+    private var onClearAllTapped: (() -> Void)?
     private var onCancel: (() -> Void)?
 
     /// 是否正在执行展开/收起动画(动画期间跳过容器重排,避免 transform 与 frame 冲突导致动画诡异)
@@ -41,18 +41,18 @@ final public class ReaderBookmarkDeleteSheet: UIView {
     /// 在 window 上弹出删除 sheet
     /// - Parameters:
     ///   - onRemove: 点击 Remove(删除当前书签)
-    ///   - onClearAll: Clear All 二次确认后回调(真正执行清除)
-    ///   - onClearAllConfirmed: 点击 Clear All 按钮即回调(用于点击埋点,早于二次确认)
+    ///   - onClearAllConfirmed: Clear All 二次确认后回调(真正执行清除)
+    ///   - onClearAllTapped: 点击 Clear All 按钮即回调(用于点击埋点,早于二次确认)
     ///   - onCancel: 取消(点击 Cancel 或点遮罩关闭)
     public static func show(onRemove: @escaping () -> Void,
-                     onClearAll: @escaping () -> Void,
-                     onClearAllConfirmed: (() -> Void)? = nil,
+                     onClearAllConfirmed: @escaping () -> Void,
+                     onClearAllTapped: (() -> Void)? = nil,
                      onCancel: (() -> Void)? = nil) {
         guard let window = ReaderScreenMetrics.keyWindow else { return }
         let sheet = ReaderBookmarkDeleteSheet(frame: window.bounds)
         sheet.onRemove = onRemove
-        sheet.onClearAll = onClearAll
         sheet.onClearAllConfirmed = onClearAllConfirmed
+        sheet.onClearAllTapped = onClearAllTapped
         sheet.onCancel = onCancel
         window.addSubview(sheet)
         sheet.present()
@@ -206,9 +206,9 @@ final public class ReaderBookmarkDeleteSheet: UIView {
 
     private func handleClearAll() {
         // 点击 Clear All 即上报点击(早于二次确认框,确认与否都算点过)
-        onClearAllConfirmed?()
+        onClearAllTapped?()
         // 关闭 sheet 后弹出"全部清除"确认弹窗,确认后才真正清除
-        let cb = onClearAll
+        let cb = onClearAllConfirmed
         dismissThen {
             ReaderBookmarkClearAllAlert.show(onConfirm: { cb?() })
         }

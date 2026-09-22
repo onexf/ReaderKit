@@ -103,7 +103,7 @@ open class ReaderDrawerView: UIView {
     /// 新版目录稿里没有 Contents / Bookmark 切换 tab，书签入口暂时没有落点，
     /// 这里保留视图与数据链路（书签的增删仍会 `reloadMarks()`），恒定隐藏、不参与展示，
     /// 等书签侧的设计稿确定入口后直接接回，避免现在把整条书签链路拆掉。
-    public private(set) var markView: ReaderBookmarkListView!
+    public private(set) var bookmarkList: ReaderBookmarkListView!
 
     public override init(frame: CGRect) {
 
@@ -171,9 +171,9 @@ open class ReaderDrawerView: UIView {
         addSubview(catalogueList)
 
         // 书签（暂无入口，恒定隐藏）
-        markView = ReaderBookmarkListView()
-        markView.isHidden = true
-        addSubview(markView)
+        bookmarkList = ReaderBookmarkListView()
+        bookmarkList.isHidden = true
+        addSubview(bookmarkList)
 
         // 更新当前UI
         updateUI()
@@ -233,7 +233,7 @@ open class ReaderDrawerView: UIView {
         let listY = divider.frame.maxY + sectionSpacing
         let listHeight = frame.height - safeInsets.bottom - listY
         catalogueList.frame = CGRect(x: 0, y: listY, width: w, height: max(0, listHeight))
-        markView.frame = catalogueList.frame
+        bookmarkList.frame = catalogueList.frame
     }
 
     // MARK: - 数据填充
@@ -279,7 +279,7 @@ open class ReaderDrawerView: UIView {
         catalogueList.adoptThemeColors(colors)
 
         // 书签列表（暂无入口，仍随主题刷新，避免接回入口时出现旧配色）
-        markView.adoptThemeColors(colors)
+        bookmarkList.adoptThemeColors(colors)
     }
 
     public required init?(coder aDecoder: NSCoder) {

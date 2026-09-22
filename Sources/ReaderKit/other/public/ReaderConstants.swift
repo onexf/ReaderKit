@@ -182,15 +182,15 @@ public static func text(progress: Float) ->String {
 }
 
 /// 计算全书进度（0.0–1.0）
-public static func ratio(bookModel: ReaderBookModel!, recordModel: ReaderReadRecordModel!) ->Float {
+public static func ratio(bookModel: ReaderBookModel!, readingRecord: ReaderReadRecordModel!) ->Float {
     
     // 当前阅读进度
     var progress: Float = 0.0
     
     // 临时检查
-    if bookModel == nil || recordModel == nil { return progress }
+    if bookModel == nil || readingRecord == nil { return progress }
     
-    if bookModel.isAuthoritativeFinalChapter(chapterID: recordModel.chapterModel?.id) && recordModel.isLastPage { // 全书真末章最后一页
+    if bookModel.isAuthoritativeFinalChapter(chapterID: readingRecord.chapterModel?.id) && readingRecord.isLastPage { // 全书真末章最后一页
         
         // 获得当前阅读进度
         progress = 1.0
@@ -198,16 +198,16 @@ public static func ratio(bookModel: ReaderBookModel!, recordModel: ReaderReadRec
     }else{
         
         // 当前章节在所有章节列表中的位置
-        let chapterIndex: Float = recordModel.chapterModel.priority.floatValue
+        let chapterIndex: Float = readingRecord.chapterModel.priority.floatValue
         
         // 章节总数量
-        let chapterCount: Float = Float(bookModel.chapterListModels.count)
+        let chapterCount: Float = Float(bookModel.catalogueEntries.count)
         
         // 阅读记录首位置
-        let locationFirst: Float = recordModel.locationFirst.floatValue
+        let locationFirst: Float = readingRecord.locationFirst.floatValue
         
         // 阅读记录内容长度
-        let fullContentLength: Float = Float(recordModel.chapterModel.typesetContent.length)
+        let fullContentLength: Float = Float(readingRecord.chapterModel.typesetContent.length)
         
         // 获得当前阅读进度
         progress = (chapterIndex / chapterCount + locationFirst / fullContentLength / chapterCount)

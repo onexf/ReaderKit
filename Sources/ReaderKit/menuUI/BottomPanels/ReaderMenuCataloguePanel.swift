@@ -123,8 +123,8 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
         writerLabel.text = bookModel.writer
         
         // 设置当前章节信息（安全访问）
-        if let recordModel = bookModel.recordModel,
-           let chapterModel = recordModel.chapterModel {
+        if let readingRecord = bookModel.readingRecord,
+           let chapterModel = readingRecord.chapterModel {
             activeChapterLabel.text = ReaderEnvironment.strings.chapter + " \(chapterModel.priority.intValue)"
         } else {
             activeChapterLabel.text = ReaderEnvironment.strings.chapter + " 1"
@@ -136,9 +136,9 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
     
     /// 滚动到当前章节
     private func scrollToActiveChapter() {
-        guard let bookModel = bookModel, !bookModel.chapterListModels.isEmpty else { return }
+        guard let bookModel = bookModel, !bookModel.catalogueEntries.isEmpty else { return }
         
-        if let index = bookModel.chapterListModels.firstIndex(where: { $0.id == bookModel.recordModel.chapterModel.id }) {
+        if let index = bookModel.catalogueEntries.firstIndex(where: { $0.id == bookModel.readingRecord.chapterModel.id }) {
             DispatchQueue.main.async { [weak self] in
                 self?.tableView.scrollToRow(at: IndexPath(row: index, section: 0), at: .middle, animated: false)
             }
@@ -176,7 +176,7 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
     // MARK: - UITableViewDataSource
     
     open func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return bookModel?.chapterListModels.count ?? 0
+        return bookModel?.catalogueEntries.count ?? 0
     }
     
     open func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -184,7 +184,7 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
         
         guard let bookModel = bookModel else { return cell }
         
-        let chapterListModel = bookModel.chapterListModels[indexPath.row]
+        let chapterListModel = bookModel.catalogueEntries[indexPath.row]
         let themeColors = ReaderConfiguration.shared().currentThemeColors
         
         // 章节名
@@ -194,7 +194,7 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
         cell.divider.backgroundColor = themeColors.separatorTint
         
         // 阅读记录高亮
-        if bookModel.recordModel.chapterModel.id == chapterListModel.id {
+        if bookModel.readingRecord.chapterModel.id == chapterListModel.id {
             cell.chapterTitleLabel.textColor = themeColors.textStrong
         } else {
             cell.chapterTitleLabel.textColor = themeColors.textBody
@@ -217,7 +217,7 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
         tableView.deselectRow(at: indexPath, animated: true)
         
         guard let bookModel = bookModel else { return }
-        let chapterListModel = bookModel.chapterListModels[indexPath.row]
+        let chapterListModel = bookModel.catalogueEntries[indexPath.row]
         onChapterChosen?(chapterListModel)
     }
     

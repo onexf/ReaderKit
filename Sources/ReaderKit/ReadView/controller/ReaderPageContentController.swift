@@ -10,7 +10,7 @@ import UIKit
 open class ReaderPageContentController: ReaderScreenController {
     
     /// 当前页阅读记录对象
-    open var recordModel: ReaderReadRecordModel!
+    open var readingRecord: ReaderReadRecordModel!
 
     /// 阅读对象(用于显示书名以及书籍首页显示书籍信息)
     open weak var bookModel: ReaderBookModel!
@@ -68,7 +68,7 @@ open class ReaderPageContentController: ReaderScreenController {
         // 顶部状态栏
         topView = ReaderStatusTopView()
         topView.storyName.text = bookModel.storyName
-        topView.chapterTitleLabel.text = recordModel.chapterModel.name
+        topView.chapterTitleLabel.text = readingRecord.chapterModel.name
         view.addSubview(topView)
         topView.frame = CGRect(x: readRect.minX, y: readRect.minY, width: readRect.width, height: READER_STATUS_TOP_VIEW_HEIGHT)
         topView.isHidden = isPageTurnMode
@@ -106,7 +106,7 @@ open class ReaderPageContentController: ReaderScreenController {
         let viewRect: CGRect = READER_VIEW_RECT
         
         // 是否为书籍首页
-        if recordModel.pageModel.isHomePage {
+        if readingRecord.pageModel.isHomePage {
             
             topView.isHidden = true
             statusFooter.isHidden = true
@@ -120,7 +120,7 @@ open class ReaderPageContentController: ReaderScreenController {
         }else{
             
             pageView = ReaderPageView()
-            pageView.content = recordModel.contentAttributedString
+            pageView.content = readingRecord.contentAttributedString
             view.addSubview(pageView)
             pageView.frame = viewRect
         }
@@ -130,8 +130,8 @@ open class ReaderPageContentController: ReaderScreenController {
     private func reloadProgress() {
         
         // 左下角页码：始终显示「当前页/章节总页数」，与进度类型设置无关
-        if let chapterModel = recordModel.chapterModel, !recordModel.pageModel.isHomePage {
-            folioLabel.text = "\(recordModel.page.intValue + 1)/\(chapterModel.pageCount.intValue)"
+        if let chapterModel = readingRecord.chapterModel, !readingRecord.pageModel.isHomePage {
+            folioLabel.text = "\(readingRecord.page.intValue + 1)/\(chapterModel.pageCount.intValue)"
         }
         
     }

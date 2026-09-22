@@ -110,7 +110,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     /// 用真实数字会让不同行差几个点；字重取 Regular（当前章那档，比 Light 宽）保证都装得下。
     private func reviseNumberColumnWidth() {
 
-        let maxNumber = max(bookModel?.totalChapterCount ?? 0, bookModel?.chapterListModels?.count ?? 0)
+        let maxNumber = max(bookModel?.totalChapterCount ?? 0, bookModel?.catalogueEntries?.count ?? 0)
         let digits = max(2, String(max(1, maxNumber)).count)
         let sample = String(repeating: "0", count: digits) as NSString
         let measured = ceil(sample.size(withAttributes: [.font: ReaderEnvironment.fonts.uiRegular(14)]).width)
@@ -210,14 +210,14 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     
     private func performScrollToCurrentChapter() {
         
-        guard let bookModel, !bookModel.chapterListModels.isEmpty else { return }
+        guard let bookModel, !bookModel.catalogueEntries.isEmpty else { return }
         
         tableView.reloadData()
         
         // 安全检查 chapterModel 是否存在
-        guard let currentChapterId = bookModel.recordModel.chapterModel?.id else { return }
+        guard let currentChapterId = bookModel.readingRecord.chapterModel?.id else { return }
         
-        guard let row = bookModel.chapterListModels.firstIndex(where: { $0.id == currentChapterId }) else {
+        guard let row = bookModel.catalogueEntries.firstIndex(where: { $0.id == currentChapterId }) else {
             // 当前章还不在已加载目录里（分页目录常态）。不滚，等补到了再说 ——
             // 滚到一个错的位置比停在顶部更难判断。
             return
@@ -344,7 +344,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     // MARK: UITableViewDelegate,UITableViewDataSource
     open func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         
-        if bookModel != nil { return bookModel.chapterListModels.count }
+        if bookModel != nil { return bookModel.catalogueEntries.count }
         
         return 0
     }
@@ -354,12 +354,12 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         let cell = ReaderCatalogueCell.cell(tableView)
         
         // 防止数组越界
-        guard indexPath.row < bookModel.chapterListModels.count else {
+        guard indexPath.row < bookModel.catalogueEntries.count else {
             return cell
         }
         
         // 章节
-        let chapterListModel = bookModel.chapterListModels[indexPath.row]
+        let chapterListModel = bookModel.catalogueEntries[indexPath.row]
 
         // 展示序号：priority 从 0 开始，缺失时用行号兜底
         let displayNumber = (chapterListModel.priority?.intValue).map { $0 + 1 } ?? (indexPath.row + 1)
@@ -367,7 +367,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         cell.configure(title: trimChapterPrefix(chapterListModel.name, number: displayNumber),
                        number: displayNumber,
                        // 当前阅读章节 - 安全检查
-                       isCurrent: bookModel.recordModel.chapterModel?.id == chapterListModel.id,
+                       isCurrent: bookModel.readingRecord.chapterModel?.id == chapterListModel.id,
                        // 需要解锁且未解锁
                        isLocked: chapterListModel.isLocked,
                        numberColumnWidth: numberColumnWidth,
@@ -384,11 +384,11 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     open func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
         // 防止数组越界
-        guard indexPath.row < bookModel.chapterListModels.count else {
+        guard indexPath.row < bookModel.catalogueEntries.count else {
             return
         }
         
-        delegate?.catalogueView(self, didSelect: bookModel.chapterListModels[indexPath.row])
+        delegate?.catalogueView(self, didSelect: bookModel.catalogueEntries[indexPath.row])
     }
     
     open func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
@@ -397,7 +397,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         
         // 滚动到接近底部（最后 3 行）且目录尚未加载完整时，触发补目录（上拉加载更多）。
         // ensureDirectoryLoaded 内部已做防重入与「已完整则跳过」，频繁触发安全。
-        let count = bookModel.chapterListModels?.count ?? 0
+        let count = bookModel.catalogueEntries?.count ?? 0
         if count > 0, indexPath.row >= count - 3, !bookModel.isChapterListComplete {
             delegate?.catalogueViewDidReachBottomEdge(self)
         }

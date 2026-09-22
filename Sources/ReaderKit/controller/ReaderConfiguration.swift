@@ -89,7 +89,7 @@ open class ReaderConfiguration {
     // MARK: 阅读页面配置
     
     /// 开启长按菜单功能 (滚动模式是不支持长按功能的)
-    open var openLongPress: Bool = true
+    open var longPressSelectionEnabled: Bool = true
     
     
     // MARK: 阅读内容配置

@@ -41,13 +41,13 @@ open class ReaderBookModel: NSObject, NSCoding {
     open var storySourceType: ReaderBookSourceType! = .network
     
     /// 当前阅读记录
-    open var recordModel: ReaderReadRecordModel!
+    open var readingRecord: ReaderReadRecordModel!
     
     /// 书签列表
-    open var markModels: [ReaderBookmarkModel]! = []
+    open var bookmarkEntries: [ReaderBookmarkModel]! = []
     
     /// 章节列表(如果是网络小说可以不需要放在这里记录,直接在目录视图里面加载接口或者读取本地数据库就好了。)
-    open var chapterListModels: [ReaderChapterListItemModel]! = []
+    open var catalogueEntries: [ReaderChapterListItemModel]! = []
     
     
     // MARK: 快速进入
@@ -74,11 +74,11 @@ open class ReaderBookModel: NSObject, NSCoding {
     open var isChapterListComplete: Bool {
         if storySourceType == .local { return true }
         if isDirectoryFullyLoaded { return true }
-        let loaded = chapterListModels?.count ?? 0
+        let loaded = catalogueEntries?.count ?? 0
         return totalChapterCount > 0 && loaded >= totalChapterCount
     }
     
-    /// 基于当前 chapterListModels 权威解析指定章节的下一章 ID
+    /// 基于当前 catalogueEntries 权威解析指定章节的下一章 ID
     /// （不信任可能过期 / 被污染的 chapterModel.followingChapterID）。
     /// - Returns:
     ///   - 非 nil：存在下一章（返回其 id）
@@ -87,7 +87,7 @@ open class ReaderBookModel: NSObject, NSCoding {
     /// - Note: `READER_NO_MORE_CHAPTER` 本身即 nil，故本方法返回 nil 的两种语义必须由调用方区分。
     open func resolvedFollowingChapterID(forChapterID chapterID: NSNumber?) -> NSNumber? {
         guard let chapterID = chapterID,
-              let list = chapterListModels,
+              let list = catalogueEntries,
               let idx = list.firstIndex(where: { $0.id == chapterID }) else { return nil }
         if idx < list.count - 1 {
             return list[idx + 1].id
@@ -101,7 +101,7 @@ open class ReaderBookModel: NSObject, NSCoding {
     open func isAuthoritativeFinalChapter(chapterID: NSNumber?) -> Bool {
         guard isChapterListComplete else { return false }
         guard let chapterID = chapterID,
-              let list = chapterListModels, !list.isEmpty,
+              let list = catalogueEntries, !list.isEmpty,
               let idx = list.firstIndex(where: { $0.id == chapterID }) else { return false }
         return idx == list.count - 1
     }
@@ -112,7 +112,7 @@ open class ReaderBookModel: NSObject, NSCoding {
     /// 保存
     open func save() {
         
-        recordModel.save()
+        readingRecord.save()
         
         ReaderArchiver.archiver(folderName: storyID, fileName: READER_KEY_OBJECT, object: self)
     }
@@ -145,7 +145,7 @@ open class ReaderBookModel: NSObject, NSCoding {
         }
         
         // 获取阅读记录
-        bookModel.recordModel = ReaderReadRecordModel.model(storyID: storyID)
+        bookModel.readingRecord = ReaderReadRecordModel.model(storyID: storyID)
         
         return bookModel
     }
@@ -168,9 +168,9 @@ open class ReaderBookModel: NSObject, NSCoding {
         
         storySourceType = ReaderBookSourceType(rawValue: (aDecoder.decodeObject(forKey: "bookSourceKind") as! NSNumber).intValue)
         
-        chapterListModels = aDecoder.decodeObject(forKey: "catalogueEntries") as? [ReaderChapterListItemModel]
+        catalogueEntries = aDecoder.decodeObject(forKey: "catalogueEntries") as? [ReaderChapterListItemModel]
         
-        markModels = aDecoder.decodeObject(forKey: "bookmarkEntries") as? [ReaderBookmarkModel]
+        bookmarkEntries = aDecoder.decodeObject(forKey: "bookmarkEntries") as? [ReaderBookmarkModel]
         
         fullText = aDecoder.decodeObject(forKey: "rawText") as? String
         
@@ -193,9 +193,9 @@ open class ReaderBookModel: NSObject, NSCoding {
         
         aCoder.encode(NSNumber(value: storySourceType.rawValue), forKey: "bookSourceKind")
         
-        aCoder.encode(chapterListModels, forKey: "catalogueEntries")
+        aCoder.encode(catalogueEntries, forKey: "catalogueEntries")
         
-        aCoder.encode(markModels, forKey: "bookmarkEntries")
+        aCoder.encode(bookmarkEntries, forKey: "bookmarkEntries")
         
         aCoder.encode(fullText, forKey: "rawText")
         

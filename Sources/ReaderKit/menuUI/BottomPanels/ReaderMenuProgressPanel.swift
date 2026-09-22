@@ -78,19 +78,19 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
         let bookModel = hostMenu.vc.bookModel
         
         // 有阅读记录以及章节数据
-        if bookModel != nil && (bookModel?.recordModel?.chapterModel != nil) {
+        if bookModel != nil && (bookModel?.readingRecord?.chapterModel != nil) {
             
             if ReaderConfiguration.shared().progressType == .total { // 总进度
                 
                 slider.minimumValue = 0
                 slider.maximumValue = 1
-                slider.value = ReaderProgress.ratio(bookModel: bookModel, recordModel: bookModel?.recordModel)
+                slider.value = ReaderProgress.ratio(bookModel: bookModel, readingRecord: bookModel?.readingRecord)
                 
             }else{ // 分页进度
                 
                 slider.minimumValue = 1
-                slider.maximumValue = bookModel!.recordModel.chapterModel.pageCount.floatValue
-                slider.value = bookModel!.recordModel.page.floatValue + 1
+                slider.maximumValue = bookModel!.readingRecord.chapterModel.pageCount.floatValue
+                slider.value = bookModel!.readingRecord.page.floatValue + 1
             }
             
         }else{ // 没有则清空
@@ -140,16 +140,16 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
             let bookModel = hostMenu.vc.bookModel
             
             // 有阅读记录以及章节数据
-            if bookModel != nil && (bookModel?.recordModel?.chapterModel != nil) {
+            if bookModel != nil && (bookModel?.readingRecord?.chapterModel != nil) {
                 
                 // 总章节个数
-                let count = (bookModel!.chapterListModels.count - 1)
+                let count = (bookModel!.catalogueEntries.count - 1)
                 
                 // 获得当前进度的章节索引
                 let index = NSInteger(Float(count) * sliderValue)
                 
                 // 获得章节列表模型
-                let chapterListModel = bookModel!.chapterListModels[index]
+                let chapterListModel = bookModel!.catalogueEntries[index]
                 
                 // 页码
                 let toPage = (index == count) ? READER_LAST_PAGE : 0

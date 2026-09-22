@@ -54,10 +54,10 @@ open class ReaderTextFileParser: NSObject {
             if content.isEmpty { return nil }
             
             // 解析内容并获得章节列表
-            let chapterListModels = parser(storyID: storyID, content: content)
+            let catalogueEntries = parser(storyID: storyID, content: content)
             
             // 解析内容失败
-            if chapterListModels.isEmpty { return nil }
+            if catalogueEntries.isEmpty { return nil }
             
             // 阅读模型
             let bookModel = ReaderBookModel.model(storyID: storyID)
@@ -69,10 +69,10 @@ open class ReaderTextFileParser: NSObject {
             bookModel.storyName = storyName
             
             // 记录章节列表
-            bookModel.chapterListModels = chapterListModels
+            bookModel.catalogueEntries = catalogueEntries
             
             // 设置第一个章节为阅读记录
-            bookModel.recordModel.modify(chapterID:  bookModel.chapterListModels.first!.id, toPage: 0)
+            bookModel.readingRecord.modify(chapterID:  bookModel.catalogueEntries.first!.id, toPage: 0)
             
             // 保存
             bookModel.save()
@@ -96,7 +96,7 @@ open class ReaderTextFileParser: NSObject {
     private class func parser(storyID: String!, content: String!) ->[ReaderChapterListItemModel] {
         
         // 章节列表
-        var chapterListModels: [ReaderChapterListItemModel] = []
+        var catalogueEntries: [ReaderChapterListItemModel] = []
         
         // 正则
         let parten = ReaderEnvironment.hostConfiguration.localChapterTitlePattern
@@ -115,7 +115,7 @@ open class ReaderTextFileParser: NSObject {
             
         }catch{
             
-            return chapterListModels
+            return catalogueEntries
         }
         
         // 解析匹配结果
@@ -222,7 +222,7 @@ open class ReaderTextFileParser: NSObject {
                 lastChapterModel = chapterModel
                 
                 // 通过章节内容生成章节列表
-                chapterListModels.append(makeChapterListItem(chapterModel: chapterModel))
+                catalogueEntries.append(makeChapterListItem(chapterModel: chapterModel))
             }
             
         }else{
@@ -249,11 +249,11 @@ open class ReaderTextFileParser: NSObject {
             chapterModel.save()
             
             // 添加章节列表模型
-            chapterListModels.append(makeChapterListItem(chapterModel: chapterModel))
+            catalogueEntries.append(makeChapterListItem(chapterModel: chapterModel))
         }
         
         // 返回
-        return chapterListModels
+        return catalogueEntries
     }
     
     /// 获取章节列表对象

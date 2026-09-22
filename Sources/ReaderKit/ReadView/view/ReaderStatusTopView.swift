@@ -18,7 +18,7 @@ public let READER_STATUS_TOP_VIEW_HEIGHT: CGFloat = 44
 open class ReaderStatusTopView: UIView {
 
     /// 返回按钮点击回调
-    open var onBackTapped: (() -> Void)?
+    open var onLeaveTapped: (() -> Void)?
 
     /// 是否显示返回按钮（默认不显示，与设计稿一致）
     open var showsBackButton: Bool = false {
@@ -123,7 +123,7 @@ open class ReaderStatusTopView: UIView {
     // MARK: - 返回
     
     private func handleBackTap() {
-        if let callback = onBackTapped {
+        if let callback = onLeaveTapped {
             callback()
         } else {
             // 兜底：沿响应链找到阅读主控制器

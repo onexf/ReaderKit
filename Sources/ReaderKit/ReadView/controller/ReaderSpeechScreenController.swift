@@ -210,7 +210,7 @@ open class ReaderSpeechScreenController: UIViewController {
     /// 下拉关闭手势。
     private lazy var dismissPan: UIPanGestureRecognizer = {
 
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(handleDismissPan))
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(screenDismissDragged))
 
         return pan
     }()
@@ -310,7 +310,7 @@ open class ReaderSpeechScreenController: UIViewController {
     ///
     /// 位移用 `transform` 而不是改 `frame`：`frame` 会触发 `layoutSubviews`，
     /// 而本页是手动布局的，每帧重算一次全部子视图纯属浪费，还会让正文窗口跟着重排。
-    @objc private func handleDismissPan(_ pan: UIPanGestureRecognizer) {
+    @objc private func screenDismissDragged(_ pan: UIPanGestureRecognizer) {
 
         let translation = pan.translation(in: view).y
 
@@ -805,7 +805,7 @@ final class ReaderSpeechScreenChevron: UIView {
 
         layer.addSublayer(shapeLayer)
 
-        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleTap)))
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(chevronTapped)))
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -833,7 +833,7 @@ final class ReaderSpeechScreenChevron: UIView {
 
     func adoptTintColor(_ color: UIColor) { shapeLayer.strokeColor = color.cgColor }
 
-    @objc private func handleTap() { onTap?() }
+    @objc private func chevronTapped() { onTap?() }
 }
 
 // MARK: - 上一章 / 下一章
@@ -885,7 +885,7 @@ final class ReaderSpeechScreenSkipButton: UIView {
 
         layer.addSublayer(shapeLayer)
 
-        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleTap)))
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(skipTapped)))
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -977,7 +977,7 @@ final class ReaderSpeechScreenSkipButton: UIView {
 
     func adoptTintColor(_ color: UIColor) { shapeLayer.fillColor = color.cgColor }
 
-    @objc private func handleTap() {
+    @objc private func skipTapped() {
 
         guard isEnabled else { return }
 
@@ -1034,7 +1034,7 @@ final class ReaderSpeechScreenToggleButton: UIView {
 
         layer.addSublayer(glyphLayer)
 
-        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleTap)))
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(playToggleTapped)))
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -1124,5 +1124,5 @@ final class ReaderSpeechScreenToggleButton: UIView {
         glyphLayer.fillColor = color.cgColor
     }
 
-    @objc private func handleTap() { onTap?() }
+    @objc private func playToggleTapped() { onTap?() }
 }

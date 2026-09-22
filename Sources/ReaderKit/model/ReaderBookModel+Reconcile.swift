@@ -23,7 +23,7 @@ extension ReaderBookModel {
     @discardableResult
     public func reconcileChapters(authoritativeIds: Set<Int>, keepCurrentReadingId: Int?) -> [Int] {
 
-        guard let list = chapterListModels, !list.isEmpty, !authoritativeIds.isEmpty else { return [] }
+        guard let list = catalogueEntries, !list.isEmpty, !authoritativeIds.isEmpty else { return [] }
 
         var removed: [Int] = []
         let kept = list.filter { model in
@@ -36,7 +36,7 @@ extension ReaderBookModel {
 
         guard !removed.isEmpty else { return [] }
 
-        chapterListModels = kept
+        catalogueEntries = kept
 
         let removedSet = Set(removed)
 
@@ -46,17 +46,17 @@ extension ReaderBookModel {
         }
 
         // 2. 清理落在被删章节上的书签
-        if let bookmarks = markModels, !bookmarks.isEmpty {
+        if let bookmarks = bookmarkEntries, !bookmarks.isEmpty {
             let filtered = bookmarks.filter { mark in
                 return !removedSet.contains(mark.chapterID.intValue)
             }
             if filtered.count != bookmarks.count {
-                markModels = filtered
+                bookmarkEntries = filtered
             }
         }
 
         // 3. 阅读记录修正:当前阅读章节已通过 keepCurrentReadingId 保留,记录仍有效;
-        //    相邻章节链(previous/next)在下次翻章/加载时由 requestChapter 按 chapterListModels 重建,
+        //    相邻章节链(previous/next)在下次翻章/加载时由 requestChapter 按 catalogueEntries 重建,
         //    此处无需额外处理。
 
         save()

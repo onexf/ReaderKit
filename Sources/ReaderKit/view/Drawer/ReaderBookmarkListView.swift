@@ -128,7 +128,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     
     private var placeholderStack: UIView!
     private var placeholderImageView: UIImageView!
-    private var emptyLabel: UILabel!
+    private var placeholderLabel: UILabel!
     
     /// 空态插图尺寸/间距统一为最新通用空态规格(设计稿 199×129 / 间距 20),
     /// 与库内其他空态视图对齐
@@ -203,13 +203,13 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         placeholderImageView.contentMode = .scaleAspectFit
         placeholderStack.addSubview(placeholderImageView)
         
-        emptyLabel = UILabel()
-        emptyLabel.text = ReaderEnvironment.strings.bookmarkEmpty
-        emptyLabel.font = ReaderEnvironment.fonts.uiRegular(14)
-        emptyLabel.textColor = themeColors.textFaint
-        emptyLabel.textAlignment = .center
-        emptyLabel.numberOfLines = 0
-        placeholderStack.addSubview(emptyLabel)
+        placeholderLabel = UILabel()
+        placeholderLabel.text = ReaderEnvironment.strings.bookmarkEmpty
+        placeholderLabel.font = ReaderEnvironment.fonts.uiRegular(14)
+        placeholderLabel.textColor = themeColors.textFaint
+        placeholderLabel.textAlignment = .center
+        placeholderLabel.numberOfLines = 0
+        placeholderStack.addSubview(placeholderLabel)
     }
     
     /// 长按书签:弹出删除 sheet(Remove 删当前 / Clear All 清全部)
@@ -239,12 +239,12 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
             
             self.discardMark(mark)
             
-        }, onClearAll: { [weak self] in
+        }, onClearAllConfirmed: { [weak self] in
             
-            // 确认清除后只执行清除,不在此处上报(点击上报已在 onClearAllConfirmed)
+            // 确认清除后只执行清除,不在此处上报(点击上报已在 onClearAllTapped)
             self?.clearAllMarks()
             
-        }, onClearAllConfirmed: { [weak self] in
+        }, onClearAllTapped: { [weak self] in
             
             guard let self = self else { return }
             
@@ -265,7 +265,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         // 悲观删除:先请求服务端,成功(或服务端已无)才移除本地并刷新;失败不移除
         delegate?.bookmarkListView(self, requestDelete: [mark], completion: { [weak self] success in
             guard let self = self, success else { return }
-            guard let realIndex = self.bookModel.markModels.firstIndex(of: mark) else { return }
+            guard let realIndex = self.bookModel.bookmarkEntries.firstIndex(of: mark) else { return }
             _ = self.bookModel.discardMark(index: realIndex)
             self.reloadMarks()
             self.delegate?.bookmarkListViewDidChangeBookmarks(self)
@@ -331,7 +331,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     open func adoptThemeColors(_ colors: ReaderTintPalette) {
 
         // 空态插图统一为通用 empty_no_content,自带底色不随主题切换;仅文案色跟随阅读主题
-        emptyLabel.textColor = colors.textFaint
+        placeholderLabel.textColor = colors.textFaint
 
         tableView.reloadData()
     }
@@ -341,7 +341,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         
         placeholderStack.isHidden = !groups.isEmpty
         
-        emptyLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textFaint
+        placeholderLabel.textColor = ReaderConfiguration.shared().currentThemeColors.textFaint
         
         setNeedsLayout()
     }
@@ -352,7 +352,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         
         tableView.frame = bounds
         
-        let labelHeight = emptyLabel.sizeThatFits(CGSize(width: bounds.width - 40, height: .greatestFiniteMagnitude)).height
+        let labelHeight = placeholderLabel.sizeThatFits(CGSize(width: bounds.width - 40, height: .greatestFiniteMagnitude)).height
         let groupHeight = placeholderImageSize.height + placeholderImageGap + labelHeight
         let groupTop = max(0, (bounds.height - groupHeight) / 2 - 20)
         placeholderStack.frame = CGRect(x: 0, y: groupTop, width: bounds.width, height: groupHeight)
@@ -362,7 +362,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
                                       width: placeholderImageSize.width,
                                       height: placeholderImageSize.height)
         
-        emptyLabel.frame = CGRect(x: 20,
+        placeholderLabel.frame = CGRect(x: 20,
                                   y: placeholderImageView.frame.maxY + placeholderImageGap,
                                   width: bounds.width - 40,
                                   height: labelHeight)
@@ -510,7 +510,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         // 悲观删除:先请求服务端,成功才移除本地;成功/失败都整体刷新(成功移除该行、失败让滑动复位)
         delegate?.bookmarkListView(self, requestDelete: [mark], completion: { [weak self] success in
             guard let self = self else { return }
-            if success, let realIndex = self.bookModel.markModels.firstIndex(of: mark) {
+            if success, let realIndex = self.bookModel.bookmarkEntries.firstIndex(of: mark) {
                 _ = self.bookModel.discardMark(index: realIndex)
                 self.delegate?.bookmarkListViewDidChangeBookmarks(self)
             }

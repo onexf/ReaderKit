@@ -32,7 +32,7 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
     private var back: UIButton!
     
     /// 加入书架
-    private var addToBookshelf: UIButton!
+    private var shelfButton: UIButton!
     
     /// 反馈
     private var feedback: UIButton!
@@ -53,10 +53,10 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
         addSubview(back)
         
         // 加入书架（template 模式 + 手动着色区分 normal/selected）
-        addToBookshelf = UIButton(type:.custom)
+        shelfButton = UIButton(type:.custom)
         reviseAppendToBookshelfImages()
-        addToBookshelf.addAction(UIAction { [weak self] _ in self?.handleAddToBookshelfTap() }, for: .touchUpInside)
-        addSubview(addToBookshelf)
+        shelfButton.addAction(UIAction { [weak self] _ in self?.handleAddToBookshelfTap() }, for: .touchUpInside)
+        addSubview(shelfButton)
         
         // 反馈（Figma 中使用 iconStandard 颜色）
         feedback = UIButton(type:.custom)
@@ -92,17 +92,17 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
     
     /// 更新加入书架按钮状态
     open func reviseAppendToBookshelfBtn(isAdded: Bool) {
-        addToBookshelf.isSelected = isAdded
+        shelfButton.isSelected = isAdded
         reviseAppendToBookshelfImages()
     }
     
     /// 更新加书架按钮图片（未加入用 iconStandard 深色，已加入用 iconMuted 浅色）
     private func reviseAppendToBookshelfImages() {
         let themeColors = ReaderConfiguration.shared().currentThemeColors
-        let normalImage = ReaderEnvironment.images.addToBookshelf()?.withTintColor(themeColors.iconStandard)
+        let normalImage = ReaderEnvironment.images.shelfAddIcon()?.withTintColor(themeColors.iconStandard)
         let selectedImage = ReaderEnvironment.images.addedToBookshelf()?.withTintColor(themeColors.iconMuted)
-        addToBookshelf.setImage(normalImage, for: .normal)
-        addToBookshelf.setImage(selectedImage, for: .selected)
+        shelfButton.setImage(normalImage, for: .normal)
+        shelfButton.setImage(selectedImage, for: .selected)
     }
     
     open override func layoutSubviews() {
@@ -123,7 +123,7 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
         // 右侧两图标从右到左:加书架 → 反馈,间距 16
         // 添加书架按钮（最右侧，图标右边缘对齐 20）
         let addCenterX = frame.size.width - horizontalMargin - iconSize / 2
-        addToBookshelf.frame = CGRect(x: addCenterX - touchSize / 2, y: touchY, width: touchSize, height: touchSize)
+        shelfButton.frame = CGRect(x: addCenterX - touchSize / 2, y: touchY, width: touchSize, height: touchSize)
         
         // 反馈按钮（加书架左边,间距 16）
         let feedbackCenterX = addCenterX - iconSize - iconSpacing

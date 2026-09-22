@@ -44,7 +44,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     public private(set) var pageTapRecognizer: UITapGestureRecognizer!
     
     // Whether a tap-triggered page transition is in progress (prevents rapid-tap overlap)
-    private var isTapAnimating: Bool = false
+    private var tapTurnInFlight: Bool = false
     
     // Whether setViewControllers was called during the current tap handling (animation will manage reset)
     private var transitionInFlight: Bool = false
@@ -52,7 +52,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     // Internal scrollView reference (UIPageViewController .scroll style uses a UIScrollView internally)
     private weak var hostedScrollView: UIScrollView?
     
-    // Safety timer to reset isTapAnimating if completion block is never called
+    // Safety timer to reset tapTurnInFlight if completion block is never called
     private var transitionWatchdog: Timer?
     
     open override func viewDidLoad() {
@@ -186,10 +186,10 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     
     /// 菜单是否正呼出。
     ///
-    /// 向上问宿主而不是自己存一个标志位：`isMenuShow` 是唯一事实来源，
+    /// 向上问宿主而不是自己存一个标志位：`isMenuVisible` 是唯一事实来源，
     /// 存副本就要考虑两边什么时候同步，菜单被别的路径收起时副本就脏了。
     private var isReaderMenuShowing: Bool {
-        (parent as? ReaderViewController)?.hostMenu?.isMenuShow == true
+        (parent as? ReaderViewController)?.hostMenu?.isMenuVisible == true
     }
     
     open override func didMove(toParent parent: UIViewController?) {
@@ -207,7 +207,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     /// Override to track animation completion for tap-triggered transitions
     open override func setViewControllers(_ viewControllers: [UIViewController]?, direction: UIPageViewController.NavigationDirection, animated: Bool, completion: ((Bool) -> Void)? = nil) {
         
-        if isTapAnimating && animated {
+        if tapTurnInFlight && animated {
             transitionInFlight = true
             // Disable user interaction on internal scrollView during animation to prevent
             // touch events from interrupting the ongoing scroll animation (causes "bounce back" glitch)
@@ -218,9 +218,9 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
             transitionWatchdog?.invalidate()
             transitionWatchdog = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
                 guard let self = self else { return }
-                if self.isTapAnimating {
+                if self.tapTurnInFlight {
                     self.hostedScrollView?.isUserInteractionEnabled = true
-                    self.isTapAnimating = false
+                    self.tapTurnInFlight = false
                 }
             }
             
@@ -229,7 +229,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
                 self.transitionWatchdog?.invalidate()
                 self.transitionWatchdog = nil
                 self.hostedScrollView?.isUserInteractionEnabled = true
-                self.isTapAnimating = false
+                self.tapTurnInFlight = false
                 completion?(finished)
             }
         } else {
@@ -241,7 +241,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
     @objc open func handlePageTap(tap: UIGestureRecognizer) {
         
         // Prevent rapid taps from triggering multiple simultaneous page transitions
-        guard !isTapAnimating else { return }
+        guard !tapTurnInFlight else { return }
         
         // On END page, only respond to taps in the top blank area (above recommend list)
         if let endVC = viewControllers?.first as? ReaderTerminalPageController {
@@ -254,11 +254,11 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
             }
             // Top blank area: left 1/3 triggers previous page (go back)
             if touchPoint.x < LeftWidth {
-                isTapAnimating = true
+                tapTurnInFlight = true
                 transitionInFlight = false
                 pageTapDelegate?.sheetControllerDidRequestPreviousPage(self)
                 if !transitionInFlight {
-                    isTapAnimating = false
+                    tapTurnInFlight = false
                 }
             }
             // Middle 1/3 is handled by ReaderMenu's singleTap (menu toggle)
@@ -270,22 +270,22 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         
         if (touchPoint.x < LeftWidth) { // 左边
             
-            isTapAnimating = true
+            tapTurnInFlight = true
             transitionInFlight = false
             pageTapDelegate?.sheetControllerDidRequestPreviousPage(self)
             // If delegate didn't call setViewControllers (no previous page / locked chapter), reset immediately
             if !transitionInFlight {
-                isTapAnimating = false
+                tapTurnInFlight = false
             }
             
         }else if (touchPoint.x > (ReaderScreenMetrics.screenWidth - RightWidth)) { // 右边
             
-            isTapAnimating = true
+            tapTurnInFlight = true
             transitionInFlight = false
             pageTapDelegate?.sheetControllerDidRequestNextPage(self)
             // If delegate didn't call setViewControllers (no next page / locked chapter), reset immediately
             if !transitionInFlight {
-                isTapAnimating = false
+                tapTurnInFlight = false
             }
         }
     }

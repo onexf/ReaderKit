@@ -55,7 +55,7 @@ open class ReaderViewController: ReaderScreenController {
         
         // 正文还没上屏（首屏还在加载、或停在失败页）时不刷：换肤路径会重建正文容器，
         // 而那条路径要求阅读记录里已经有章节。这种情况下正文上屏时自然会按新配置取色。
-        guard bookModel?.recordModel?.chapterModel != nil else { return }
+        guard bookModel?.readingRecord?.chapterModel != nil else { return }
         
         // 刷新走接入方那条现成的换肤路径（点色块换主题走的是同一个）——
         // 主题一变要改的地方有七处，在这里另写一份必然漏。
@@ -120,7 +120,7 @@ open class ReaderViewController: ReaderScreenController {
     open var pageViewController: ReaderSheetController!
 
     /// 滚动模式（上下滚动）的容器。仅该模式下创建。
-    open var scrollController: ReaderScrollController!
+    open var flowController: ReaderScrollController!
 
     /// 非滚动模式下当前展示的正文页
     open var visiblePageController: ReaderPageContentController?

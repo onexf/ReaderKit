@@ -165,9 +165,9 @@ public final class ReaderSpeechController {
         // 可能在可视区上方。必须问滚动容器要句子的实际可见性。
         if ReaderConfiguration.shared().effectType == .scroll {
 
-            guard let scrollController = reader?.scrollController else { return false }
+            guard let flowController = reader?.flowController else { return false }
 
-            return scrollController.isSpeechSentenceVisible
+            return flowController.isSpeechSentenceVisible
         }
 
         // 左右翻页：一页恰好一屏，「在当前页」等价于「看得见」
@@ -183,7 +183,7 @@ public final class ReaderSpeechController {
     /// `highlightRange` 内部已经校验了「非空闲」与「同一章」，这里不必重复。
     private var isSpeakingSentenceOnDisplayedPage: Bool {
 
-        guard let record = reader?.bookModel?.recordModel,
+        guard let record = reader?.bookModel?.readingRecord,
               let displayedChapter = record.chapterModel,
               let pageModel = record.pageModel else { return false }
 
@@ -201,7 +201,7 @@ public final class ReaderSpeechController {
 
     /// 当前朗读所属的章节模型。
     ///
-    /// 必须单独持有，不能用 `bookModel.recordModel.chapterModel` 代替 —— 后者是
+    /// 必须单独持有，不能用 `bookModel.readingRecord.chapterModel` 代替 —— 后者是
     /// **正在展示**的章节。朗读跨章后正文视图并不跟着走（见 `alignPage(to:)` 的说明），
     /// 此时两者指向不同章节：用展示章节去算句所在页、或去填锁屏的章节名，都会错。
     private var speakingChapter: ReaderChapterModel?
@@ -360,15 +360,15 @@ public final class ReaderSpeechController {
               let sentence = currentSentence else { return }
 
         if ReaderConfiguration.shared().effectType == .scroll,
-           let scrollController = reader.scrollController,
-           scrollController.containsSpeechChapter(chapterID) {
+           let flowController = reader.flowController,
+           flowController.containsSpeechChapter(chapterID) {
 
             // 优先按句滚而不是走 `presentPosition`（接入方注入的**按页**跳转）：
             // 滚动模式下滚到页首之后句子仍可能在可视区之外，等于没回来。
             // 容器内部会判断「已在可视区内就不动」，这里不必预判。
             requestPositionAlter {
 
-                scrollController.revealSpeechSentence(animated: true)
+                flowController.revealSpeechSentence(animated: true)
             }
 
         }else if isSpeakingSentenceOnDisplayedPage {
@@ -412,8 +412,8 @@ public final class ReaderSpeechController {
 
         // 滚动模式：按可见首行定位，拿不到（书籍首页、布局未就绪）时退回按页
         if ReaderConfiguration.shared().effectType == .scroll,
-           let scrollController = reader?.scrollController,
-           let position = scrollController.visibleStartPosition() {
+           let flowController = reader?.flowController,
+           let position = flowController.visibleStartPosition() {
 
             guard prepare(chapter: position.chapter) else { return }
 
@@ -422,7 +422,7 @@ public final class ReaderSpeechController {
             return
         }
 
-        guard let record = reader?.bookModel?.recordModel,
+        guard let record = reader?.bookModel?.readingRecord,
               let chapter = record.chapterModel else { return }
 
         guard prepare(chapter: chapter) else { return }
@@ -1000,25 +1000,25 @@ public final class ReaderSpeechController {
 
         if ReaderConfiguration.shared().effectType == .scroll {
 
-            guard let scrollController = reader.scrollController else { return }
+            guard let flowController = reader.flowController else { return }
 
             // 用户的手指或惯性还在滚动时不要插手：两个滚动同时进行会明显卡顿甚至跳变，
             // 「刚松手、惯性还没停」那一小段最容易撞上。
             //
             // 跳过没有后果：跟随每句判两次，下一次会再来。
-            guard !scrollController.isUserScrolling else { return }
+            guard !flowController.isUserScrolling else { return }
 
             // 滚动容器在库内，可直接按句定位；阅读记录由容器的滚动回调维护。
             // 容器内部还会判断「句子已在舒适区内就不滚」，避免逐句微抖。
             requestPositionAlter {
 
-                scrollController.revealSpeechSentence(animated: true)
+                flowController.revealSpeechSentence(animated: true)
             }
 
             return
         }
 
-        guard let record = reader.bookModel?.recordModel,
+        guard let record = reader.bookModel?.readingRecord,
               let displayedChapter = record.chapterModel,
               let chapterID = speakingChapter.id else { return }
 
@@ -1177,7 +1177,7 @@ public final class ReaderSpeechController {
         if ReaderConfiguration.shared().effectType == .scroll {
 
             // 滚动模式同屏可能有多页可见，交给容器逐个可见 cell 判定
-            reader.scrollController?.reviseSpeechHighlight()
+            reader.flowController?.reviseSpeechHighlight()
 
         }else{
 
@@ -1189,7 +1189,7 @@ public final class ReaderSpeechController {
             display.loadViewIfNeeded()
 
             guard let pageView = display.renderingPageView,
-                  let record = display.recordModel,
+                  let record = display.readingRecord,
                   let displayedChapter = record.chapterModel,
                   let pageModel = record.pageModel else { return }
 
@@ -1208,7 +1208,7 @@ public final class ReaderSpeechController {
 
         reader.visiblePageController?.renderingPageView?.speechHighlightRange = nil
 
-        reader.scrollController?.clearSpeechHighlight()
+        reader.flowController?.clearSpeechHighlight()
     }
 
     // MARK: - 章节衔接
@@ -1391,7 +1391,7 @@ public final class ReaderSpeechController {
         guard let reader, let chapterID = chapter.id else { return }
 
         // 已经在这一章就别跳，跳转会重建正文视图（闪屏 + 丢滚动位置）
-        if let record = reader.bookModel?.recordModel,
+        if let record = reader.bookModel?.readingRecord,
            let displayedChapter = record.chapterModel,
            displayedChapter.id == chapterID { return }
 
@@ -1431,7 +1431,7 @@ public final class ReaderSpeechController {
     private func precedingChapterID(of chapterID: NSNumber?, in book: ReaderBookModel) -> NSNumber? {
 
         guard let chapterID,
-              let list = book.chapterListModels,
+              let list = book.catalogueEntries,
               let index = list.firstIndex(where: { $0.id == chapterID }),
               index > 0 else { return nil }
 
@@ -1441,7 +1441,7 @@ public final class ReaderSpeechController {
     /// 取章节名，供加载失败提示使用。
     private func chapterName(for chapterID: NSNumber, in book: ReaderBookModel) -> String {
 
-        let matched = book.chapterListModels?.first { $0.id == chapterID }
+        let matched = book.catalogueEntries?.first { $0.id == chapterID }
 
         return matched?.name ?? ReaderEnvironment.strings.unnamedChapter
     }
@@ -1542,7 +1542,7 @@ public final class ReaderSpeechController {
 
         // 播放队列：一项 = 一章，与锁屏「上一曲 / 下一曲」的映射保持一致。
         // 目录未加载完时给的是当前已知章节数，会随补目录变大 —— 与用户在目录里看到的一致。
-        let chapterList = book?.chapterListModels
+        let chapterList = book?.catalogueEntries
 
         let queueCount = chapterList?.count ?? 0
 

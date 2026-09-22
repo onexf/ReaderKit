@@ -50,8 +50,8 @@ open class ReaderMenuTabRail: UIView {
     // MARK: - 按钮
 
     public private(set) var catalogueTab: UIButton!
-    public private(set) var nightModeButton: UIButton!
-    public private(set) var settingButton: UIButton!
+    public private(set) var themeToggleButton: UIButton!
+    public private(set) var settingsTab: UIButton!
 
     public override init(frame: CGRect) {
         super.init(frame: frame)
@@ -82,24 +82,24 @@ open class ReaderMenuTabRail: UIView {
         addSubview(catalogueTab)
 
         // 日/夜间切换按钮
-        nightModeButton = craftLaneBtn(
+        themeToggleButton = craftLaneBtn(
             normalImage: ReaderEnvironment.images.nightMode(),
             title: ReaderEnvironment.strings.night
         )
-        nightModeButton.tintColor = iconColor
-        nightModeButton.addAction(UIAction { [weak self] _ in self?.toggleNightTheme() }, for: .touchUpInside)
-        addSubview(nightModeButton)
+        themeToggleButton.tintColor = iconColor
+        themeToggleButton.addAction(UIAction { [weak self] _ in self?.toggleNightTheme() }, for: .touchUpInside)
+        addSubview(themeToggleButton)
 
         // 设置按钮：常态描边六边形，设置面板展开时换成实心六边形
         // （设计稿那几帧面板都是展开的，里面的实心图标是选中态，不是常态）
-        settingButton = craftLaneBtn(
+        settingsTab = craftLaneBtn(
             normalImage: ReaderEnvironment.images.tabBookmark(),
             selectedImage: ReaderEnvironment.images.tabBookmarkSelected(),
             title: ReaderEnvironment.strings.setting
         )
-        settingButton.tintColor = iconColor
-        settingButton.addAction(UIAction { [weak self] _ in self?.presentSettings() }, for: .touchUpInside)
-        addSubview(settingButton)
+        settingsTab.tintColor = iconColor
+        settingsTab.addAction(UIAction { [weak self] _ in self?.presentSettings() }, for: .touchUpInside)
+        addSubview(settingsTab)
 
         reviseNightVariantBtn()
     }
@@ -151,13 +151,13 @@ open class ReaderMenuTabRail: UIView {
     /// 根据 isDarkTheme 更新日/夜间按钮的图标和文字
     private func reviseNightVariantBtn() {
         if isDarkTheme {
-            nightModeButton.setImage(ReaderEnvironment.images.dayMode(), for: .normal)
-            nightModeButton.setTitle(ReaderEnvironment.strings.day, for: .normal)
+            themeToggleButton.setImage(ReaderEnvironment.images.dayMode(), for: .normal)
+            themeToggleButton.setTitle(ReaderEnvironment.strings.day, for: .normal)
         } else {
-            nightModeButton.setImage(ReaderEnvironment.images.nightMode(), for: .normal)
-            nightModeButton.setTitle(ReaderEnvironment.strings.night, for: .normal)
+            themeToggleButton.setImage(ReaderEnvironment.images.nightMode(), for: .normal)
+            themeToggleButton.setTitle(ReaderEnvironment.strings.night, for: .normal)
         }
-        configureBtnLayout(nightModeButton)
+        configureBtnLayout(themeToggleButton)
     }
 
     // MARK: - Actions
@@ -184,8 +184,8 @@ open class ReaderMenuTabRail: UIView {
         let buttonWidth = contentWidth / 3
 
         catalogueTab.frame = CGRect(x: horizontalMargin, y: topPadding, width: buttonWidth, height: itemHeight)
-        nightModeButton.frame = CGRect(x: horizontalMargin + buttonWidth, y: topPadding, width: buttonWidth, height: itemHeight)
-        settingButton.frame = CGRect(x: horizontalMargin + buttonWidth * 2, y: topPadding, width: buttonWidth, height: itemHeight)
+        themeToggleButton.frame = CGRect(x: horizontalMargin + buttonWidth, y: topPadding, width: buttonWidth, height: itemHeight)
+        settingsTab.frame = CGRect(x: horizontalMargin + buttonWidth * 2, y: topPadding, width: buttonWidth, height: itemHeight)
     }
     
     // MARK: - 主题换肤
@@ -199,9 +199,9 @@ open class ReaderMenuTabRail: UIView {
         let titleColor = laneTitleColor(colors)
         catalogueTab.setTitleColor(titleColor, for: .normal)
         catalogueTab.tintColor = iconColor
-        nightModeButton.setTitleColor(titleColor, for: .normal)
-        nightModeButton.tintColor = iconColor
-        settingButton.setTitleColor(titleColor, for: .normal)
-        settingButton.tintColor = iconColor
+        themeToggleButton.setTitleColor(titleColor, for: .normal)
+        themeToggleButton.tintColor = iconColor
+        settingsTab.setTitleColor(titleColor, for: .normal)
+        settingsTab.tintColor = iconColor
     }
 }

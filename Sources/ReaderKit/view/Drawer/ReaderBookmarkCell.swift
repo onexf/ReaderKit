@@ -93,7 +93,7 @@ open class ReaderBookmarkCell: UITableViewCell {
     /// - Parameters:
     ///   - mark: 书签
     ///   - progress: 全书阅读进度(已不展示,保留参数兼容调用)
-    ///   - isLocked: 所属章节是否锁定(锁定渐隐由 markView 区域蒙层统一处理,cell 内不做处理)
+    ///   - isLocked: 所属章节是否锁定(锁定渐隐由 bookmarkList 区域蒙层统一处理,cell 内不做处理)
     open func configure(mark: ReaderBookmarkModel, progress: Float, isLocked: Bool) {
 
 

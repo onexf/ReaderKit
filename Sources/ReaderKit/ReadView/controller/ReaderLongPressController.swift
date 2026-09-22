@@ -22,7 +22,7 @@ open class ReaderLongPressController: ReaderPageContentController {
     open override func initReadView() {
         
         // 是否为书籍首页
-        if recordModel.pageModel.isHomePage {
+        if readingRecord.pageModel.isHomePage {
             
             super.initReadView()
             
@@ -31,7 +31,7 @@ open class ReaderLongPressController: ReaderPageContentController {
             // 阅读视图范围（翻页/滚动差异已在 READER_VIEW_RECT 内处理）
             let rect = READER_VIEW_RECT!
             
-            let pageModel = recordModel.pageModel!
+            let pageModel = readingRecord.pageModel!
             
             // 阅读视图
             selectionView = ReaderLongPressView()
@@ -80,7 +80,7 @@ open class ReaderLongPressController: ReaderPageContentController {
     private func drag(touches: Set<UITouch>, status: ReaderDragStatus) {
         
         // 是否为书籍首页
-        if recordModel.pageModel.isHomePage { return }
+        if readingRecord.pageModel.isHomePage { return }
         
         if selectionView?.isDragActive ?? false {
             

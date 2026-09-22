@@ -142,7 +142,7 @@ public struct ReaderImages {
     public var feedback: () -> UIImage? = { symbol("exclamationmark.bubble") }
 
     /// 加入书架
-    public var addToBookshelf: () -> UIImage? = { symbol("plus.square") }
+    public var shelfAddIcon: () -> UIImage? = { symbol("plus.square") }
 
     /// 已在书架
     public var addedToBookshelf: () -> UIImage? = { symbol("checkmark.square") }

@@ -20,46 +20,46 @@ extension ReaderBookModel {
 
     /// 当前书签数是否已达上限
     public var isMarkLimitReached: Bool {
-        return (markModels?.count ?? 0) >= READER_MARK_MAX
+        return (bookmarkEntries?.count ?? 0) >= READER_MARK_MAX
     }
 
     /// 添加书签,默认使用当前阅读记录!(构造并立即写入,保留供本地直接添加路径使用)
-    public func insetMark(recordModel: ReaderReadRecordModel? = nil) {
-        appendMark(buildMark(recordModel: recordModel))
+    public func insetMark(readingRecord: ReaderReadRecordModel? = nil) {
+        appendMark(buildMark(readingRecord: readingRecord))
     }
     
-    /// 构造当前阅读位置的书签(锚定当前阅读记录,不写入 markModels、不持久化)
+    /// 构造当前阅读位置的书签(锚定当前阅读记录,不写入 bookmarkEntries、不持久化)
     /// 用于"先上报服务端、成功后再写入"的悲观流程,保证书签数据锚定点击瞬间的位置
-    public func buildMark(recordModel: ReaderReadRecordModel? = nil) -> ReaderBookmarkModel {
+    public func buildMark(readingRecord: ReaderReadRecordModel? = nil) -> ReaderBookmarkModel {
         
-        let recordModel = (recordModel ?? self.recordModel)!
+        let readingRecord = (readingRecord ?? self.readingRecord)!
         
         let markModel = ReaderBookmarkModel()
         
-        markModel.storyID = recordModel.storyID
+        markModel.storyID = readingRecord.storyID
         
-        markModel.chapterID = recordModel.chapterModel.id
+        markModel.chapterID = readingRecord.chapterModel.id
         
-        if recordModel.pageModel.isHomePage {
+        if readingRecord.pageModel.isHomePage {
             
             markModel.name = ReaderEnvironment.strings.unnamedChapter
             
             markModel.content = storyName
             
-            markModel.location = recordModel.locationFirst
+            markModel.location = readingRecord.locationFirst
             
         }else{
             
-            markModel.name = recordModel.chapterModel.name
+            markModel.name = readingRecord.chapterModel.name
             
             // 滚动模式:由 page + 页内偏移反算精确字符位置,把"当前可见顶部"锚定为书签,
             // 避免只记 cell 起点导致跳转落到上一段(偏移)。其他翻页模式 cell 起点即页首,沿用 locationFirst。
             if ReaderConfiguration.shared().effectType == .scroll,
-               let chapterModel = recordModel.chapterModel,
+               let chapterModel = readingRecord.chapterModel,
                let full = chapterModel.typesetContent, full.length > 0 {
                 
-                let loc = chapterModel.location(forPage: recordModel.page.intValue,
-                                                inPageOffsetY: recordModel.pageScrollAnchor)
+                let loc = chapterModel.location(forPage: readingRecord.page.intValue,
+                                                inPageOffsetY: readingRecord.pageScrollAnchor)
                 let clamped = min(max(loc, 0), full.length - 1)
                 
                 markModel.content = (full.string as NSString).substring(from: clamped).removeSEHeadAndTail.enterToSingleSpace
@@ -67,8 +67,8 @@ extension ReaderBookModel {
                 
             } else {
                 
-                markModel.content = recordModel.contentString.removeSEHeadAndTail.enterToSingleSpace
-                markModel.location = recordModel.locationFirst
+                markModel.content = readingRecord.contentString.removeSEHeadAndTail.enterToSingleSpace
+                markModel.location = readingRecord.locationFirst
             }
         }
         
@@ -81,19 +81,19 @@ extension ReaderBookModel {
     public func appendMark(_ markModel: ReaderBookmarkModel) {
         
         // 去重:同章节同位置已存在则不重复写入(兜底悲观更新窗口内并发请求导致的重复添加)
-        let exists = markModels.contains {
+        let exists = bookmarkEntries.contains {
             $0.chapterID.intValue == markModel.chapterID.intValue &&
             $0.location.intValue == markModel.location.intValue
         }
         if exists { return }
         
-        if markModels.isEmpty {
+        if bookmarkEntries.isEmpty {
             
-            markModels.append(markModel)
+            bookmarkEntries.append(markModel)
             
         }else{
             
-            markModels.insert(markModel, at: 0)
+            bookmarkEntries.insert(markModel, at: 0)
         }
         
         save()
@@ -102,7 +102,7 @@ extension ReaderBookModel {
     /// 移除当前书签
     public func discardMark(index: NSInteger) ->Bool {
         
-        markModels.remove(at: index)
+        bookmarkEntries.remove(at: index)
         
         save()
         
@@ -113,9 +113,9 @@ extension ReaderBookModel {
     @discardableResult
     public func discardAllMarks() -> Bool {
         
-        guard markModels != nil, !markModels.isEmpty else { return false }
+        guard bookmarkEntries != nil, !bookmarkEntries.isEmpty else { return false }
         
-        markModels.removeAll()
+        bookmarkEntries.removeAll()
         
         save()
         
@@ -123,15 +123,15 @@ extension ReaderBookModel {
     }
     
     /// 移除当前书签
-    public func discardMark(recordModel: ReaderReadRecordModel? = nil) ->Bool {
+    public func discardMark(readingRecord: ReaderReadRecordModel? = nil) ->Bool {
         
-        let recordModel = (recordModel ?? self.recordModel)!
+        let readingRecord = (readingRecord ?? self.readingRecord)!
         
-        let markModel = isExistMark(recordModel: recordModel)
+        let markModel = isExistMark(readingRecord: readingRecord)
         
         if markModel != nil {
             
-            let index = markModels.index(of: markModel!)!
+            let index = bookmarkEntries.index(of: markModel!)!
             
             return discardMark(index: index)
         }
@@ -140,19 +140,19 @@ extension ReaderBookModel {
     }
     
     /// 是否存在书签
-    public func isExistMark(recordModel: ReaderReadRecordModel? = nil) ->ReaderBookmarkModel? {
+    public func isExistMark(readingRecord: ReaderReadRecordModel? = nil) ->ReaderBookmarkModel? {
         
-        if markModels.isEmpty { return nil }
+        if bookmarkEntries.isEmpty { return nil }
         
-        let recordModel = (recordModel ?? self.recordModel)!
+        let readingRecord = (readingRecord ?? self.readingRecord)!
         
-        let locationFirst = recordModel.locationFirst!
+        let locationFirst = readingRecord.locationFirst!
         
-        let locationLast = recordModel.locationLast!
+        let locationLast = readingRecord.locationLast!
         
-        for markModel in markModels {
+        for markModel in bookmarkEntries {
             
-            if markModel.chapterID == recordModel.chapterModel.id {
+            if markModel.chapterID == readingRecord.chapterModel.id {
                 
                 if (markModel.location.intValue >= locationFirst.intValue) && (markModel.location.intValue < locationLast.intValue) {
                     
@@ -170,8 +170,8 @@ extension ReaderBookModel {
 /// 书签分组(按章节聚合)
 /// - chapterID:章节 ID
 /// - chapterCaption:章节名称
-/// - priority:章节排序序号(从 chapterListModels 查得,查不到回退 Int.max 排到最后)
-/// - isLocked:章节是否锁定(实时查 chapterListModels)
+/// - priority:章节排序序号(从 catalogueEntries 查得,查不到回退 Int.max 排到最后)
+/// - isLocked:章节是否锁定(实时查 catalogueEntries)
 /// - bookmarks:组内书签,按添加时间由近到远排列
 public struct ReaderBookmarkCluster {
     public let chapterID: NSNumber
@@ -186,7 +186,7 @@ extension ReaderBookModel {
     /// 按 chapterID 查章节列表模型(用于取 priority / isLocked)
     public func chapterListModel(for chapterID: NSNumber?) -> ReaderChapterListItemModel? {
         guard let chapterID = chapterID else { return nil }
-        return chapterListModels?.first { $0.id == chapterID }
+        return catalogueEntries?.first { $0.id == chapterID }
     }
 
     /// 生成书签分组列表
@@ -194,7 +194,7 @@ extension ReaderBookModel {
     /// - Returns: 分组数组;组内书签固定按时间由近到远(最新在前)
     public func markGroups(isAscendingOrder: Bool) -> [ReaderBookmarkCluster] {
 
-        guard let bookmarks = markModels, !bookmarks.isEmpty else { return [] }
+        guard let bookmarks = bookmarkEntries, !bookmarks.isEmpty else { return [] }
 
         // 1. 按 chapterID 聚合(用字符串 key 避免 NSNumber 作为字典 key 的歧义)
         var buckets: [String: [ReaderBookmarkModel]] = [:]
