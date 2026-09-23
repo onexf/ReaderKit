@@ -1070,7 +1070,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                 })
                 
                 // If throttled, remove from loading list so it can be retried after cooldown
-                if dispatched != true {
+                if dispatched?.willCallBack != true {
                     if let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID) {
                         self.inflightChapterIDs.remove(at: loadIndex)
                     }
@@ -1220,7 +1220,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     })
                     
                     // If throttled, remove from loading list so it can be retried after cooldown
-                    if dispatched != true, let chapterID = chapterID,
+                    if dispatched?.willCallBack != true, let chapterID = chapterID,
                        let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID) {
                         self.inflightChapterIDs.remove(at: loadIndex)
                     }
@@ -1348,7 +1348,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     })
                     
                     // If throttled, remove from loading list so it can be retried after cooldown
-                    if dispatched != true, let chapterID = chapterID,
+                    if dispatched?.willCallBack != true, let chapterID = chapterID,
                        let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID) {
                         self.inflightChapterIDs.remove(at: loadIndex)
                     }

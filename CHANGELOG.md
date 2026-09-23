@@ -1,5 +1,59 @@
 # Changelog
 
+## 1.30.0
+
+把 1.29.1 那个 bug 的**成因**从注释约束变成编译期约束。
+
+### 破坏性变更：`loadChapter` 的返回值从 `Bool` 换成枚举
+
+```swift
+public enum ReaderChapterLoadDispatch: Sendable {
+    case dispatched   // 已发起，回调一定来
+    case joined       // 同一章已在途，回调挂在那次上，一定来
+    case throttled    // 被节流，两个回调都不来，调用方自己收尾
+}
+```
+
+`ReaderChapterLoading.loadChapter(...)` 与便捷重载的返回类型都改了。
+实现方会编译报错，按下表改：
+
+| 原来 `return` | 现在 |
+| --- | --- |
+| 被节流 → `false` | `.throttled` |
+| **同一章已在途（去重）→ `false`** | **`.joined`**（并把回调挂到在途那次上） |
+| 正常发起 → `true` | `.dispatched` |
+
+引擎侧只看 `dispatch.willCallBack`。
+
+### 为什么要改
+
+1.29.x 的 `Bool` 语义是「请求是否已真正派发」，文档写明 `false` 只表示被节流。
+但实现方很自然地也拿 `false` 表示「去重了」—— 而这两件事对调用方的要求**完全相反**：
+
+- 被节流 → 回调不会来，必须自己收尾
+- 去重 → 在途那次会完成，回调应该送达
+
+混用的后果：引擎把「去重」当成「回调不会来」提前收尾。朗读那条路径的收尾是 `stop()`，
+于是**连续切章时朗读莫名暂停**，日志里是「摘除远程命令 target」+
+「activity playing → idle」，紧接着才看到正文到达 —— 内容是到了的，只是没人接。
+
+只在操作够快、撞上在途请求时才出现，而在途请求的多少又取决于预取命中率，
+所以它表现得像「偶发」，很难复现。`Bool` 给不了任何编译期提示，注释也没人逐字读。
+
+### ⚠️ 去重时该怎么写
+
+不是「返回 `.joined` 就完事」——**回调必须真的送达**。参考实现：
+
+```swift
+if loadingChapterIDs.contains(chapterId) {
+    waiters[chapterId, default: []].append { result in … }   // 挂到在途那次上
+    return .joined
+}
+```
+
+另外：**在途标记要在回调之前摘掉**。摘在回调之后（比如用 `defer`）的话，
+回调里若又请求同一章会被误判成「撞上在途」，挂进等待队列后再也没人唤醒它。
+
 ## 1.29.1
 
 修 1.27.0 引入的回归：**朗读换章快一点就卡住**。1.27.0/1.28.0/1.29.0 必须升。

@@ -1324,7 +1324,7 @@ public final class ReaderSpeechController {
         }
 
         // 返回 false 表示被节流，两个回调都不会来，得自己收尾，否则朗读会静默悬停
-        if !dispatched { stop() }
+        if !dispatched.willCallBack { stop() }
     }
 
     /// 章节是否有可朗读的正文。
