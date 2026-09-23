@@ -136,8 +136,12 @@ open class ReaderBookModel: NSObject, NSCoding {
             bookModel = ReaderArchiver.unarchiver(folderName: storyID, fileName: READER_KEY_OBJECT) as? ReaderBookModel
         }
         
-        // ⚠️ 解档失败必须回落成新实例，理由同 `ReaderChapterModel.model(storyID:chapterID:)`。
+        // ⚠️ 解档失败必须回落成新实例，并**删掉解不动的文件**（让 `isExist` 恢复诚实）。
+        // 理由同 `ReaderChapterModel.model(storyID:chapterID:)`。
         if bookModel == nil {
+            
+            _ = ReaderArchiver.remove(folderName: storyID, fileName: READER_KEY_OBJECT)
+            
             
             bookModel = ReaderBookModel()
             

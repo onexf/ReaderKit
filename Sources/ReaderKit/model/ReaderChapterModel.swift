@@ -234,7 +234,15 @@ open class ReaderChapterModel: NSObject, NSCoding {
         // ⚠️ 解档失败必须回落成新实例。返回类型非可选，而本类字段是隐式解包可选 ——
         // 让 nil 流出去的后果是调用方访问 `name` / `content` 时崩。归档文件损坏、
         // 或归档键名随版本变过，都会走到这条路上。
+        //
+        // ⚠️⚠️ **必须把解不动的文件删掉**，否则 `isExist` 会一直是真，而它是全工程
+        // 「这一章缓存好了吗」的判据（接入方的预取、滚动模式的邻章加载、朗读换章都在用）。
+        // 文件留着 = 那一章永远不会被重新下载，表现是**朗读换章每次都走网络、快切就卡住**，
+        // 而正文页看起来是空的。1.27.0 改归档键名时漏了这一步，1.29.1 补上。
         if chapterModel == nil {
+            
+            _ = ReaderArchiver.remove(folderName: storyID, fileName: chapterID.stringValue)
+            
             
             chapterModel = ReaderChapterModel()
             

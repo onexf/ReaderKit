@@ -248,8 +248,12 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
             // reviseFont() 会在 GetChapterModel / ReaderChapterModel.model() 中按需调用
         }
         
-        // ⚠️ 解档失败必须回落成新实例，理由同 `ReaderChapterModel.model(storyID:chapterID:)`。
+        // ⚠️ 解档失败必须回落成新实例，并**删掉解不动的文件**（让 `isExist` 恢复诚实）。
+        // 理由同 `ReaderChapterModel.model(storyID:chapterID:)`。
         if readingRecord == nil {
+            
+            _ = ReaderArchiver.remove(folderName: storyID, fileName: READER_KEY_RECORD)
+            
             
             readingRecord = ReaderReadRecordModel()
             
