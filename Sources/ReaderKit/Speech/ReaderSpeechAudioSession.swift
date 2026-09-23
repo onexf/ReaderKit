@@ -177,6 +177,11 @@ final class ReaderSpeechAudioSession {
             // 否则之后恢复朗读时会误判为「还活着」而不重新激活
             isActive = false
 
+            // 打日志是为了把「朗读自己停了」的原因分开：中断、拔耳机、
+            // 播放器非预期停住三条路都会走到 `pause(origin: .system)`，
+            // 不记一笔的话日志里看不出是哪一条。
+            ReaderEnvironment.log("[Speech] 音频中断开始（来电 / 其它 App 抢占 / 系统 TTS）")
+
             performOnMain { [weak self] in self?.delegate?.audioSessionRequestsPause() }
 
         case .ended:
@@ -186,6 +191,8 @@ final class ReaderSpeechAudioSession {
             let rawOptions = info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
 
             let options = AVAudioSession.InterruptionOptions(rawValue: rawOptions)
+
+            ReaderEnvironment.log("[Speech] 音频中断结束 shouldResume=\(options.contains(.shouldResume))")
 
             guard options.contains(.shouldResume) else { return }
 
@@ -216,6 +223,8 @@ final class ReaderSpeechAudioSession {
         // 其它 reason（新设备接入、路由配置变化等）不该打断朗读 ——
         // 一律暂停会导致插上耳机的瞬间也停掉。
         guard reason == .oldDeviceUnavailable else { return }
+
+        ReaderEnvironment.log("[Speech] 输出设备不可用（拔耳机 / 蓝牙断开），暂停")
 
         performOnMain { [weak self] in self?.delegate?.audioSessionRequestsPause() }
     }

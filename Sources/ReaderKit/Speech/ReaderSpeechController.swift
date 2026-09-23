@@ -308,15 +308,15 @@ public final class ReaderSpeechController {
 
         guard activity != .idle else { return }
 
-        // 先对账，再对齐。**这三行不能挪到下面的对齐链路里。**
+        // 回前台补一次「两侧都按权威状态重写」。**这两行不能挪到下面的对齐链路里。**
         //
-        // 后台期间两侧可能已经错开（进程挂起时收不到中断通知、会话被别的 App 抢走），
-        // 而对齐链路被 `alignViewToSpeakingSentence()` 里四个 guard 门着、锁屏信息
-        // 更是一次都不会重写 —— 不在这里无条件收敛的话，一次瞬时错位会永久留在界面上，
-        // 只有用户去点一下那个按钮才会恢复。QA 报的「控制中心暂停、阅读器显示播放中」
-        // 就是这么卡住的。
-        reconcileWithPlayer()
-
+        // 对齐链路被 `alignViewToSpeakingSentence()` 里四个 guard 门着，而锁屏信息
+        // 在那条路上一次都不会重写 —— 不在这里无条件补的话，后台期间产生的错位会
+        // 永久留在界面上，只有用户点一下那个按钮才恢复。
+        //
+        // ⚠️ 这里**刻意不去动播放状态**。1.32.0 曾在这里按播放器的实际状态把 `activity`
+        // 收敛成暂停，结果把正常播放掐掉了 —— 回前台这一刻播放器可能正在启动，
+        // 分不清「正在启动」和「已经停了」。需要那种收敛的话得先有现场日志。
         publishNowPlaying()
 
         reader?.reviseSpeechActionButton(animated: false)
@@ -339,20 +339,6 @@ public final class ReaderSpeechController {
                 self.alignAfterLayoutSettled()
             }
         }
-    }
-
-    /// 以播放器的实际状态为准修正 `activity`。
-    ///
-    /// 只认一种分歧：**播放器明确停住了，而我们还以为在播**。
-    /// 不碰 `.preparing`（换句时的正常中间态）与 `.idle`（一句播完到提交下一句之间
-    /// 也会短暂出现），那两种都不代表出错。
-    private func reconcileWithPlayer() {
-
-        guard activity == .playing, player.state == .paused else { return }
-
-        ReaderEnvironment.log("[Speech] 回前台对账：播放器已暂停而状态是 playing，按暂停收敛")
-
-        pause(origin: .system)
     }
 
     /// 强制完成布局后再对齐，并把关键尺寸打进日志。
@@ -532,23 +518,14 @@ public final class ReaderSpeechController {
 
             audioSession.activate()
 
-            // **激活失败就不要声称在播。**
+            // 激活失败**只记一笔，照样往下走**（与 1.31.0 一致）。
             //
-            // `setActive(true)` 在后台经常被系统拒（`CannotInterruptOthers`），
-            // 而此前这里无条件往下走：播放器 play 到一个没激活的会话上，一点声音都没有，
-            // 状态却已经置成 `.playing` —— 表现为「App 显示播放中、控制中心显示暂停、
-            // 而且没有声音」，且回前台也不会自愈。
-            //
-            // 会话是主线程同步激活的（见 `ReaderSpeechAudioSession.performOnMain`），
-            // 所以这一句读到的 `isActive` 就是本次的结果。
-            guard audioSession.isActive else {
+            // 1.32.0 曾在这里 `return`，理由是「不要声称在播却没声音」。那个方向是错的：
+            // `setActive(true)` 失败不等于放不出声（会话可能随后被系统隐式恢复），
+            // 而拒绝续播是确定性的失败 —— 症状就是「点继续不动」。
+            if !audioSession.isActive {
 
-                ReaderEnvironment.log("[Speech] resume() 放弃：音频会话激活失败，保持暂停态")
-
-                // 锁屏那边也要再确认一次仍是暂停，别留着上一次的信息
-                publishNowPlaying()
-
-                return
+                ReaderEnvironment.log("[Speech] resume() 会话激活失败，仍尝试继续播放")
             }
         }
 
@@ -1715,12 +1692,15 @@ extension ReaderSpeechController: ReaderSpeechPlayerDelegate {
 
     func speechPlayerDidStallUnexpectedly(_ player: ReaderSpeechPlayer) {
 
-        // 播放器已经停了，界面与锁屏必须跟着回到暂停态。
+        // **只记一笔，不动状态。**
         //
-        // 归给 `.system`：这不是用户的意思，所以中断结束带 `.shouldResume` 时应该自动续上。
-        // 走 `pause(origin:)` 而不是自己写一套 —— 结算出声时长、撤在途渲染、写锁屏
-        // 这几件事只该有一处实现。播放器此刻已是暂停态，里面那句 `player.pause()` 是空操作。
-        pause(origin: .system)
+        // 1.32.0 在这里 `pause(origin: .system)`，想让界面诚实地跟上「声音已经没了」。
+        // 但判据（播放器读到停着）在正常播放里也会短暂成立，几次收敛都把正常播放掐掉了，
+        // 所以先退回纯观察 —— 先拿到现场日志，确认它只在真的被停掉时触发，再让它动手。
+        //
+        // 代价是原 bug 还在：系统侧把播放器停掉时 `activity` 仍会停在 `.playing`
+        //（声音没了、界面还显示在播）。但那是**显示不对**，比把正常朗读掐掉轻。
+        ReaderEnvironment.log("[Speech] 播放器非预期停住（仅记录，不改状态）activity=\(activity)")
     }
 }
 
@@ -1732,14 +1712,12 @@ extension ReaderSpeechController: ReaderSpeechAudioSessionDelegate {
 
     func audioSessionRequestsResume() {
 
-        // 用户自己按的暂停不能被系统的「中断结束、可以恢复」盖掉。
-        // 缺这道判断的后果是：锁屏点了暂停，之后来一次通知音或闹钟，朗读自己读下去。
-        guard lastPauseOrigin == .system else {
-
-            ReaderEnvironment.log("[Speech] 中断结束可恢复，但上次暂停是用户发起的，不自动继续")
-
-            return
-        }
+        // ⚠️ 这里**没有**按暂停来源过滤。
+        //
+        // 「用户自己按的暂停不该被 `.shouldResume` 盖掉」这个想法是对的，但 1.32.0 加上
+        // 之后赶上了别的回归，没法区分是谁造成的。先只记一笔，等日志确认这条路真的会
+        // 在用户暂停后触发，再决定要不要拦。
+        ReaderEnvironment.log("[Speech] 中断结束请求继续，上次暂停来源=\(lastPauseOrigin)")
 
         resume()
     }

@@ -121,6 +121,13 @@ final class ReaderSpeechPlayer {
     /// 当前项的结束 / 失败通知观察者。
     private var itemObservers: [NSObjectProtocol] = []
 
+    /// 判定「非预期停住」前的复核间隔。
+    ///
+    /// 取 1.5 秒是为了把所有正常的短暂停顿都让过去：命中缓存的句间间隙是几十毫秒，
+    /// 未命中时 `state` 会先变成 `.idle` / `.preparing`（那条分支根本不看），
+    /// 剩下唯一会持续超过这个时长的就是真的被停掉了。
+    private static let stallConfirmDelay: TimeInterval = 1.5
+
     /// 是否已为本次播放报过 `didStart`。
     ///
     /// `timeControlStatus` 在一次播放里可能多次变成 `.playing`（如中断恢复后），
@@ -197,7 +204,10 @@ final class ReaderSpeechPlayer {
         player.play()
 
         // 已经出过声的音频恢复后不再重报 didStart（见 `hasReportedStart`），
-        // 所以这里直接置 playing，不等 timeControlStatus
+        // 所以这里直接置 playing，不等 timeControlStatus。
+        //
+        // 1.32.0 曾改成一律 `.preparing`（想让 `.playing` 只来自实测），但那一版
+        // 连着别的改动一起造成了「暂停后不能继续」，无法归因。先回到 1.31.0 的写法。
         state = hasReportedStart ? .playing : .preparing
     }
 
@@ -270,11 +280,15 @@ final class ReaderSpeechPlayer {
 
                 if player.timeControlStatus == .playing {
 
+                    // `state` 每次都同步：它是「现在是不是真的在出声」的唯一事实来源，
+                    // 下面那条分支的判据全靠它可信。
+                    self.state = .playing
+
+                    // 但 `didStart` 只报一次 —— 它驱动高亮与正文跟随，重复触发会让
+                    // 正文重新跟随一次。
                     guard !self.hasReportedStart else { return }
 
                     self.hasReportedStart = true
-
-                    self.state = .playing
 
                     self.delegate?.speechPlayerDidStart(self)
 
@@ -291,11 +305,28 @@ final class ReaderSpeechPlayer {
                       self.state == .playing,
                       !self.isAtItemEnd else { return }
 
-                self.state = .paused
+                ReaderEnvironment.log("[Speech] 播放器读到停住（位置 \(Int(self.currentTime))/\(Int(self.loadedDuration))s），\(Self.stallConfirmDelay)s 后复核")
 
-                ReaderEnvironment.log("[Speech] 播放器非预期停住（无人要求），按暂停收敛")
+                // **不要立刻下结论。**
+                //
+                // 启动、换曲、渲染下一句时抢会话、被短暂中断又恢复，这些时刻都会读到
+                // 「停着」，立刻按暂停收敛就会把正常的播放掐掉 —— 1.32.0 的
+                // 「暂停后不能继续」「读着读着自动暂停」都是这么来的。
+                //
+                // 真的被抢走会一直停着，多等一秒多没有代价；而正常的句间间隙
+                // （命中缓存时几十毫秒）远远短于它。
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.stallConfirmDelay) { [weak self] in
 
-                self.delegate?.speechPlayerDidStallUnexpectedly(self)
+                    guard let self,
+                          self.state == .playing,
+                          self.player.timeControlStatus == .paused,
+                          !self.isAtItemEnd else { return }
+
+                    // **不改 `state`、不动播放**：现在这条分支是纯观察。
+                    // 改 `state` 会影响 `pause()` / `resume()` 的分支选择，属于行为改动，
+                    // 而这一整块的判据还没被现场日志验证过。
+                    self.delegate?.speechPlayerDidStallUnexpectedly(self)
+                }
             }
         }
     }
