@@ -89,6 +89,11 @@ final class ReaderSpeechAudioSession {
                 // 会话配置失败不该让阅读本身崩掉或卡住：朗读会因为没有音频输出
                 // 而听不见，但正文浏览必须继续可用。
                 self.isActive = false
+
+                // **必须打日志。** 后台激活被系统拒（典型是 `CannotInterruptOthers`）
+                // 时这里是唯一的现场。此前这个 catch 是完全静默的，而症状
+                //「界面显示在播、却一点声音都没有」离根因非常远。
+                ReaderEnvironment.log("[Speech] 音频会话激活失败 code=\((error as NSError).code) \(error.localizedDescription)")
             }
         }
     }

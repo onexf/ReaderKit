@@ -51,6 +51,12 @@ protocol ReaderSpeechPlayerDelegate: AnyObject {
     /// 实测 `didStart` 那一刻读到的还是 0，几十毫秒后才变成真实值。
     /// 需要精确时间轴的一方（锁屏信息）据此补写一次。
     func speechPlayerDidLoadDuration(_ player: ReaderSpeechPlayer)
+
+    /// 播放器在**没人要求**的情况下停住了。
+    ///
+    /// 会话被别的 App 抢走、中断通知在进程挂起期间没送达、音频栈出状况都会走到这里。
+    /// 不认下来的话编排层会永久停在「播放中」：声音早没了、界面和锁屏还各说各话。
+    func speechPlayerDidStallUnexpectedly(_ player: ReaderSpeechPlayer)
 }
 
 extension ReaderSpeechPlayerDelegate {
@@ -235,6 +241,18 @@ final class ReaderSpeechPlayer {
     /// 没有容器信息的话播放项永远解析不出时长。
     var duration: TimeInterval { loadedDuration }
 
+    /// 播放位置是否已经到（或极接近）当前音频的末尾。
+    ///
+    /// 用来把「自然播完」与「非预期停住」区分开：两者都会让 `timeControlStatus`
+    /// 变成 `.paused`。不按通知到达的先后判断 —— 结束通知与状态观察是两条独立的
+    /// 异步路径，谁先到不确定；位置与时长的比较跟顺序无关。
+    private var isAtItemEnd: Bool {
+
+        guard loadedDuration > 0 else { return false }
+
+        return currentTime >= loadedDuration - 0.3
+    }
+
     // MARK: - 观察
 
     /// 观察「是否真的在出声」。
@@ -250,15 +268,34 @@ final class ReaderSpeechPlayer {
 
                 guard let self else { return }
 
-                guard player.timeControlStatus == .playing else { return }
+                if player.timeControlStatus == .playing {
 
-                guard !self.hasReportedStart else { return }
+                    guard !self.hasReportedStart else { return }
 
-                self.hasReportedStart = true
+                    self.hasReportedStart = true
 
-                self.state = .playing
+                    self.state = .playing
 
-                self.delegate?.speechPlayerDidStart(self)
+                    self.delegate?.speechPlayerDidStart(self)
+
+                    return
+                }
+
+                // 停住了，而且**不是我们要求的** —— 自己调 `pause()` / `stop()` 时
+                // `state` 会先被改掉，所以这里还看到 `.playing` 就意味着
+                // 会话被别的 App 抢走、或中断通知在进程挂起期间没送达。
+                //
+                // 这条分支是 1.32.0 补的：此前只认 `.playing`，任何系统侧发起的停止
+                // 都无人接管，编排层永久停在播放中（声音没了、界面还显示在播）。
+                guard player.timeControlStatus == .paused,
+                      self.state == .playing,
+                      !self.isAtItemEnd else { return }
+
+                self.state = .paused
+
+                ReaderEnvironment.log("[Speech] 播放器非预期停住（无人要求），按暂停收敛")
+
+                self.delegate?.speechPlayerDidStallUnexpectedly(self)
             }
         }
     }

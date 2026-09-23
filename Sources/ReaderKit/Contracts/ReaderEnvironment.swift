@@ -243,6 +243,57 @@ public struct ReaderImages {
     /// 回到朗读位置（朗读中但用户已翻到别页时出现在控制胶囊最左侧）
     public var speechReturnToPlaying: () -> UIImage? = { symbol("arrow.uturn.left") }
 
+    // MARK: - 朗读 dock 与全屏播放页的控件图标
+    //
+    // 下面 8 个槽**默认全是 nil，此时库按设计稿几何自绘**（和 `battery` 同一路径）。
+    // 不注入不会退化成系统符号，所以老接入方升级后外观不变。
+    //
+    // ⚠️ 注入的图**按自身尺寸居中绘制，不缩放**（`contentMode = .center`）。所以切图的
+    // 画板尺寸就是最终渲染尺寸，位置也由画板内的留白决定 —— 想调大小或位置就改切图，
+    // 不要指望库去缩放。用 `scaleAspectFit` 的话，一张 16pt 的图落进 36pt 的控件会被
+    // 拉到 36pt，设计稿的留白全丢，看着比设计稿大一圈。
+    //
+    // 进度环**刻意没有开放注入**：它要跟着播放进度动，画不成静态图。
+
+    /// dock 播放态中央 36pt 控件里的暂停图标（进度环内侧）。
+    ///
+    /// 自绘兜底：竖条 1.333×8、间距 4，居中。
+    public var speechDockPause: () -> UIImage? = { nil }
+
+    /// dock 播放态中央 36pt 控件里的播放图标（进度环内侧）。
+    ///
+    /// 自绘兜底：等高三角，宽度取暂停图标的整体宽度，两态视觉重量才接近。
+    public var speechDockResume: () -> UIImage? = { nil }
+
+    /// dock 播放态最右侧的关闭 ✕（20pt）。
+    ///
+    /// 自绘兜底：两条对角线，描边 1.389、端点距边框各内缩 29%、整体 80% 不透明度。
+    public var speechDockClose: () -> UIImage? = { nil }
+
+    /// 全屏播放页中央 64pt 控件里的暂停图标（描边圆环内侧）。
+    ///
+    /// 自绘兜底：竖条 4×24、间距 12，居中。
+    public var speechScreenPause: () -> UIImage? = { nil }
+
+    /// 全屏播放页中央 64pt 控件里的播放图标（描边圆环内侧）。
+    ///
+    /// 自绘兜底：三角 22.19×28.1，且整体右偏 3.1 —— 设计稿给的就是这个偏移量，
+    /// 不是几何居中（尖端朝右的三角按外接矩形居中会显得偏左）。
+    public var speechScreenResume: () -> UIImage? = { nil }
+
+    /// 全屏播放页的上一章按钮（28pt）。
+    ///
+    /// 自绘兜底：竖条 2.333×16.333 在左、三角 12.6×16.8 尖端朝左，间隙 2.6。
+    public var speechScreenPreviousChapter: () -> UIImage? = { nil }
+
+    /// 全屏播放页的下一章按钮（28pt）。自绘兜底是上一章的镜像。
+    public var speechScreenNextChapter: () -> UIImage? = { nil }
+
+    /// 全屏播放页顶部的收起箭头（24pt 图标框，热区 44）。
+    ///
+    /// 自绘兜底：`M5 8.5 L12 16 L19 8.5`（24 框内），描边 2、端头切平。
+    public var speechScreenDismiss: () -> UIImage? = { nil }
+
     // MARK: - 远程图片
 
     /// 远程图片加载（当前仅用于目录抽屉里的书封）。

@@ -544,7 +544,10 @@ open class ReaderViewController: ReaderScreenController {
 
         let activity = engagedSpeechController?.activity ?? .idle
 
-        dock.isSpeaking = activity != .paused
+        // 口径与胶囊、播放器页一致：`.preparing` 算在播，**`.idle` 不算**。
+        // 原先写的是 `activity != .paused`，于是 `.idle` 也被当成播放中 ——
+        // 任何一次漏刷新都会让 dock 偏向显示「正在播放」。
+        dock.isSpeaking = activity == .playing || activity == .preparing
 
         dock.progress = engagedSpeechController?.chapterProgress ?? 0
 

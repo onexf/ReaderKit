@@ -308,6 +308,19 @@ public final class ReaderSpeechController {
 
         guard activity != .idle else { return }
 
+        // 先对账，再对齐。**这三行不能挪到下面的对齐链路里。**
+        //
+        // 后台期间两侧可能已经错开（进程挂起时收不到中断通知、会话被别的 App 抢走），
+        // 而对齐链路被 `alignViewToSpeakingSentence()` 里四个 guard 门着、锁屏信息
+        // 更是一次都不会重写 —— 不在这里无条件收敛的话，一次瞬时错位会永久留在界面上，
+        // 只有用户去点一下那个按钮才会恢复。QA 报的「控制中心暂停、阅读器显示播放中」
+        // 就是这么卡住的。
+        reconcileWithPlayer()
+
+        publishNowPlaying()
+
+        reader?.reviseSpeechActionButton(animated: false)
+
         // 退两拍再对齐。
         //
         // **从锁屏回来与从控制中心回来不是一回事**：后者 app 只是 `.inactive`、
@@ -326,6 +339,20 @@ public final class ReaderSpeechController {
                 self.alignAfterLayoutSettled()
             }
         }
+    }
+
+    /// 以播放器的实际状态为准修正 `activity`。
+    ///
+    /// 只认一种分歧：**播放器明确停住了，而我们还以为在播**。
+    /// 不碰 `.preparing`（换句时的正常中间态）与 `.idle`（一句播完到提交下一句之间
+    /// 也会短暂出现），那两种都不代表出错。
+    private func reconcileWithPlayer() {
+
+        guard activity == .playing, player.state == .paused else { return }
+
+        ReaderEnvironment.log("[Speech] 回前台对账：播放器已暂停而状态是 playing，按暂停收敛")
+
+        pause(origin: .system)
     }
 
     /// 强制完成布局后再对齐，并把关键尺寸打进日志。
@@ -449,11 +476,25 @@ public final class ReaderSpeechController {
     /// 那些都是为了绕开 `AVSpeechSynthesizer` 的限制 ——「只在空闲时接受提交」
     /// 与「暂停/继续这对 API 可能永不回调」。换成播放器之后限制消失，机制随之删除。
     /// 详见 `.kiro/learnings/quality/2026-09-16_unreliable-api-behind-async-roundtrip.md`。
-    public func pause() {
+    public func pause() { pause(origin: .user) }
 
-        ReaderEnvironment.log("[Speech] pause() 进入 activity=\(activity) player=\(player.state)")
+    /// 暂停是谁发起的。
+    ///
+    /// 存在理由只有一条：中断结束时系统可能带 `.shouldResume`，而**用户自己按下的
+    /// 暂停不该被它覆盖**。没有这层记账时，锁屏点了暂停之后来一次通知音或闹钟，
+    /// 朗读会自己读下去。
+    private enum PauseOrigin { case user, system }
+
+    /// 上一次暂停的发起方。初值取 `.user` —— 没暂停过时也不该被自动续播。
+    private var lastPauseOrigin: PauseOrigin = .user
+
+    private func pause(origin: PauseOrigin) {
+
+        ReaderEnvironment.log("[Speech] pause(origin=\(origin)) 进入 activity=\(activity) player=\(player.state)")
 
         guard activity == .playing || activity == .preparing else { return }
+
+        lastPauseOrigin = origin
 
         // 先结算再写锁屏，顺序不能反 —— 下面的 `publishNowPlaying()` 要用结算后的值
         settleSpeakingSegment()
@@ -487,7 +528,29 @@ public final class ReaderSpeechController {
 
         guard activity == .paused else { return }
 
-        if !audioSession.isActive { audioSession.activate() }
+        if !audioSession.isActive {
+
+            audioSession.activate()
+
+            // **激活失败就不要声称在播。**
+            //
+            // `setActive(true)` 在后台经常被系统拒（`CannotInterruptOthers`），
+            // 而此前这里无条件往下走：播放器 play 到一个没激活的会话上，一点声音都没有，
+            // 状态却已经置成 `.playing` —— 表现为「App 显示播放中、控制中心显示暂停、
+            // 而且没有声音」，且回前台也不会自愈。
+            //
+            // 会话是主线程同步激活的（见 `ReaderSpeechAudioSession.performOnMain`），
+            // 所以这一句读到的 `isActive` 就是本次的结果。
+            guard audioSession.isActive else {
+
+                ReaderEnvironment.log("[Speech] resume() 放弃：音频会话激活失败，保持暂停态")
+
+                // 锁屏那边也要再确认一次仍是暂停，别留着上一次的信息
+                publishNowPlaying()
+
+                return
+            }
+        }
 
         // 播放器手里还有内容（暂停在播放中途）：直接继续。
         //
@@ -1649,15 +1712,37 @@ extension ReaderSpeechController: ReaderSpeechPlayerDelegate {
         // 时长可能晚于开始出声才解析出来，补写一次锁屏时间轴
         publishNowPlaying()
     }
+
+    func speechPlayerDidStallUnexpectedly(_ player: ReaderSpeechPlayer) {
+
+        // 播放器已经停了，界面与锁屏必须跟着回到暂停态。
+        //
+        // 归给 `.system`：这不是用户的意思，所以中断结束带 `.shouldResume` 时应该自动续上。
+        // 走 `pause(origin:)` 而不是自己写一套 —— 结算出声时长、撤在途渲染、写锁屏
+        // 这几件事只该有一处实现。播放器此刻已是暂停态，里面那句 `player.pause()` 是空操作。
+        pause(origin: .system)
+    }
 }
 
 // MARK: - ReaderSpeechAudioSessionDelegate
 
 extension ReaderSpeechController: ReaderSpeechAudioSessionDelegate {
 
-    func audioSessionRequestsPause() { pause() }
+    func audioSessionRequestsPause() { pause(origin: .system) }
 
-    func audioSessionRequestsResume() { resume() }
+    func audioSessionRequestsResume() {
+
+        // 用户自己按的暂停不能被系统的「中断结束、可以恢复」盖掉。
+        // 缺这道判断的后果是：锁屏点了暂停，之后来一次通知音或闹钟，朗读自己读下去。
+        guard lastPauseOrigin == .system else {
+
+            ReaderEnvironment.log("[Speech] 中断结束可恢复，但上次暂停是用户发起的，不自动继续")
+
+            return
+        }
+
+        resume()
+    }
 
     func audioSessionRequestsStop() { stop() }
 }

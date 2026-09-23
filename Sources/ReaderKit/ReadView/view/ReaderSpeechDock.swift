@@ -106,7 +106,10 @@ open class ReaderSpeechDock: UIView {
     }
 
     /// 播放态中央图标是否显示为「暂停」。`true` 显示暂停（当前在播），`false` 显示播放。
-    open var isSpeaking: Bool = true {
+    ///
+    /// 默认 `false`：漏刷新时宁可显示成「没在播」。默认 `true` 的话一旦哪条路径没刷到，
+    /// 界面就会谎称正在朗读，而这正是最难被发现的那种错。
+    open var isSpeaking: Bool = false {
 
         didSet { toggleView.isSpeaking = isSpeaking }
     }
@@ -454,13 +457,20 @@ open class ReaderSpeechDock: UIView {
 
 /// 播放态中央那个 36×36 控件：一圈进度环套一个暂停 / 播放图标。
 ///
-/// 全部用 `CAShapeLayer` 画，不用图片：
-/// - 环必须是动态的，本来就画不成静态图
-/// - 暂停两根竖条与播放三角形足够简单，画出来还顺带免了「播放态该配什么图标」这个
-///   设计稿里没给的问题，也不占资源（库内零资源，见 BOUNDARY.md）
+/// 环用 `CAShapeLayer` 画且**不开放注入** —— 它要跟着播放进度动，画不成静态图。
+/// 中央图标优先用注入的切图（`speechDockPause` / `speechDockResume`），没注入才自绘。
 final class ReaderSpeechDockToggle: UIView {
 
-    /// 设计稿：环外径 30（36 里留 3 边距），环宽 3 → 路径半径 13.5
+    /// 设计稿基准边长
+    private static let designSide: CGFloat = 36
+
+    /// 设计稿环外径 30，即 36 的画板里四周各留 3。
+    ///
+    /// ⚠️ 1.32.0 之前这里是 `radius = (边长 - 环宽) / 2`，等于把外径当成 36、
+    /// 吞掉了这 3pt 边距，环比设计稿大了一圈。
+    private let ringInset: CGFloat = 3
+
+    /// 环宽
     private let ringWidth: CGFloat = 3
 
     /// 暂停竖条：1.333 宽、8 高、间距 4
@@ -474,7 +484,7 @@ final class ReaderSpeechDockToggle: UIView {
         didSet { reviseProgress() }
     }
 
-    var isSpeaking: Bool = true {
+    var isSpeaking: Bool = false {
 
         didSet { reviseGlyph() }
     }
@@ -485,6 +495,13 @@ final class ReaderSpeechDockToggle: UIView {
 
     private let glyphLayer = CAShapeLayer()
 
+    /// 注入切图的承载。`.center` 是契约：图按自身尺寸画，不缩放。
+    private let iconView: UIImageView = {
+        let view = UIImageView()
+        view.contentMode = .center
+        return view
+    }()
+
     private var tint: UIColor = .white
 
     override init(frame: CGRect) {
@@ -494,13 +511,9 @@ final class ReaderSpeechDockToggle: UIView {
         // 环轨固定 20% 不透明度（设计稿 fill-opacity 0.2）
         trackLayer.fillColor = nil
 
-        trackLayer.lineWidth = ringWidth
-
         layer.addSublayer(trackLayer)
 
         progressLayer.fillColor = nil
-
-        progressLayer.lineWidth = ringWidth
 
         // 进度从 12 点方向顺时针增长，端头切平（设计稿是扇形边缘，非圆头）
         progressLayer.lineCap = .butt
@@ -508,6 +521,8 @@ final class ReaderSpeechDockToggle: UIView {
         layer.addSublayer(progressLayer)
 
         layer.addSublayer(glyphLayer)
+
+        addSubview(iconView)
 
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleTapped)))
 
@@ -520,7 +535,12 @@ final class ReaderSpeechDockToggle: UIView {
 
         super.layoutSubviews()
 
-        let radius = (min(bounds.width, bounds.height) - ringWidth) / 2
+        let scale = min(bounds.width, bounds.height) / Self.designSide
+
+        let lineWidth = ringWidth * scale
+
+        // 外径 = 边长 − 两侧边距；描边居中于路径，所以路径半径还要再减半个描边宽
+        let radius = (min(bounds.width, bounds.height) - ringInset * 2 * scale - lineWidth) / 2
 
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
 
@@ -535,13 +555,19 @@ final class ReaderSpeechDockToggle: UIView {
 
         trackLayer.frame = bounds
 
+        trackLayer.lineWidth = lineWidth
+
         trackLayer.path = ring.cgPath
 
         progressLayer.frame = bounds
 
+        progressLayer.lineWidth = lineWidth
+
         progressLayer.path = ring.cgPath
 
         glyphLayer.frame = bounds
+
+        iconView.frame = bounds
 
         reviseProgress()
 
@@ -555,6 +581,17 @@ final class ReaderSpeechDockToggle: UIView {
     }
 
     private func reviseGlyph() {
+
+        let injected = isSpeaking
+            ? ReaderEnvironment.images.speechDockPause()
+            : ReaderEnvironment.images.speechDockResume()
+
+        iconView.image = injected
+
+        // 注入了切图就把自绘那份整层藏掉，否则两层会叠在一起
+        glyphLayer.isHidden = injected != nil
+
+        guard injected == nil else { return }
 
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
 
@@ -608,6 +645,8 @@ final class ReaderSpeechDockToggle: UIView {
         progressLayer.strokeColor = color.cgColor
 
         glyphLayer.fillColor = color.cgColor
+
+        iconView.tintColor = color
     }
 
     @objc private func toggleTapped() { onTap?() }
@@ -615,7 +654,7 @@ final class ReaderSpeechDockToggle: UIView {
 
 // MARK: - 关闭按钮
 
-/// 播放态最右侧那个 20×20 的 X。代码绘制，设计稿整体 80% 不透明度。
+/// 播放态最右侧那个 20×20 的 X。优先用注入的 `speechDockClose`，没注入才自绘。
 final class ReaderSpeechDockCloseButton: UIView {
 
     /// 设计稿：描边 1.389，X 的四个端点距边框各 5.833（即 20 里内缩约 29%）
@@ -626,6 +665,13 @@ final class ReaderSpeechDockCloseButton: UIView {
 
     private let crossLayer = CAShapeLayer()
 
+    /// 注入切图的承载。`.center` 是契约：图按自身尺寸画，不缩放。
+    private let iconView: UIImageView = {
+        let view = UIImageView()
+        view.contentMode = .center
+        return view
+    }()
+
     override init(frame: CGRect) {
 
         super.init(frame: frame)
@@ -634,9 +680,12 @@ final class ReaderSpeechDockCloseButton: UIView {
 
         crossLayer.lineWidth = strokeWidth
 
+        // 设计稿整体 80% 不透明度。注入的切图自带透明度，不再叠这一层
         crossLayer.opacity = 0.8
 
         layer.addSublayer(crossLayer)
+
+        addSubview(iconView)
 
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(closeTapped)))
     }
@@ -648,6 +697,16 @@ final class ReaderSpeechDockCloseButton: UIView {
         super.layoutSubviews()
 
         crossLayer.frame = bounds
+
+        iconView.frame = bounds
+
+        let injected = ReaderEnvironment.images.speechDockClose()
+
+        iconView.image = injected
+
+        crossLayer.isHidden = injected != nil
+
+        guard injected == nil else { return }
 
         let inset = min(bounds.width, bounds.height) * insetRatio
 
@@ -676,7 +735,12 @@ final class ReaderSpeechDockCloseButton: UIView {
         return bounds.insetBy(dx: -dx, dy: -dy).contains(point)
     }
 
-    func adoptTintColor(_ color: UIColor) { crossLayer.strokeColor = color.cgColor }
+    func adoptTintColor(_ color: UIColor) {
+
+        crossLayer.strokeColor = color.cgColor
+
+        iconView.tintColor = color
+    }
 
     @objc private func closeTapped() { onTap?() }
 }

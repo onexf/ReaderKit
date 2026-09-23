@@ -11,8 +11,10 @@
 //  那需要先把朗读从阅读器上解耦，属另一件事。
 //  ---------------------------------------------------------------------------
 //
-//  库内零资源：向下箭头与三个播放控件全部 `CAShapeLayer` 绘制，
-//  书封走 `ReaderImages.loadRemoteImage` 注入点。
+//  库内零资源：向下箭头与三个播放控件**优先用接入方注入的切图**
+//  （`speechScreenDismiss` / `speechScreenPrevious·NextChapter` / `speechScreenPause·Resume`），
+//  没注入才按设计稿几何 `CAShapeLayer` 自绘。书封走 `ReaderImages.loadRemoteImage`。
+//  圆环不在注入范围内 —— 它和 dock 的进度环同源，必须是动态的。
 //
 
 import UIKit
@@ -417,7 +419,16 @@ open class ReaderSpeechScreenController: UIViewController {
         tintView.frame = view.bounds
 
         // 自上而下：导航行 → 标题 → 章节名
-        dismissControl.frame = CGRect(x: horizontalMargin,
+        //
+        // 热区 44 比它承载的 24pt 图标框大，两边各溢出 10 —— 对齐页边距的是**图标框**
+        // 而不是热区，所以 x 要把这 10 减回去。
+        //
+        // ⚠️ 1.32.0 之前直接把热区左边缘贴在 `horizontalMargin`，图形整体右移了 10pt
+        // （设计稿图形中心 x=32，之前是 42）。热区不可见，这种错不会被"看出来"，
+        // 只会表现为箭头跟书名左边缘对不齐。
+        let chevronHitInset = (ReaderSpeechScreenChevron.side - ReaderSpeechScreenChevron.iconSide) / 2
+
+        dismissControl.frame = CGRect(x: horizontalMargin - chevronHitInset,
                                       y: safeTop + (headerHeight - ReaderSpeechScreenChevron.side) / 2,
                                       width: ReaderSpeechScreenChevron.side,
                                       height: ReaderSpeechScreenChevron.side)
@@ -470,12 +481,14 @@ open class ReaderSpeechScreenController: UIViewController {
         // 先按版位铺满，`reviseTextWindow()` 会按行高收成整行
         textWindowView.frame = textWindowBand
 
-        // 书封在标题与正文窗口之间居中
-        let coverBandTop = chapterTitleLabel.frame.maxY
+        // 书封**底边固定**在正文窗口上方 `coverTextInset`，纵向松量全部落到章节名与书封之间。
+        //
+        // ⚠️ 1.32.0 之前是「在章节名底边与这条线之间垂直居中」，于是松量被两边平分、
+        // 书封跟着屏幕高度往上飘：375×812 上偏 40pt，390×844 上偏 55pt，
+        // 而设计稿里这段间距恒等于 64。屏幕越大偏得越多，所以在小屏上不容易被发现。
+        let coverBottom = textWindowTop - coverTextInset
 
-        let coverBandHeight = textWindowTop - coverTextInset - coverBandTop
-
-        let coverY = coverBandTop + max(0, (coverBandHeight - coverSize.height) / 2)
+        let coverY = max(chapterTitleLabel.frame.maxY, coverBottom - coverSize.height)
 
         coverView.frame = CGRect(x: (width - coverSize.width) / 2,
                                  y: coverY,
@@ -776,13 +789,17 @@ open class ReaderSpeechScreenController: UIViewController {
 
 // MARK: - 顶部向下箭头
 
-/// 收起本页的向下箭头。
+/// 收起本页的向下箭头。优先用注入的 `speechScreenDismiss`，没注入才自绘。
 ///
-/// 视觉只有 14×7.5，热区撑到 44×44 —— 按图形尺寸做热区远低于可点下限。
+/// 三层尺寸要分清：**图形** 14×7.5、**图标框** 24（设计稿对齐页边距的是这一层）、
+/// **热区** 44（按图形尺寸做热区远低于可点下限）。
 final class ReaderSpeechScreenChevron: UIView {
 
     /// 热区边长
     static let side: CGFloat = 44
+
+    /// 图标框边长。设计稿里对齐左页边距的是这一层，不是热区
+    static let iconSide: CGFloat = 24
 
     /// 设计稿：`M25 16.5 L32 24 L39 16.5`，即宽 14、高 7.5、描边 2、端头切平
     private let glyphSize = CGSize(width: 14, height: 7.5)
@@ -791,6 +808,13 @@ final class ReaderSpeechScreenChevron: UIView {
     var onTap: (() -> Void)?
 
     private let shapeLayer = CAShapeLayer()
+
+    /// 注入切图的承载。`.center` 是契约：图按自身尺寸画，不缩放。
+    private let iconView: UIImageView = {
+        let view = UIImageView()
+        view.contentMode = .center
+        return view
+    }()
 
     override init(frame: CGRect) {
 
@@ -805,6 +829,8 @@ final class ReaderSpeechScreenChevron: UIView {
 
         layer.addSublayer(shapeLayer)
 
+        addSubview(iconView)
+
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(chevronTapped)))
     }
 
@@ -815,6 +841,16 @@ final class ReaderSpeechScreenChevron: UIView {
         super.layoutSubviews()
 
         shapeLayer.frame = bounds
+
+        iconView.frame = bounds
+
+        let injected = ReaderEnvironment.images.speechScreenDismiss()
+
+        iconView.image = injected
+
+        shapeLayer.isHidden = injected != nil
+
+        guard injected == nil else { return }
 
         let left = (bounds.width - glyphSize.width) / 2
 
@@ -831,7 +867,12 @@ final class ReaderSpeechScreenChevron: UIView {
         shapeLayer.path = path.cgPath
     }
 
-    func adoptTintColor(_ color: UIColor) { shapeLayer.strokeColor = color.cgColor }
+    func adoptTintColor(_ color: UIColor) {
+
+        shapeLayer.strokeColor = color.cgColor
+
+        iconView.tintColor = color
+    }
 
     @objc private func chevronTapped() { onTap?() }
 }
@@ -840,8 +881,8 @@ final class ReaderSpeechScreenChevron: UIView {
 
 /// 上一章 / 下一章按钮：一个实心三角 + 一根竖条。
 ///
-/// 代码绘制而非切图：图形足够简单，且库内不带资源（见 BOUNDARY.md）。
-/// 设计稿的三角尖端带极轻微的圆角（cubic），28pt 下与直角三角形肉眼无差，故按直线画。
+/// 优先用注入的 `speechScreenPreviousChapter` / `speechScreenNextChapter`，没注入才自绘。
+/// 自绘时设计稿的三角尖端带极轻微的圆角（cubic），28pt 下与直角三角形肉眼无差，故按直线画。
 final class ReaderSpeechScreenSkipButton: UIView {
 
     enum Direction { case backward, forward }
@@ -875,6 +916,13 @@ final class ReaderSpeechScreenSkipButton: UIView {
 
     private let shapeLayer = CAShapeLayer()
 
+    /// 注入切图的承载。`.center` 是契约：图按自身尺寸画，不缩放。
+    private let iconView: UIImageView = {
+        let view = UIImageView()
+        view.contentMode = .center
+        return view
+    }()
+
     init(direction: Direction) {
 
         self.direction = direction
@@ -884,6 +932,8 @@ final class ReaderSpeechScreenSkipButton: UIView {
         shapeLayer.strokeColor = nil
 
         layer.addSublayer(shapeLayer)
+
+        addSubview(iconView)
 
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(skipTapped)))
     }
@@ -895,6 +945,18 @@ final class ReaderSpeechScreenSkipButton: UIView {
         super.layoutSubviews()
 
         shapeLayer.frame = bounds
+
+        iconView.frame = bounds
+
+        let injected = direction == .backward
+            ? ReaderEnvironment.images.speechScreenPreviousChapter()
+            : ReaderEnvironment.images.speechScreenNextChapter()
+
+        iconView.image = injected
+
+        shapeLayer.isHidden = injected != nil
+
+        guard injected == nil else { return }
 
         let scale = min(bounds.width, bounds.height) / Self.designSide
 
@@ -975,7 +1037,12 @@ final class ReaderSpeechScreenSkipButton: UIView {
         return bounds.insetBy(dx: -dx, dy: -dy).contains(point)
     }
 
-    func adoptTintColor(_ color: UIColor) { shapeLayer.fillColor = color.cgColor }
+    func adoptTintColor(_ color: UIColor) {
+
+        shapeLayer.fillColor = color.cgColor
+
+        iconView.tintColor = color
+    }
 
     @objc private func skipTapped() {
 
@@ -989,8 +1056,8 @@ final class ReaderSpeechScreenSkipButton: UIView {
 
 /// 中央的播放 / 暂停按钮：描边圆圈 + 中央图标。
 ///
-/// 设计稿只给了播放态（三角）。暂停态的两根竖条按三角的整体尺寸推出来，
-/// 两态视觉重量才接近 —— 与 `ReaderSpeechDock` 里那个小控件同一处理方式。
+/// 圆环不开放注入（1.32.0 起中央图标可注入 `speechScreenPause` / `speechScreenResume`），
+/// 因为它和 dock 上那个进度环是同一套视觉语言，之后要挂进度就得是动态的。
 final class ReaderSpeechScreenToggleButton: UIView {
 
     /// 设计稿基准边长
@@ -999,14 +1066,21 @@ final class ReaderSpeechScreenToggleButton: UIView {
     /// 圆环描边宽度（设计稿 3.05）
     private static let ringWidth: CGFloat = 3.048
 
-    /// 播放三角：宽 22、底边高 23.6
-    private static let triangleWidth: CGFloat = 22
-    private static let triangleBase: CGFloat = 23.6
+    /// 播放三角：宽 22.19、底边高 28.1（设计稿 x 24..46.19、y 17.93..46.03）
+    private static let triangleWidth: CGFloat = 22.19
+    private static let triangleBase: CGFloat = 28.1
 
-    /// 暂停竖条：宽 3.4、高 23.6、间距 6
-    private static let barWidth: CGFloat = 3.4
-    private static let barHeight: CGFloat = 23.6
-    private static let barGap: CGFloat = 6
+    /// 播放三角整体右偏量。
+    ///
+    /// 不是算出来的光学修正，是**设计稿给的绝对位置**：三角在 64 的画板里
+    /// 中心 x 为 35.1 而不是 32。1.32.0 之前这里写的是「宽度的 8%」（1.76），
+    /// 且底边高只有 23.6，所以三角整体偏小偏左。
+    private static let triangleOffsetX: CGFloat = 3.1
+
+    /// 暂停竖条：宽 4、高 24、间距 12（设计稿 x 22..26 与 38..42、y 20..44）
+    private static let barWidth: CGFloat = 4
+    private static let barHeight: CGFloat = 24
+    private static let barGap: CGFloat = 12
 
     var onTap: (() -> Void)?
 
@@ -1019,6 +1093,13 @@ final class ReaderSpeechScreenToggleButton: UIView {
     private let ringLayer = CAShapeLayer()
 
     private let glyphLayer = CAShapeLayer()
+
+    /// 注入切图的承载。`.center` 是契约：图按自身尺寸画，不缩放。
+    private let iconView: UIImageView = {
+        let view = UIImageView()
+        view.contentMode = .center
+        return view
+    }()
 
     private var tint: UIColor = .black
 
@@ -1033,6 +1114,8 @@ final class ReaderSpeechScreenToggleButton: UIView {
         glyphLayer.strokeColor = nil
 
         layer.addSublayer(glyphLayer)
+
+        addSubview(iconView)
 
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(playToggleTapped)))
     }
@@ -1061,12 +1144,24 @@ final class ReaderSpeechScreenToggleButton: UIView {
 
         glyphLayer.frame = bounds
 
+        iconView.frame = bounds
+
         reviseGlyph()
     }
 
     private func reviseGlyph() {
 
         guard bounds.width > 0 else { return }
+
+        let injected = isSpeaking
+            ? ReaderEnvironment.images.speechScreenPause()
+            : ReaderEnvironment.images.speechScreenResume()
+
+        iconView.image = injected
+
+        glyphLayer.isHidden = injected != nil
+
+        guard injected == nil else { return }
 
         let scale = min(bounds.width, bounds.height) / Self.designSide
 
@@ -1099,9 +1194,9 @@ final class ReaderSpeechScreenToggleButton: UIView {
 
             let base = Self.triangleBase * scale
 
-            // 三角**视觉居中**要比几何居中略右偏：尖端朝右的三角形重心偏左，
-            // 按外接矩形居中会显得整体偏左。偏移取宽度的 8%，是常见的光学修正量
-            let left = center.x - width / 2 + width * 0.08
+            // 尖端朝右的三角按外接矩形居中会显得整体偏左，所以要右偏一点。
+            // 偏移量直接取设计稿给的绝对位置，不自己估
+            let left = center.x - width / 2 + Self.triangleOffsetX * scale
 
             path.move(to: CGPoint(x: left, y: center.y - base / 2))
 
@@ -1122,6 +1217,8 @@ final class ReaderSpeechScreenToggleButton: UIView {
         ringLayer.strokeColor = color.cgColor
 
         glyphLayer.fillColor = color.cgColor
+
+        iconView.tintColor = color
     }
 
     @objc private func playToggleTapped() { onTap?() }

@@ -1,5 +1,56 @@
 # Changelog
 
+## 1.32.0
+
+修「锁屏点暂停之后，控制中心显示暂停、App 内显示播放中，而且没有声音」。
+**无 API 变更**，接入方只需升版本号；有一处行为变更见下。
+
+### 现象与成因
+
+QA 步骤：播放中锁屏 → 在锁屏页点暂停 → 回到 App 进朗读播放器页。
+此时控制中心与锁屏显示**暂停**、声音也确实没了，而 App 内显示**播放中**；
+点一下那颗按钮两边又同步了。
+
+权威状态只有 `ReaderSpeechController.activity` 一个，两侧都从它派生，所以持久的
+不一致只能来自「`activity` 与真实播放器脱节」。三处成因叠加：
+
+1. **`resume()` 乐观置 `.playing`**。`AVAudioSession.setActive(true)` 在后台经常被系统拒
+   （`CannotInterruptOthers`），而那个错误被 `catch` 吞掉且**一行日志都不打**；
+   随后播放器照样 `play()` 到一个没激活的会话上 —— 没有声音，状态却已是 `.playing`。
+   最容易触发它的是中断结束带 `.shouldResume` 那条路：用户在锁屏暂停之后，
+   来一次通知音或闹钟就会走到。
+2. **`timeControlStatus` 的观察只认 `.playing`**，任何**系统侧发起**的停止（会话被别的
+   App 抢走、中断通知在进程挂起期间没送达）都无人接管，`activity` 永久停在播放中。
+3. **回前台不对账**。`didBecomeActive` 只把正文对齐到朗读句，而那条链路被四个 guard
+   门着、锁屏信息更是一次都不会重写。于是一次瞬时错位会永久留在界面上，
+   只有用户主动点一下才恢复 —— 这正是 QA 看到的样子。
+
+### 改了什么
+
+- `resume()`：激活失败就**保持暂停态**并打日志，不再往下走
+- `ReaderSpeechAudioSession.activate()`：`catch` 里补日志，带 `NSError.code`
+- 播放器新增 `speechPlayerDidStallUnexpectedly`：`timeControlStatus` 变成 `.paused`
+  而我们没要求过，就按暂停收敛。自然播完用「位置是否已到时长末尾」排除，
+  不依赖结束通知与状态观察谁先到
+- `didBecomeActive`：无条件 `reconcileWithPlayer()` + 重写锁屏 + 刷新界面，
+  放在原有对齐链路**之前**
+- 新增暂停来源记账：`.shouldResume` 只恢复**系统发起**的那次暂停。
+  此前用户在锁屏按的暂停会被一次通知音顶掉、自己读下去
+- `ReaderViewController.reviseSpeechDock`：`isSpeaking` 口径由 `activity != .paused`
+  改成 `activity == .playing || activity == .preparing`（原先 `.idle` 也算在播），
+  `ReaderSpeechDock` 与其中央控件的 `isSpeaking` 默认值由 `true` 改成 `false`
+
+### 行为变更（一处）
+
+音频会话激活失败时，点「继续」现在**没有反应**（以前是「显示在播但没声音」）。
+两者都不理想，但前者有日志、状态也是真的；后者会让人以为功能坏了却查不到原因。
+
+### 给接入方的提醒
+
+这一版新增的日志（`音频会话激活失败 code=…`、`播放器非预期停住`、`回前台对账`）
+是排这类问题的唯一现场。`ReaderEnvironment.log` 如果只接了 `print`，
+测试包在用户手里时拿不到 —— 建议同时落盘。
+
 ## 1.31.0
 
 内部重构，**无 API 变更、无行为变更**，接入方只需升版本号。
