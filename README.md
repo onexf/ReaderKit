@@ -158,9 +158,14 @@ let range = reader.speechController.speakingRange
 
 ### 图标
 
-`ReaderEnvironment.images` 有 20 个角色（返回、反馈、加书架、字号增减、行距增减、
-阅读方向、进度滑块、目录/书签标签、日夜切换、电量、书封占位、书签空态）。
-默认值全部取系统 SF Symbols，按 template 渲染以跟随阅读主题染色。
+`ReaderEnvironment.images` 有 38 个角色（返回、反馈、加书架、字号增减、行距增减、
+阅读方向、进度滑块、目录/书签标签、日夜切换、电量、书封占位、书签空态、
+朗读胶囊与 dock、全屏播放页的播放/暂停/跳章/收起）。
+多数默认值取系统 SF Symbols，按 template 渲染以跟随阅读主题染色。
+
+少数槽位**默认 `nil`，此时库按设计稿几何自绘**（电量外壳、朗读 dock 与全屏播放页的
+控件图标）—— 这些位置不注入也是对的，注入则整体替换。它们按**自身尺寸居中**绘制、
+不缩放，所以切图画板尺寸即最终尺寸。
 
 ```swift
 var images = ReaderImages()
