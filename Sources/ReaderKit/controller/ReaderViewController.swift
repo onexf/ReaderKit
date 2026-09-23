@@ -55,7 +55,7 @@ open class ReaderViewController: ReaderScreenController {
         
         // 正文还没上屏（首屏还在加载、或停在失败页）时不刷：换肤路径会重建正文容器，
         // 而那条路径要求阅读记录里已经有章节。这种情况下正文上屏时自然会按新配置取色。
-        guard bookModel?.readingRecord?.chapterModel != nil else { return }
+        guard bookModel?.readingRecord?.activeChapter != nil else { return }
         
         // 刷新走接入方那条现成的换肤路径（点色块换主题走的是同一个）——
         // 主题一变要改的地方有七处，在这里另写一份必然漏。
@@ -544,7 +544,7 @@ open class ReaderViewController: ReaderScreenController {
 
         let activity = engagedSpeechController?.activity ?? .idle
 
-        dock.isPlaying = activity != .paused
+        dock.isSpeaking = activity != .paused
 
         dock.progress = engagedSpeechController?.chapterProgress ?? 0
 
@@ -593,7 +593,7 @@ open class ReaderViewController: ReaderScreenController {
             // 每次展示时重取书封：装 dock 的时机可能早于书籍数据到位（走接口加载那条路径时
             // `bookModel` 还是 nil），而菜单只可能在正文就位之后呼出。
             // 重复调用的代价由接入方的图片缓存吸收。
-            dock.adoptCover(url: bookModel?.coverURL)
+            dock.adoptCover(url: bookModel?.coverImageURL)
 
             isSpeechDockHidden = false
 

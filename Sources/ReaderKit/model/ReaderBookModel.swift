@@ -23,7 +23,7 @@ open class ReaderBookModel: NSObject, NSCoding {
     open var storyName: String!
     
     /// 小说封面
-    open var coverURL: String?
+    open var coverImageURL: String?
     
     /// 作者
     open var writer: String?
@@ -32,7 +32,7 @@ open class ReaderBookModel: NSObject, NSCoding {
     ///
     /// 引擎自身不使用该字段，仅负责随 `ReaderBookModel` 一同归档，供接入方在埋点、
     /// 跳转等场景取用（引擎内部标识书籍一律用 `storyID`）。
-    open var externalBookCode: Int = 0
+    open var sourceBookCode: Int = 0
     
     /// 全书章节总数（由接入方从书籍详情写入）
     open var totalChapterCount: Int = 0
@@ -53,7 +53,7 @@ open class ReaderBookModel: NSObject, NSCoding {
     // MARK: 快速进入
     
     /// 本地小说全文
-    open var fullText: String!
+    open var rawText: String!
     
     /// 章节内容范围数组 [章节ID:[章节优先级:章节内容Range]]
     open var ranges: [String: [String: NSRange]]!
@@ -158,11 +158,11 @@ open class ReaderBookModel: NSObject, NSCoding {
         
         storyName = aDecoder.decodeObject(forKey: "bookTitle") as? String
         
-        coverURL = aDecoder.decodeObject(forKey: "coverURL") as? String
+        coverImageURL = aDecoder.decodeObject(forKey: "coverImageURL") as? String
         
         writer = aDecoder.decodeObject(forKey: "author") as? String
         
-        externalBookCode = (aDecoder.decodeObject(forKey: "bookCode") as? NSNumber)?.intValue ?? 0
+        sourceBookCode = (aDecoder.decodeObject(forKey: "bookCode") as? NSNumber)?.intValue ?? 0
         
         totalChapterCount = (aDecoder.decodeObject(forKey: "catalogueTotal") as? NSNumber)?.intValue ?? 0
         
@@ -172,7 +172,7 @@ open class ReaderBookModel: NSObject, NSCoding {
         
         bookmarkEntries = aDecoder.decodeObject(forKey: "bookmarkEntries") as? [ReaderBookmarkModel]
         
-        fullText = aDecoder.decodeObject(forKey: "rawText") as? String
+        rawText = aDecoder.decodeObject(forKey: "rawText") as? String
         
         ranges = aDecoder.decodeObject(forKey: "spans") as? [String: [String: NSRange]]
     }
@@ -183,11 +183,11 @@ open class ReaderBookModel: NSObject, NSCoding {
         
         aCoder.encode(storyName, forKey: "bookTitle")
         
-        aCoder.encode(coverURL, forKey: "coverURL")
+        aCoder.encode(coverImageURL, forKey: "coverImageURL")
         
         aCoder.encode(writer, forKey: "author")
         
-        aCoder.encode(NSNumber(value: externalBookCode), forKey: "bookCode")
+        aCoder.encode(NSNumber(value: sourceBookCode), forKey: "bookCode")
         
         aCoder.encode(NSNumber(value: totalChapterCount), forKey: "catalogueTotal")
         
@@ -197,7 +197,7 @@ open class ReaderBookModel: NSObject, NSCoding {
         
         aCoder.encode(bookmarkEntries, forKey: "bookmarkEntries")
         
-        aCoder.encode(fullText, forKey: "rawText")
+        aCoder.encode(rawText, forKey: "rawText")
         
         aCoder.encode(ranges, forKey: "spans")
     }

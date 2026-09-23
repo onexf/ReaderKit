@@ -16,21 +16,21 @@ final public class ReaderBookmarkDeleteSheet: UIView {
 
     private let scrim = UIControl()
     private let containerView = UIView()
-    private let handleBar = UIView()
+    private let grabber = UIView()
     // 文案 label(负责精确视觉位置) + 透明按钮(负责点击热区)
-    private let removeLabel = UILabel()
+    private let removeCaption = UILabel()
     private let clearAllTitle = UILabel()
-    private let cancelTitle = UILabel()
-    private let removeButton = UIButton(type: .custom)
+    private let cancelCaption = UILabel()
+    private let removeControl = UIButton(type: .custom)
     private let clearAllControl = UIButton(type: .custom)
     private let cancelControl = UIButton(type: .custom)
     private let divider1 = UIView()
     private let divider2 = UIView()
 
-    private var onRemove: (() -> Void)?
+    private var onRemoveConfirmed: (() -> Void)?
     private var onClearAllConfirmed: (() -> Void)?
     private var onClearAllTapped: (() -> Void)?
-    private var onCancel: (() -> Void)?
+    private var onDismissed: (() -> Void)?
 
     /// 是否正在执行展开/收起动画(动画期间跳过容器重排,避免 transform 与 frame 冲突导致动画诡异)
     private var isAnimating = false
@@ -40,20 +40,20 @@ final public class ReaderBookmarkDeleteSheet: UIView {
 
     /// 在 window 上弹出删除 sheet
     /// - Parameters:
-    ///   - onRemove: 点击 Remove(删除当前书签)
+    ///   - onRemoveConfirmed: 点击 Remove(删除当前书签)
     ///   - onClearAllConfirmed: Clear All 二次确认后回调(真正执行清除)
     ///   - onClearAllTapped: 点击 Clear All 按钮即回调(用于点击埋点,早于二次确认)
-    ///   - onCancel: 取消(点击 Cancel 或点遮罩关闭)
-    public static func show(onRemove: @escaping () -> Void,
+    ///   - onDismissed: 取消(点击 Cancel 或点遮罩关闭)
+    public static func show(onRemoveConfirmed: @escaping () -> Void,
                      onClearAllConfirmed: @escaping () -> Void,
                      onClearAllTapped: (() -> Void)? = nil,
-                     onCancel: (() -> Void)? = nil) {
+                     onDismissed: (() -> Void)? = nil) {
         guard let window = ReaderScreenMetrics.keyWindow else { return }
         let sheet = ReaderBookmarkDeleteSheet(frame: window.bounds)
-        sheet.onRemove = onRemove
+        sheet.onRemoveConfirmed = onRemoveConfirmed
         sheet.onClearAllConfirmed = onClearAllConfirmed
         sheet.onClearAllTapped = onClearAllTapped
-        sheet.onCancel = onCancel
+        sheet.onDismissed = onDismissed
         window.addSubview(sheet)
         sheet.present()
     }
@@ -82,14 +82,14 @@ final public class ReaderBookmarkDeleteSheet: UIView {
         addSubview(containerView)
 
         // 拖拽条(Figma:32 x 4,#C5C5C5,距顶 10)
-        handleBar.backgroundColor = ReaderConfiguration.shared().currentThemeColors.separatorTint
-        handleBar.layer.cornerRadius = 2
-        containerView.addSubview(handleBar)
+        grabber.backgroundColor = ReaderConfiguration.shared().currentThemeColors.separatorTint
+        grabber.layer.cornerRadius = 2
+        containerView.addSubview(grabber)
 
         // 选项文案使用同步后的多语言 key(Lexend Deca Regular 16,Remove/Clear All 红,Cancel 主题深色)
-        configureChoiceLabel(removeLabel, title: ReaderEnvironment.strings.bookmarkDeleteOne, color: redColor)
+        configureChoiceLabel(removeCaption, title: ReaderEnvironment.strings.bookmarkDeleteOne, color: redColor)
         configureChoiceLabel(clearAllTitle, title: ReaderEnvironment.strings.bookmarkDeleteAll, color: redColor)
-        configureChoiceLabel(cancelTitle, title: ReaderEnvironment.strings.cancel, color: themeColors.textBody)
+        configureChoiceLabel(cancelCaption, title: ReaderEnvironment.strings.cancel, color: themeColors.textBody)
 
         // 分割线(Figma:通栏 #E6E6E6,走主题分割线色)
         divider1.backgroundColor = themeColors.separatorTint
@@ -98,7 +98,7 @@ final public class ReaderBookmarkDeleteSheet: UIView {
         containerView.addSubview(divider2)
 
         // 透明点击热区(覆盖整行,叠在 label 之上)
-        configurePressBtn(removeButton) { [weak self] in self?.handleRemove() }
+        configurePressBtn(removeControl) { [weak self] in self?.handleRemove() }
         configurePressBtn(clearAllControl) { [weak self] in self?.handleClearAll() }
         configurePressBtn(cancelControl) { [weak self] in self?.handleCancel() }
     }
@@ -151,12 +151,12 @@ final public class ReaderBookmarkDeleteSheet: UIView {
         containerView.frame = CGRect(x: 0, y: bounds.height - contentHeight,
                                      width: w, height: contentHeight)
 
-        handleBar.frame = CGRect(x: (w - 32) / 2, y: handleTop, width: 32, height: handleHeight)
+        grabber.frame = CGRect(x: (w - 32) / 2, y: handleTop, width: 32, height: handleHeight)
 
         // 文案 label(通栏居中)
-        removeLabel.frame = CGRect(x: 20, y: center1 - textHeight / 2, width: w - 40, height: textHeight)
+        removeCaption.frame = CGRect(x: 20, y: center1 - textHeight / 2, width: w - 40, height: textHeight)
         clearAllTitle.frame = CGRect(x: 20, y: center2 - textHeight / 2, width: w - 40, height: textHeight)
-        cancelTitle.frame = CGRect(x: 20, y: center3 - textHeight / 2, width: w - 40, height: textHeight)
+        cancelCaption.frame = CGRect(x: 20, y: center3 - textHeight / 2, width: w - 40, height: textHeight)
 
         // 分割线通栏(x:0,宽度铺满)
         let hairline = 1.0 / UIScreen.main.scale
@@ -164,7 +164,7 @@ final public class ReaderBookmarkDeleteSheet: UIView {
         divider2.frame = CGRect(x: 0, y: divider2Y, width: w, height: hairline)
 
         // 点击热区(以分割线/边界划分,文案居中其中)
-        removeButton.frame = CGRect(x: 0, y: handleTop + handleHeight, width: w, height: divider1Y - (handleTop + handleHeight))
+        removeControl.frame = CGRect(x: 0, y: handleTop + handleHeight, width: w, height: divider1Y - (handleTop + handleHeight))
         clearAllControl.frame = CGRect(x: 0, y: divider1Y, width: w, height: divider2Y - divider1Y)
         cancelControl.frame = CGRect(x: 0, y: divider2Y, width: w, height: center3 + textHeight / 2 - divider2Y)
     }
@@ -195,12 +195,12 @@ final public class ReaderBookmarkDeleteSheet: UIView {
     
     /// 点击 Cancel 按钮:上报取消(点遮罩关闭不算 Cancel 点击,不上报)
     private func handleCancel() {
-        let cb = onCancel
+        let cb = onDismissed
         dismissThen { cb?() }
     }
 
     private func handleRemove() {
-        let cb = onRemove
+        let cb = onRemoveConfirmed
         dismissThen { cb?() }
     }
 
@@ -210,7 +210,7 @@ final public class ReaderBookmarkDeleteSheet: UIView {
         // 关闭 sheet 后弹出"全部清除"确认弹窗,确认后才真正清除
         let cb = onClearAllConfirmed
         dismissThen {
-            ReaderBookmarkClearAllAlert.show(onConfirm: { cb?() })
+            ReaderBookmarkClearAllAlert.show(onAlertConfirmed: { cb?() })
         }
     }
 
@@ -238,12 +238,12 @@ final public class ReaderBookmarkClearAllAlert: UIView {
     private let confirmControl = UIButton(type: .custom)
     private let cancelControl = UIButton(type: .custom)
 
-    private var onConfirm: (() -> Void)?
+    private var onAlertConfirmed: (() -> Void)?
 
-    public static func show(onConfirm: @escaping () -> Void) {
+    public static func show(onAlertConfirmed: @escaping () -> Void) {
         guard let window = ReaderScreenMetrics.keyWindow else { return }
         let alert = ReaderBookmarkClearAllAlert(frame: window.bounds)
-        alert.onConfirm = onConfirm
+        alert.onAlertConfirmed = onAlertConfirmed
         window.addSubview(alert)
         alert.present()
     }
@@ -349,7 +349,7 @@ final public class ReaderBookmarkClearAllAlert: UIView {
     }
 
     private func handleConfirm() {
-        let cb = onConfirm
+        let cb = onAlertConfirmed
         UIView.animate(withDuration: 0.2, animations: {
             self.scrim.alpha = 0
             self.alertCard.alpha = 0

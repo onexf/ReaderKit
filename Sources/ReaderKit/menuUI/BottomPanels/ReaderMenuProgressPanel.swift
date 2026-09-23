@@ -78,7 +78,7 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
         let bookModel = hostMenu.vc.bookModel
         
         // 有阅读记录以及章节数据
-        if bookModel != nil && (bookModel?.readingRecord?.chapterModel != nil) {
+        if bookModel != nil && (bookModel?.readingRecord?.activeChapter != nil) {
             
             if ReaderConfiguration.shared().progressType == .total { // 总进度
                 
@@ -89,7 +89,7 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
             }else{ // 分页进度
                 
                 slider.minimumValue = 1
-                slider.maximumValue = bookModel!.readingRecord.chapterModel.pageCount.floatValue
+                slider.maximumValue = bookModel!.readingRecord.activeChapter.pageCount.floatValue
                 slider.value = bookModel!.readingRecord.page.floatValue + 1
             }
             
@@ -140,7 +140,7 @@ open class ReaderMenuProgressPanel: ReaderMenuPanel {
             let bookModel = hostMenu.vc.bookModel
             
             // 有阅读记录以及章节数据
-            if bookModel != nil && (bookModel?.readingRecord?.chapterModel != nil) {
+            if bookModel != nil && (bookModel?.readingRecord?.activeChapter != nil) {
                 
                 // 总章节个数
                 let count = (bookModel!.catalogueEntries.count - 1)

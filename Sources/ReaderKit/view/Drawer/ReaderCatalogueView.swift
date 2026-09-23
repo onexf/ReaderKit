@@ -215,7 +215,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         tableView.reloadData()
         
         // 安全检查 chapterModel 是否存在
-        guard let currentChapterId = bookModel.readingRecord.chapterModel?.id else { return }
+        guard let currentChapterId = bookModel.readingRecord.activeChapter?.id else { return }
         
         guard let row = bookModel.catalogueEntries.firstIndex(where: { $0.id == currentChapterId }) else {
             // 当前章还不在已加载目录里（分页目录常态）。不滚，等补到了再说 ——
@@ -367,7 +367,7 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         cell.configure(title: trimChapterPrefix(chapterListModel.name, number: displayNumber),
                        number: displayNumber,
                        // 当前阅读章节 - 安全检查
-                       isCurrent: bookModel.readingRecord.chapterModel?.id == chapterListModel.id,
+                       isCurrent: bookModel.readingRecord.activeChapter?.id == chapterListModel.id,
                        // 需要解锁且未解锁
                        isLocked: chapterListModel.isLocked,
                        numberColumnWidth: numberColumnWidth,

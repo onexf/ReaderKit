@@ -25,7 +25,7 @@ open class ReaderBookmarkModel: NSObject, NSCoding {
     open var storyID: String = ""
 
     /// 章节ID
-    open var chapterID: NSNumber = NSNumber(value: 0)
+    open var chapterKey: NSNumber = NSNumber(value: 0)
 
     /// 章节名称
     open var name: String = ""
@@ -56,7 +56,7 @@ open class ReaderBookmarkModel: NSObject, NSCoding {
         // 解档缺字段时退化为默认值，不再留下 nil 触发后续崩溃
         storyID = aDecoder.decodeObject(forKey: "bookKey") as? String ?? ""
 
-        chapterID = aDecoder.decodeObject(forKey: "chapterKey") as? NSNumber ?? NSNumber(value: 0)
+        chapterKey = aDecoder.decodeObject(forKey: "chapterKey") as? NSNumber ?? NSNumber(value: 0)
 
         name = aDecoder.decodeObject(forKey: "label") as? String ?? ""
 
@@ -73,7 +73,7 @@ open class ReaderBookmarkModel: NSObject, NSCoding {
         
         aCoder.encode(storyID, forKey: "bookKey")
         
-        aCoder.encode(chapterID, forKey: "chapterKey")
+        aCoder.encode(chapterKey, forKey: "chapterKey")
         
         aCoder.encode(name, forKey: "label")
         

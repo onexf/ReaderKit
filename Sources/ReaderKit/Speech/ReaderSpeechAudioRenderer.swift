@@ -32,7 +32,7 @@ public final class ReaderSpeechAudioRenderer: ReaderSpeechAudioRendering {
     /// 于是先前那个产出一段**截断音频**。而截断音频的内容哈希是有效文件名，
     /// 会被缓存当成正常结果长期复用 —— 表现为「某几句总是只读一半」，
     /// 且清缓存前不会自愈。
-    private let renderQueue = DispatchQueue(label: "com.readerkit.speech.audio-renderer")
+    private let synthesisQueue = DispatchQueue(label: "com.readerkit.speech.audio-renderer")
 
     /// 合成器实例。**复用同一个，不每次新建。**
     ///
@@ -65,7 +65,7 @@ public final class ReaderSpeechAudioRenderer: ReaderSpeechAudioRendering {
 
         let submitted = currentGeneration()
 
-        renderQueue.async { [weak self] in
+        synthesisQueue.async { [weak self] in
 
             guard let self else { return }
 
@@ -92,7 +92,7 @@ public final class ReaderSpeechAudioRenderer: ReaderSpeechAudioRendering {
 
     // MARK: - 渲染
 
-    /// 同步渲染。只在 `renderQueue` 上调用。
+    /// 同步渲染。只在 `synthesisQueue` 上调用。
     private func renderSynchronously(_ fragment: ReaderSpeechFragment,
                                      timeout: TimeInterval) -> Result<Data, ReaderSpeechRenderError> {
 
@@ -148,7 +148,7 @@ public final class ReaderSpeechAudioRenderer: ReaderSpeechAudioRendering {
             //
             // 复用实例后，超时只是「本次不等了」，系统侧仍在往这个合成器上写回调。
             // 不中断的话，下一句的 `write` 会和上一句未结束的 `write` 撞在同一个实例上，
-            // 触发本文件开头 `renderQueue` 注释里那条坑：先前那次提前收到空 buffer，
+            // 触发本文件开头 `synthesisQueue` 注释里那条坑：先前那次提前收到空 buffer，
             // 产出截断音频并被缓存长期复用。
             synthesizer.stopSpeaking(at: .immediate)
 

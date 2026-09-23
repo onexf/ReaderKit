@@ -38,9 +38,9 @@ extension ReaderBookModel {
         
         markModel.storyID = readingRecord.storyID
         
-        markModel.chapterID = readingRecord.chapterModel.id
+        markModel.chapterKey = readingRecord.activeChapter.id
         
-        if readingRecord.pageModel.isHomePage {
+        if readingRecord.layoutPage.isHomePage {
             
             markModel.name = ReaderEnvironment.strings.unnamedChapter
             
@@ -50,12 +50,12 @@ extension ReaderBookModel {
             
         }else{
             
-            markModel.name = readingRecord.chapterModel.name
+            markModel.name = readingRecord.activeChapter.name
             
             // 滚动模式:由 page + 页内偏移反算精确字符位置,把"当前可见顶部"锚定为书签,
             // 避免只记 cell 起点导致跳转落到上一段(偏移)。其他翻页模式 cell 起点即页首,沿用 locationFirst。
             if ReaderConfiguration.shared().effectType == .scroll,
-               let chapterModel = readingRecord.chapterModel,
+               let chapterModel = readingRecord.activeChapter,
                let full = chapterModel.typesetContent, full.length > 0 {
                 
                 let loc = chapterModel.location(forPage: readingRecord.page.intValue,
@@ -82,7 +82,7 @@ extension ReaderBookModel {
         
         // 去重:同章节同位置已存在则不重复写入(兜底悲观更新窗口内并发请求导致的重复添加)
         let exists = bookmarkEntries.contains {
-            $0.chapterID.intValue == markModel.chapterID.intValue &&
+            $0.chapterKey.intValue == markModel.chapterKey.intValue &&
             $0.location.intValue == markModel.location.intValue
         }
         if exists { return }
@@ -152,7 +152,7 @@ extension ReaderBookModel {
         
         for markModel in bookmarkEntries {
             
-            if markModel.chapterID == readingRecord.chapterModel.id {
+            if markModel.chapterKey == readingRecord.activeChapter.id {
                 
                 if (markModel.location.intValue >= locationFirst.intValue) && (markModel.location.intValue < locationLast.intValue) {
                     
@@ -200,7 +200,7 @@ extension ReaderBookModel {
         var buckets: [String: [ReaderBookmarkModel]] = [:]
         var order: [String] = []
         for mark in bookmarks {
-            let key = (mark.chapterID ?? NSNumber(value: 0)).stringValue
+            let key = (mark.chapterKey ?? NSNumber(value: 0)).stringValue
             if buckets[key] == nil {
                 buckets[key] = []
                 order.append(key)
@@ -212,9 +212,9 @@ extension ReaderBookModel {
         var groups: [ReaderBookmarkCluster] = order.compactMap { key in
             guard let groupMarks = buckets[key], let first = groupMarks.first else { return nil }
             let sortedMarks = groupMarks.sorted { $0.time.intValue < $1.time.intValue }
-            let listModel = chapterListModel(for: first.chapterID)
+            let listModel = chapterListModel(for: first.chapterKey)
             return ReaderBookmarkCluster(
-                chapterID: first.chapterID,
+                chapterID: first.chapterKey,
                 chapterCaption: first.name ?? (listModel?.name ?? ""),
                 priority: listModel?.priority?.intValue ?? Int.max,
                 isLocked: listModel?.isLocked ?? false,
@@ -244,9 +244,9 @@ extension ReaderBookModel {
     /// = 书签 location / 该章富文本总长度;章节内容未加载或长度为 0 时返回 0
     public func markProgress(_ mark: ReaderBookmarkModel) -> Float {
 
-        guard ReaderChapterModel.isExist(storyID: storyID, chapterID: mark.chapterID) else { return 0 }
+        guard ReaderChapterModel.isExist(storyID: storyID, chapterID: mark.chapterKey) else { return 0 }
 
-        let chapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: mark.chapterID, isUpdateFont: false)
+        let chapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: mark.chapterKey, isUpdateFont: false)
         let fullLength = Float(chapterModel.typesetContent?.length ?? 0)
 
         guard fullLength > 0 else { return 0 }

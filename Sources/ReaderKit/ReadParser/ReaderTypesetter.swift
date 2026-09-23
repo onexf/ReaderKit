@@ -27,13 +27,13 @@ open class ReaderTypesetter: NSObject {
         
         if isFirstChapter { // 第一页为书籍页面
             
-            let pageModel = ReaderPageModel()
+            let layoutPage = ReaderPageModel()
             
-            pageModel.range = NSMakeRange(READER_BOOK_HOME_PAGE, 1)
+            layoutPage.range = NSMakeRange(READER_BOOK_HOME_PAGE, 1)
             
-            pageModel.contentSize = READER_VIEW_RECT.size
+            layoutPage.contentSize = READER_VIEW_RECT.size
             
-            layoutPages.append(pageModel)
+            layoutPages.append(layoutPage)
         }
         
         let ranges = ReaderCoreText.pageRanges(attrString: attrString, rect: rect)
@@ -46,15 +46,15 @@ open class ReaderTypesetter: NSObject {
                 
                 let range = ranges[i]
                 
-                let pageModel = ReaderPageModel()
+                let layoutPage = ReaderPageModel()
                 
                 let content = attrString.attributedSubstring(from: range)
                 
-                pageModel.range = range
+                layoutPage.range = range
                 
-                pageModel.content = content
+                layoutPage.content = content
                 
-                pageModel.page = NSNumber(value: i)
+                layoutPage.page = NSNumber(value: i)
                 
                 // --- (滚动模式 || 长按菜单) 使用 ---
                 
@@ -63,27 +63,27 @@ open class ReaderTypesetter: NSObject {
                 // 内容Size (滚动模式 || 长按菜单)
                 let maxW = READER_VIEW_RECT.width
                 
-                pageModel.contentSize = CGSize(width: maxW, height: ReaderCoreText.attributedStringHeight(attrString: content, maxW: maxW))
+                layoutPage.contentSize = CGSize(width: maxW, height: ReaderCoreText.attributedStringHeight(attrString: content, maxW: maxW))
                 
                 
                 // 当前页面开头是什么数据开头 (滚动模式)
-                if i == 0 { pageModel.headerKind = .chapterName
+                if i == 0 { layoutPage.headerKind = .chapterName
                     
-                }else if content.string.hasPrefix(READER_PH_SPACE) || content.string.hasPrefix("\n") { pageModel.headerKind = .paragraph
+                }else if content.string.hasPrefix(READER_PH_SPACE) || content.string.hasPrefix("\n") { layoutPage.headerKind = .paragraph
                     
-                }else{ pageModel.headerKind = .line }
+                }else{ layoutPage.headerKind = .line }
                 
                 
                 // 根据开头类型返回开头高度 (滚动模式)
-                if pageModel.headerKind == .chapterName { pageModel.headerInsetHeight = 0
+                if layoutPage.headerKind == .chapterName { layoutPage.headerInsetHeight = 0
                     
-                }else if pageModel.headerKind == .paragraph { pageModel.headerInsetHeight = ReaderConfiguration.shared().paragraphSpacing
+                }else if layoutPage.headerKind == .paragraph { layoutPage.headerInsetHeight = ReaderConfiguration.shared().paragraphSpacing
                     
-                }else{ pageModel.headerInsetHeight = ReaderConfiguration.shared().lineSpacing }
+                }else{ layoutPage.headerInsetHeight = ReaderConfiguration.shared().lineSpacing }
                 
                 // --- (滚动模式 || 长按菜单) 使用 ---
                 
-                layoutPages.append(pageModel)
+                layoutPages.append(layoutPage)
             }
         }
         

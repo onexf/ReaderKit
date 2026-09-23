@@ -77,7 +77,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         chapterCache.removeAll()
         
         // 记录目标章节ID（用于定位时查找正确的 section）
-        let targetChapterID = vc.bookModel.readingRecord.chapterModel.id!
+        let targetChapterID = vc.bookModel.readingRecord.activeChapter.id!
         
         // 添加当前章节
         sectionChapterIDs.append(targetChapterID)
@@ -216,10 +216,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         guard let chapterModel = resolveChapterModel(chapterID: chapterID),
               indexPath.row < chapterModel.layoutPages.count else { return nil }
         
-        let pageModel = chapterModel.layoutPages[indexPath.row]
+        let layoutPage = chapterModel.layoutPages[indexPath.row]
         
         // 书籍首页没有正文，不能作为朗读起点
-        guard !pageModel.isHomePage, let pageRange = pageModel.range else { return nil }
+        guard !layoutPage.isHomePage, let pageRange = layoutPage.range else { return nil }
         
         // cell 未实现化（极少见：刚跳章还没走完布局）时退回页首，
         // 起点略偏总比不能开始朗读好
@@ -365,10 +365,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
             
             guard let pageCell = cell as? ReaderPageCell,
                   let pageView = pageCell.renderingPageView,
-                  let pageModel = pageCell.pageModel,
+                  let layoutPage = pageCell.layoutPage,
                   let indexPath = tableView.indexPath(for: cell),
                   indexPath.section < sectionChapterIDs.count,
-                  let range = controller.highlightRange(inPage: pageModel,
+                  let range = controller.highlightRange(inPage: layoutPage,
                                                         chapterID: sectionChapterIDs[indexPath.section]),
                   let rectInPageView = pageView.rect(forRange: range) else { continue }
             
@@ -423,7 +423,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         }
         
         guard indexPath.section < sectionChapterIDs.count,
-              let pageModel = pageCell.pageModel else {
+              let layoutPage = pageCell.layoutPage else {
             
             pageView.speechHighlightRange = nil
             
@@ -432,7 +432,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         
         // 必须带上章节标识：不同章节的页范围都从 0 开始，只比页内范围会把
         // 另一章的同位置段落也点亮
-        pageView.speechHighlightRange = controller.highlightRange(inPage: pageModel,
+        pageView.speechHighlightRange = controller.highlightRange(inPage: layoutPage,
                                                                  chapterID: sectionChapterIDs[indexPath.section])
     }
     
@@ -446,7 +446,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         // 顶部状态栏
         topView = ReaderStatusTopView()
         topView.storyName.text = vc.bookModel.storyName
-        topView.chapterTitleLabel.text = vc.bookModel.readingRecord.chapterModel.name
+        topView.chapterTitleLabel.text = vc.bookModel.readingRecord.activeChapter.name
         view.addSubview(topView)
         topView.frame = CGRect(x: readRect.minX, y: readRect.minY, width: readRect.width, height: READER_STATUS_TOP_VIEW_HEIGHT)
         
@@ -594,10 +594,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
             return UITableViewCell()
         }
         
-        let pageModel = chapterModel.layoutPages[indexPath.row]
+        let layoutPage = chapterModel.layoutPages[indexPath.row]
         
         // 是否为书籍首页
-        if pageModel.isHomePage {
+        if layoutPage.isHomePage {
             
             let cell = ReaderBookCoverCell.cell(tableView)
             
@@ -609,7 +609,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
             
             let cell = ReaderPageCell.cell(tableView)
             
-            cell.pageModel = pageModel
+            cell.layoutPage = layoutPage
             
             return cell
         }
@@ -670,7 +670,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         
         // 朗读高亮的回填必须在下面那条 row != 0 的提前返回之前做。
         //
-        // 起因是 ReaderPageView 在换 pageModel 时会主动清掉高亮（cell 复用的必要处理），
+        // 起因是 ReaderPageView 在换 layoutPage 时会主动清掉高亮（cell 复用的必要处理），
         // 于是「滚出屏幕再滚回来」的页会丢失高亮。这里在页重新可见的时机补设回去。
         reviseSpeechHighlight(for: cell, at: indexPath)
         
@@ -685,9 +685,9 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
             return
         }
         
-        let pageModel = chapterModel.layoutPages[indexPath.row]
+        let layoutPage = chapterModel.layoutPages[indexPath.row]
         
-        if pageModel.isHomePage {
+        if layoutPage.isHomePage {
             
             topView?.isHidden = true
         }
@@ -707,9 +707,9 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
             return
         }
         
-        let pageModel = chapterModel.layoutPages[indexPath.row]
+        let layoutPage = chapterModel.layoutPages[indexPath.row]
         
-        if pageModel.isHomePage {
+        if layoutPage.isHomePage {
             
             topView?.isHidden = false
         }
@@ -936,7 +936,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         }
         
         // 检测章节是否切换（用于自动加书架）
-        let oldChapterID = vc.bookModel.readingRecord.chapterModel?.id.intValue
+        let oldChapterID = vc.bookModel.readingRecord.activeChapter?.id.intValue
         let newChapterID = chapterModel.id.intValue
         
         // 章节切换时，先上报旧章节数据（在 readingRecord 被更新之前）
@@ -968,7 +968,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
         if recordSection < sectionChapterIDs.count {
             let recordChapterID = sectionChapterIDs[recordSection]
             if let recordChapterModel = resolveChapterModel(chapterID: recordChapterID) {
-                vc.bookModel.readingRecord.modify(chapterModel: recordChapterModel, page: recordIndexPath.row, isSave: false)
+                vc.bookModel.readingRecord.modify(activeChapter: recordChapterModel, page: recordIndexPath.row, isSave: false)
                 vc.bookModel.readingRecord.pageScrollAnchor = recordOffset
                 vc.bookModel.readingRecord.save()
             }

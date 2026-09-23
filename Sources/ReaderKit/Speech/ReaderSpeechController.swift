@@ -184,10 +184,10 @@ public final class ReaderSpeechController {
     private var isSpeakingSentenceOnDisplayedPage: Bool {
 
         guard let record = reader?.bookModel?.readingRecord,
-              let displayedChapter = record.chapterModel,
-              let pageModel = record.pageModel else { return false }
+              let displayedChapter = record.activeChapter,
+              let layoutPage = record.layoutPage else { return false }
 
-        return highlightRange(inPage: pageModel, chapterID: displayedChapter.id) != nil
+        return highlightRange(inPage: layoutPage, chapterID: displayedChapter.id) != nil
     }
 
     /// 把正文跳回朗读位置。控制胶囊上的返回箭头调这个。
@@ -201,7 +201,7 @@ public final class ReaderSpeechController {
 
     /// 当前朗读所属的章节模型。
     ///
-    /// 必须单独持有，不能用 `bookModel.readingRecord.chapterModel` 代替 —— 后者是
+    /// 必须单独持有，不能用 `bookModel.readingRecord.activeChapter` 代替 —— 后者是
     /// **正在展示**的章节。朗读跨章后正文视图并不跟着走（见 `alignPage(to:)` 的说明），
     /// 此时两者指向不同章节：用展示章节去算句所在页、或去填锁屏的章节名，都会错。
     private var speakingChapter: ReaderChapterModel?
@@ -423,7 +423,7 @@ public final class ReaderSpeechController {
         }
 
         guard let record = reader?.bookModel?.readingRecord,
-              let chapter = record.chapterModel else { return }
+              let chapter = record.activeChapter else { return }
 
         guard prepare(chapter: chapter) else { return }
 
@@ -629,7 +629,7 @@ public final class ReaderSpeechController {
 
         // typesetContent 由 reviseFont() 生成，同时也是 layoutPages 的排版来源。
         // 它为空说明这一章还没排版，此时分页范围也不存在，无法建立坐标映射。
-        guard let fullText = chapter.typesetContent?.string, !fullText.isEmpty else {
+        guard let rawText = chapter.typesetContent?.string, !rawText.isEmpty else {
 
             presentNotice(ReaderEnvironment.strings.speechFailed)
 
@@ -640,7 +640,7 @@ public final class ReaderSpeechController {
         let detected = ReaderSentenceTokenizer.detectLanguage(inBody: chapter.content ?? "")
 
         // 分句必须基于 typesetContent：用 content 会让所有句坐标整体偏移一个标题长度
-        let parsed = ReaderSentenceTokenizer.sentences(inFullText: fullText, language: detected)
+        let parsed = ReaderSentenceTokenizer.sentences(inFullText: rawText, language: detected)
 
         guard !parsed.isEmpty else {
 
@@ -1019,7 +1019,7 @@ public final class ReaderSpeechController {
         }
 
         guard let record = reader.bookModel?.readingRecord,
-              let displayedChapter = record.chapterModel,
+              let displayedChapter = record.activeChapter,
               let chapterID = speakingChapter.id else { return }
 
         // 朗读章节与展示章节不是同一章时，页码之间没有可比性（各章页码都从 0 起算）。
@@ -1123,17 +1123,17 @@ public final class ReaderSpeechController {
     /// 三者同坐标系（都以 `typesetContent` 为基准），所以只做交集与平移，不需要别的换算。
     ///
     /// - Parameters:
-    ///   - pageModel: 目标页
+    ///   - layoutPage: 目标页
     ///   - chapterID: 目标页所属章节。**必须传**：不同章节的页范围都从 0 起算，
     ///     只比范围会把另一章同位置的段落也点亮。
     /// - Returns: 当前没在朗读、朗读在别的章、或该句不落在本页时返回 nil。
-    public func highlightRange(inPage pageModel: ReaderPageModel, chapterID: NSNumber?) -> NSRange? {
+    public func highlightRange(inPage layoutPage: ReaderPageModel, chapterID: NSNumber?) -> NSRange? {
 
         guard activity != .idle else { return nil }
 
         guard let speakingChapterID, let chapterID, speakingChapterID == chapterID else { return nil }
 
-        guard let sentenceRange = speakingRange, let pageRange = pageModel.range else { return nil }
+        guard let sentenceRange = speakingRange, let pageRange = layoutPage.range else { return nil }
 
         let overlap = NSIntersectionRange(sentenceRange, pageRange)
 
@@ -1190,10 +1190,10 @@ public final class ReaderSpeechController {
 
             guard let pageView = display.renderingPageView,
                   let record = display.readingRecord,
-                  let displayedChapter = record.chapterModel,
-                  let pageModel = record.pageModel else { return }
+                  let displayedChapter = record.activeChapter,
+                  let layoutPage = record.layoutPage else { return }
 
-            pageView.speechHighlightRange = highlightRange(inPage: pageModel,
+            pageView.speechHighlightRange = highlightRange(inPage: layoutPage,
                                                           chapterID: displayedChapter.id)
         }
     }
@@ -1392,7 +1392,7 @@ public final class ReaderSpeechController {
 
         // 已经在这一章就别跳，跳转会重建正文视图（闪屏 + 丢滚动位置）
         if let record = reader.bookModel?.readingRecord,
-           let displayedChapter = record.chapterModel,
+           let displayedChapter = record.activeChapter,
            displayedChapter.id == chapterID { return }
 
         // 换章是引擎驱动的，走令牌，别被判成用户手动跳章

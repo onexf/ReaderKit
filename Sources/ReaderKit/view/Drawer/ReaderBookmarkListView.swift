@@ -231,7 +231,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         // sheet 曝光上报(由外部用统一锁定逻辑判定 bookmark_type)
         delegate?.bookmarkListView(self, willShowMenuFor: mark)
         
-        ReaderBookmarkDeleteSheet.show(onRemove: { [weak self] in
+        ReaderBookmarkDeleteSheet.show(onRemoveConfirmed: { [weak self] in
             
             guard let self = self else { return }
             
@@ -251,7 +251,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
             // 点击 Clear All 按钮即上报(无论后续是否确认)
             self.delegate?.bookmarkListView(self, didSelectMenuAction: .clearAll, for: mark)
             
-        }, onCancel: { [weak self] in
+        }, onDismissed: { [weak self] in
             
             guard let self = self else { return }
             

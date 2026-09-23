@@ -23,7 +23,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     open var storyID: String!
     
     /// 当前记录的阅读章节
-    open var chapterModel: ReaderChapterModel!
+    open var activeChapter: ReaderChapterModel!
     
     /// 阅读到的页码(上传阅读记录到服务器时传当前页面的 location 上去,从服务器拿回来 location 在转成页码。精准回到上次阅读位置)
     open var page: NSNumber! = NSNumber(value: 0)
@@ -35,37 +35,37 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     // MARK: 快捷获取
     
     /// 当前记录分页模型
-    open var pageModel: ReaderPageModel! { 
-        guard let chapterModel = chapterModel,
+    open var layoutPage: ReaderPageModel! { 
+        guard let activeChapter = activeChapter,
               page.intValue >= 0,
-              page.intValue < chapterModel.layoutPages.count else {
+              page.intValue < activeChapter.layoutPages.count else {
             return nil
         }
-        return chapterModel.layoutPages[page.intValue]
+        return activeChapter.layoutPages[page.intValue]
     }
     
     /// 当前记录起始坐标
     open var locationFirst: NSNumber! { 
-        guard let chapterModel = chapterModel else { return NSNumber(value: 0) }
-        return chapterModel.locationInitial(page: page.intValue)
+        guard let activeChapter = activeChapter else { return NSNumber(value: 0) }
+        return activeChapter.locationInitial(page: page.intValue)
     }
     
     /// 当前记录末尾坐标
     open var locationLast: NSNumber! { 
-        guard let chapterModel = chapterModel else { return NSNumber(value: 0) }
-        return chapterModel.locationFinal(page: page.intValue)
+        guard let activeChapter = activeChapter else { return NSNumber(value: 0) }
+        return activeChapter.locationFinal(page: page.intValue)
     }
     
     /// 当前记录是否为第一个章节
     open var isFirstChapter: Bool! { 
-        guard let chapterModel = chapterModel else { return true }
-        return chapterModel.isFirstChapter
+        guard let activeChapter = activeChapter else { return true }
+        return activeChapter.isFirstChapter
     }
     
     /// 当前记录是否为最后一个章节
     open var isLastChapter: Bool! { 
-        guard let chapterModel = chapterModel else { return true }
-        return chapterModel.isLastChapter
+        guard let activeChapter = activeChapter else { return true }
+        return activeChapter.isLastChapter
     }
     
     /// 当前记录是否为第一页
@@ -73,41 +73,41 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     
     /// 当前记录是否为最后一页
     open var isLastPage: Bool! { 
-        guard let chapterModel = chapterModel else { return true }
-        return (page.intValue == (chapterModel.pageCount.intValue - 1))
+        guard let activeChapter = activeChapter else { return true }
+        return (page.intValue == (activeChapter.pageCount.intValue - 1))
     }
     
     /// 当前记录页码字符串
     open var contentString: String! { 
-        guard let chapterModel = chapterModel else { return "" }
-        return chapterModel.contentString(page: page.intValue)
+        guard let activeChapter = activeChapter else { return "" }
+        return activeChapter.contentString(page: page.intValue)
     }
     
     /// 当前记录页码富文本
     open var contentAttributedString: NSAttributedString! { 
-        guard let chapterModel = chapterModel else { return NSAttributedString(string: "") }
-        return chapterModel.contentAttributedString(page: page.intValue)
+        guard let activeChapter = activeChapter else { return NSAttributedString(string: "") }
+        return activeChapter.contentAttributedString(page: page.intValue)
     }
     
     /// 当前记录切到上一页
     open func priorPage() { page = NSNumber(value: max(page.intValue - 1, 0)) }
     
     /// 当前记录切到下一页
-    open func followingPage() { page = NSNumber(value: min(page.intValue + 1, chapterModel.pageCount.intValue - 1)) }
+    open func followingPage() { page = NSNumber(value: min(page.intValue + 1, activeChapter.pageCount.intValue - 1)) }
     
     /// 当前记录切到第一页
     open func initialPage() { page = NSNumber(value: 0) }
     
     /// 当前记录切到最后一页
-    open func finalPage() { page = NSNumber(value: chapterModel.pageCount.intValue - 1) }
+    open func finalPage() { page = NSNumber(value: activeChapter.pageCount.intValue - 1) }
     
     
     // MARK: 辅助
     
     /// 修改阅读记录为指定章节位置
-    open func modify(chapterModel: ReaderChapterModel!, page: NSInteger, isSave: Bool = true) {
+    open func modify(activeChapter: ReaderChapterModel!, page: NSInteger, isSave: Bool = true) {
         
-        self.chapterModel = chapterModel
+        self.activeChapter = activeChapter
         
         self.page = NSNumber(value: page)
         
@@ -143,7 +143,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         
         if ReaderChapterModel.isExist(storyID: storyID, chapterID: chapterID) {
             
-            chapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID)
+            activeChapter = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID)
             
             // 书签精确定位:翻页模式下对该章临时分页,使书签所在段成为页首
             // 滚动模式保持常规分页,用页内偏移复用滚动控制器的定位恢复机制
@@ -151,7 +151,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
                 
                 if anchorsParagraphToPageTop {
                     
-                    chapterModel.adoptBookmarkPaging(at: location)
+                    activeChapter.adoptBookmarkPaging(at: location)
                     
                 } else {
                     
@@ -159,14 +159,14 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
                     // `reviseFont()` 受分页签名短路，签名一致时是空操作；
                     // 不调的话，若字号/行距在此之前变过，`page(location:)`
                     // 会落在旧分页上（`adoptBookmarkPaging` 内部本来也先调了它）。
-                    chapterModel.reviseFont()
+                    activeChapter.reviseFont()
                 }
                 
-                page = chapterModel.page(location: location)
+                page = activeChapter.page(location: location)
                 pageScrollAnchor = 0
             } else {
-                page = chapterModel.page(location: location)
-                pageScrollAnchor = chapterModel.inPageOffsetY(forLocation: location)
+                page = activeChapter.page(location: location)
+                pageScrollAnchor = activeChapter.inPageOffsetY(forLocation: location)
             }
             
             if isSave { save() }
@@ -178,7 +178,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         
         if ReaderChapterModel.isExist(storyID: storyID, chapterID: chapterID) {
             
-            chapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID)
+            activeChapter = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID)
             
             if (toPage == READER_LAST_PAGE) { finalPage()
                 
@@ -194,11 +194,11 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
     /// 更新字体
     open func reviseFont(isSave: Bool = true) {
         
-        if chapterModel != nil {
+        if activeChapter != nil {
             
-            chapterModel.reviseFont()
+            activeChapter.reviseFont()
             
-            page = chapterModel.page(location: READER_RECORD_CURRENT_CHAPTER_LOCATION.intValue)
+            page = activeChapter.page(location: READER_RECORD_CURRENT_CHAPTER_LOCATION.intValue)
             
             if isSave { save() }
         }
@@ -211,7 +211,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         
         readingRecord.storyID = storyID
         
-        readingRecord.chapterModel = chapterModel
+        readingRecord.activeChapter = activeChapter
         
         readingRecord.page = page
         
@@ -265,7 +265,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         
         storyID = aDecoder.decodeObject(forKey: "bookKey") as? String
         
-        chapterModel = aDecoder.decodeObject(forKey: "activeChapter") as? ReaderChapterModel
+        activeChapter = aDecoder.decodeObject(forKey: "activeChapter") as? ReaderChapterModel
         
         page = aDecoder.decodeObject(forKey: "pageIndex") as? NSNumber
         
@@ -276,7 +276,7 @@ open class ReaderReadRecordModel: NSObject, NSCoding {
         
         aCoder.encode(storyID, forKey: "bookKey")
         
-        aCoder.encode(chapterModel, forKey: "activeChapter")
+        aCoder.encode(activeChapter, forKey: "activeChapter")
         
         aCoder.encode(page, forKey: "pageIndex")
         

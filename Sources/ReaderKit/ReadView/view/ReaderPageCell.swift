@@ -17,15 +17,15 @@ open class ReaderPageCell: UITableViewCell {
     /// 与 `ReaderPageContentController.renderingPageView` 同名同语义，
     /// 让编排层不必区分「翻页模式的页控制器」与「滚动模式的 cell」。
     ///
-    /// 高亮的清理不在这里做：`ReaderPageView` 换 `pageModel` 时会自行清掉，
+    /// 高亮的清理不在这里做：`ReaderPageView` 换 `layoutPage` 时会自行清掉，
     /// 复用路径必然经过那里，放在视图层更不容易漏。
     open var renderingPageView: ReaderPageView? { pageView }
     
-    open var pageModel: ReaderPageModel! {
+    open var layoutPage: ReaderPageModel! {
         
         didSet{
             
-            pageView.pageModel = pageModel
+            pageView.layoutPage = layoutPage
             
             setNeedsLayout()
         }
@@ -66,15 +66,15 @@ open class ReaderPageCell: UITableViewCell {
         super.layoutSubviews()
       
         // 分页顶部高度
-        let y = pageModel?.headerInsetHeight ?? READER_SPACE_MIN_HEIGHT
+        let y = layoutPage?.headerInsetHeight ?? READER_SPACE_MIN_HEIGHT
         
         // 内容高度
-        let h = pageModel?.contentSize.height ?? READER_SPACE_MIN_HEIGHT
+        let h = layoutPage?.contentSize.height ?? READER_SPACE_MIN_HEIGHT
 
         pageView.frame = CGRect(x: 0, y: y, width: READER_VIEW_RECT.width, height: h)
         
         // 打印第一页的布局信息
-        if pageModel?.page?.intValue == 0 {
+        if layoutPage?.page?.intValue == 0 {
             // log("=== Cell 布局调试信息 (第一页) ===")
             // log("cell.frame: \(self.frame)")
             // log("cell.contentView.frame: \(self.contentView.frame)")

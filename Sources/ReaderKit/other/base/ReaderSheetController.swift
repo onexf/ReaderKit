@@ -261,7 +261,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
                     tapTurnInFlight = false
                 }
             }
-            // Middle 1/3 is handled by ReaderMenu's singleTap (menu toggle)
+            // Middle 1/3 is handled by ReaderMenu's menuTapRecognizer (menu toggle)
             // Right 1/3 does nothing on END page (no next page)
             return
         }

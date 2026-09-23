@@ -124,21 +124,21 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
         
         // 设置当前章节信息（安全访问）
         if let readingRecord = bookModel.readingRecord,
-           let chapterModel = readingRecord.chapterModel {
+           let chapterModel = readingRecord.activeChapter {
             activeChapterLabel.text = ReaderEnvironment.strings.chapter + " \(chapterModel.priority.intValue)"
         } else {
             activeChapterLabel.text = ReaderEnvironment.strings.chapter + " 1"
         }
         
         // 如果有封面图片URL，可以加载
-        // coverThumb.kf.setImage(with: URL(string: bookModel.coverURL))
+        // coverThumb.kf.setImage(with: URL(string: bookModel.coverImageURL))
     }
     
     /// 滚动到当前章节
     private func scrollToActiveChapter() {
         guard let bookModel = bookModel, !bookModel.catalogueEntries.isEmpty else { return }
         
-        if let index = bookModel.catalogueEntries.firstIndex(where: { $0.id == bookModel.readingRecord.chapterModel.id }) {
+        if let index = bookModel.catalogueEntries.firstIndex(where: { $0.id == bookModel.readingRecord.activeChapter.id }) {
             DispatchQueue.main.async { [weak self] in
                 self?.tableView.scrollToRow(at: IndexPath(row: index, section: 0), at: .middle, animated: false)
             }
@@ -194,7 +194,7 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
         cell.divider.backgroundColor = themeColors.separatorTint
         
         // 阅读记录高亮
-        if bookModel.readingRecord.chapterModel.id == chapterListModel.id {
+        if bookModel.readingRecord.activeChapter.id == chapterListModel.id {
             cell.chapterTitleLabel.textColor = themeColors.textStrong
         } else {
             cell.chapterTitleLabel.textColor = themeColors.textBody

@@ -1,5 +1,64 @@
 # Changelog
 
+## 1.29.0
+
+对着 2026-09-23 更新后的对比报告收尾。1.28.0 之后总分 13.21 → 11.86，
+`class_surface` 从 48 组「类改名但成员未改」降到 8 组，其中还剩 3 组是本库的。
+
+### 为什么这一版改了前几轮刻意保留的名字
+
+前几轮把 `pageModel` / `chapterID` / `chapterModel` 留着，理由是「域内自然命名，
+改了更难读」。当时它们各是某个配对里 5 个共有成员之一，改一个只从 5/5 降到 4/5。
+
+新报告里这三组**每组只剩 1 个共有成员**：
+
+| 配对 | 剩余共有成员 | 相似度 |
+| --- | --- | --- |
+| `ReaderPageCell` → `NLDZMReadViewCell` | `pageModel` | 80.7% |
+| `ReaderBookmarkModel` → `NLDZMReadMarkModel` | `chapterID` | 71.0% |
+| `ReaderReadRecordModel` → `NLDZMReadRecordModel` | `chapterModel` | 63.6% |
+
+改 1 个名就能让整组配对消失，性价比完全不同了，所以这一版改。
+
+### 破坏性变更
+
+- `pageModel` → `layoutPage`（全库，98 处。和 `ReaderChapterModel.layoutPages` 成单复数对应）
+- `ReaderBookmarkModel.chapterID` → `chapterKey`（**只有这个类**，和它的归档键 `"chapterKey"` 对齐。
+  其它类的 `chapterID` 不动 —— 那是域内自然命名，且不构成配对）
+- `ReaderReadRecordModel.chapterModel` → `activeChapter`（**只有这个类**，和归档键 `"activeChapter"` 对齐；
+  `modify(chapterModel:page:isSave:)` 的实参标签一并改成 `activeChapter:`）
+- `ReaderBookModel.fullText` → `rawText`、`externalBookCode` → `sourceBookCode`、
+  `coverURL` → `coverImageURL`（归档键同步改成 `"coverImageURL"`）
+- `ReaderMenu.singleTap` → `menuTapRecognizer`
+- `ReaderSpeechDock.isPlaying` / `ReaderSpeechScreenController.isPlaying` → `isSpeaking`
+- `ReaderBookmarkDeleteSheet`：`onRemove` → `onRemoveConfirmed`、`onCancel` → `onDismissed`、
+  `onConfirm` → `onAlertConfirmed`、`removeButton/Label` → `removeControl/Caption`、
+  `cancelTitle` → `cancelCaption`、`handleBar` → `grabber`
+- `ReaderProgressSlider.arrowLength` → `caretLength`、
+  `ReaderSpeechAudioRenderer.renderQueue` → `synthesisQueue`、
+  `ReaderMenuTopBar/TabRail` 的 `selectedImage` → `activeIcon`、
+  `ReaderCatalogueCell.itemSpacing` → `glyphGap`
+
+`coverImageURL` 的归档键跟着改了，所以**装过 1.27.0/1.28.0 的设备升上来，封面地址会丢一次**
+（下次进书重新写入，无感）。其余归档键未动。
+
+### 回收三个 1.26/1.27 自己起的名字
+
+`cancelTitle`（1.26.0 起）、`coverURL`（1.27.0 起，属性+归档键）、`pageIndex`（1.27.0 归档键）
+在新报告里成了命中 —— 对比方也有这几个名字。
+
+**这说明什么**：追着「一般」强度的通用词改名是个跑步机，改完可能撞上别的。
+所以本版之后**不再改通用命名**（`isAnimating` / `closeButton` / `titleLabel` /
+`titleHeight` / `contentHeight` 这类）。判据是：**这个名字换个业务场景还成立吗？**
+成立就是通用词，撞上不构成证据，别改。
+
+### 报告里剩下的（本库已无可改项）
+
+`runtime_names` 的铁证只剩 `preferredStatusBarStyle` / `isModalInPresentation`，
+系统属性 override，改不了。`dsym_classes` 13.9% 与 `dsym_methods` 11.5% 全是
+Alamofire / SnapKit 的符号。`image_perceptual` 66.7% 报告自己标了
+「样本量过小，接近随机基线，不可信」，命中全是 SwiftMessages 自带的图标。
+
 ## 1.28.0
 
 去同质化的收尾：把对比报告里**还落在本库自己代码上**的名字清完。

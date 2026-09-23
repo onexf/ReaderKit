@@ -22,7 +22,7 @@ open class ReaderLongPressController: ReaderPageContentController {
     open override func initReadView() {
         
         // 是否为书籍首页
-        if readingRecord.pageModel.isHomePage {
+        if readingRecord.layoutPage.isHomePage {
             
             super.initReadView()
             
@@ -31,11 +31,11 @@ open class ReaderLongPressController: ReaderPageContentController {
             // 阅读视图范围（翻页/滚动差异已在 READER_VIEW_RECT 内处理）
             let rect = READER_VIEW_RECT!
             
-            let pageModel = readingRecord.pageModel!
+            let layoutPage = readingRecord.layoutPage!
             
             // 阅读视图
             selectionView = ReaderLongPressView()
-            selectionView.pageModel = pageModel
+            selectionView.layoutPage = layoutPage
             view.addSubview(selectionView)
             
             // 高度取**阅读区域**，与 `ReaderPageView` 在翻页模式下的排版尺寸严格一致。
@@ -43,7 +43,7 @@ open class ReaderLongPressController: ReaderPageContentController {
             // `ReaderPageView.draw(_:)` 按 `bounds.height` 做 CoreText 坐标翻转，
             // 所以视图高度与排版高度必须相等，否则文字整体错位。
             //
-            // 这里曾经用 `pageModel.contentSize.height`（注释理由是「长按拖拽需要内容高度」）。
+            // 这里曾经用 `layoutPage.contentSize.height`（注释理由是「长按拖拽需要内容高度」）。
             // 那个值是在无高度约束下量出来的，比阅读区域高出末行行距与段后间距，
             // 于是每一页的末行都落到阅读区域之外、压在页脚上。
             selectionView.frame = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height)
@@ -80,7 +80,7 @@ open class ReaderLongPressController: ReaderPageContentController {
     private func drag(touches: Set<UITouch>, status: ReaderDragStatus) {
         
         // 是否为书籍首页
-        if readingRecord.pageModel.isHomePage { return }
+        if readingRecord.layoutPage.isHomePage { return }
         
         if selectionView?.isDragActive ?? false {
             

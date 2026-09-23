@@ -100,9 +100,9 @@ open class ReaderMenuTopBar: ReaderMenuPanel {
     private func reviseAppendToBookshelfImages() {
         let themeColors = ReaderConfiguration.shared().currentThemeColors
         let normalImage = ReaderEnvironment.images.shelfAddIcon()?.withTintColor(themeColors.iconStandard)
-        let selectedImage = ReaderEnvironment.images.addedToBookshelf()?.withTintColor(themeColors.iconMuted)
+        let activeIcon = ReaderEnvironment.images.addedToBookshelf()?.withTintColor(themeColors.iconMuted)
         shelfButton.setImage(normalImage, for: .normal)
-        shelfButton.setImage(selectedImage, for: .selected)
+        shelfButton.setImage(activeIcon, for: .selected)
     }
     
     open override func layoutSubviews() {

@@ -97,7 +97,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     open var isMenuVisible: Bool = false
     
     /// 单击手势
-    public private(set) var singleTap: UITapGestureRecognizer!
+    public private(set) var menuTapRecognizer: UITapGestureRecognizer!
     
     /// 收起菜单的滑动手势。
     ///
@@ -168,10 +168,10 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     private func initPressSwipeRecognizer() {
         
         // 单击手势
-        singleTap = UITapGestureRecognizer(target: self, action: #selector(handleMenuTap))
-        singleTap.numberOfTapsRequired = 1
-        singleTap.delegate = self
-        vc.contentView.addGestureRecognizer(singleTap)
+        menuTapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handleMenuTap))
+        menuTapRecognizer.numberOfTapsRequired = 1
+        menuTapRecognizer.delegate = self
+        vc.contentView.addGestureRecognizer(menuTapRecognizer)
         
         // 收起菜单的滑动手势
         dismissPan = UIPanGestureRecognizer(target: self, action: #selector(handleMenuDismissDrag))
@@ -197,7 +197,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         // 此时正文被遮罩盖着，用户点的是遮罩，语义就是「关掉菜单」，
         // 再按左右 1/3 判一次的话点两侧会毫无反应。
         if !isMenuVisible, ReaderConfiguration.shared().effectType == .scroll {
-            let tapLocation = singleTap.location(in: vc.contentView)
+            let tapLocation = menuTapRecognizer.location(in: vc.contentView)
             let viewWidth = vc.contentView.bounds.width
             let leftBoundary = viewWidth / 3.0
             let rightBoundary = viewWidth * 2.0 / 3.0

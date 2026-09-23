@@ -94,7 +94,7 @@ open class ReaderMenuTabRail: UIView {
         // （设计稿那几帧面板都是展开的，里面的实心图标是选中态，不是常态）
         settingsTab = craftLaneBtn(
             normalImage: ReaderEnvironment.images.tabBookmark(),
-            selectedImage: ReaderEnvironment.images.tabBookmarkSelected(),
+            activeIcon: ReaderEnvironment.images.tabBookmarkSelected(),
             title: ReaderEnvironment.strings.setting
         )
         settingsTab.tintColor = iconColor
@@ -106,14 +106,14 @@ open class ReaderMenuTabRail: UIView {
 
     /// 创建 tab 按钮（图标在上，文字在下）
     ///
-    /// selectedImage 传 nil 表示该 tab 没有选中态，此时 isSelected 不会有任何视觉变化。
+    /// activeIcon 传 nil 表示该 tab 没有选中态，此时 isSelected 不会有任何视觉变化。
     /// 文案颜色两态相同：设计稿里选中与否只体现在图标上。
-    private func craftLaneBtn(normalImage: UIImage?, selectedImage: UIImage? = nil, title: String) -> UIButton {
+    private func craftLaneBtn(normalImage: UIImage?, activeIcon: UIImage? = nil, title: String) -> UIButton {
         let button = UIButton(type: .custom)
         button.setImage(normalImage, for: .normal)
-        if let selectedImage {
-            button.setImage(selectedImage, for: .selected)
-            button.setImage(selectedImage, for: [.selected, .highlighted])
+        if let activeIcon {
+            button.setImage(activeIcon, for: .selected)
+            button.setImage(activeIcon, for: [.selected, .highlighted])
         }
         button.setTitle(title, for: .normal)
         button.titleLabel?.font = ReaderEnvironment.fonts.uiLight(10)

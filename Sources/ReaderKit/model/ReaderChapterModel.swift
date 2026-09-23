@@ -66,9 +66,9 @@ open class ReaderChapterModel: NSObject, NSCoding {
         
         var pageTotalHeight: CGFloat = 0
         
-        for pageModel in layoutPages {
+        for layoutPage in layoutPages {
             
-            pageTotalHeight += (pageModel.contentSize.height + pageModel.headerInsetHeight)
+            pageTotalHeight += (layoutPage.contentSize.height + layoutPage.headerInsetHeight)
         }
         
         return pageTotalHeight

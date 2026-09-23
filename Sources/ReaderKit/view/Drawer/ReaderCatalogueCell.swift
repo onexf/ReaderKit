@@ -33,7 +33,7 @@ open class ReaderCatalogueCell: UITableViewCell {
     private let horizontalMargin: CGFloat = 20
 
     /// row 内各子项间距
-    private let itemSpacing: CGFloat = 10
+    private let glyphGap: CGFloat = 10
 
     /// 「Chapter」与序号之间的间距
     private let numberSpacing: CGFloat = 2
@@ -205,7 +205,7 @@ open class ReaderCatalogueCell: UITableViewCell {
                                  height: indicatorSize.height)
 
         // 「Chapter」+ 序号：指示条存在时整体右移（指示条宽 + 间距）
-        let prefixX = isCurrentChapter ? indicator.frame.maxX + itemSpacing : horizontalMargin
+        let prefixX = isCurrentChapter ? indicator.frame.maxX + glyphGap : horizontalMargin
         let prefixWidth = ceil(chapterPrefix.sizeThatFits(CGSize(width: w, height: contentHeight)).width)
         chapterPrefix.frame = CGRect(x: prefixX, y: 0, width: prefixWidth, height: contentHeight)
 
@@ -221,8 +221,8 @@ open class ReaderCatalogueCell: UITableViewCell {
                                 height: lockSize)
 
         // 章节标题：撑满序号与锁（或右边距）之间的空间
-        let titleX = ordinalLabel.frame.maxX + itemSpacing
-        let titleMaxX = isLockedChapter ? lockGlyph.frame.minX - itemSpacing : w - horizontalMargin
+        let titleX = ordinalLabel.frame.maxX + glyphGap
+        let titleMaxX = isLockedChapter ? lockGlyph.frame.minX - glyphGap : w - horizontalMargin
         chapterTitleLabel.frame = CGRect(x: titleX, y: 0, width: max(0, titleMaxX - titleX), height: contentHeight)
     }
 

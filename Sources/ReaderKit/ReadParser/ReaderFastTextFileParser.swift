@@ -285,7 +285,7 @@ open class ReaderFastTextFileParser: NSObject {
         // log("   - 最终章节数量: \(catalogueEntries.count)")
         
         // 小说全文
-        bookModel.fullText = content
+        bookModel.rawText = content
         
         // 章节列表
         bookModel.catalogueEntries = catalogueEntries
@@ -346,7 +346,7 @@ open class ReaderFastTextFileParser: NSObject {
             chapterModel.followingChapterID = followingChapterID
             
             // 章节内容
-            chapterModel.content = READER_PH_SPACE + bookModel.fullText.substring(range!).removeSEHeadAndTail
+            chapterModel.content = READER_PH_SPACE + bookModel.rawText.substring(range!).removeSEHeadAndTail
 
             // 保存
             if isUpdateFont { chapterModel.reviseFont()

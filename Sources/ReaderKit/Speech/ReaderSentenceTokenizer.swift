@@ -72,17 +72,17 @@ public enum ReaderSentenceTokenizer {
     /// 把章节全文切成句。
     ///
     /// - Parameters:
-    ///   - fullText: **必须**传 `ReaderChapterModel.typesetContent.string`（标题 + 正文）。
+    ///   - rawText: **必须**传 `ReaderChapterModel.typesetContent.string`（标题 + 正文）。
     ///     传 `content` 会让所有句的坐标整体偏移一个标题长度，表现为高亮错位与翻页跳错。
     ///   - language: `detectLanguage(inBody:)` 的结果。为 nil 时让 `NLTokenizer` 自行判断。
     /// - Returns: 按位置升序、互不重叠的句数组。去除首尾空白后为空的片段会被丢弃。
-    public static func sentences(inFullText fullText: String, language: String?) -> [ReaderSentence] {
+    public static func sentences(inFullText rawText: String, language: String?) -> [ReaderSentence] {
 
-        guard !fullText.isEmpty else { return [] }
+        guard !rawText.isEmpty else { return [] }
 
         let tokenizer = NLTokenizer(unit: .sentence)
 
-        tokenizer.string = fullText
+        tokenizer.string = rawText
 
         // 显式指定语言。不指定时 NLTokenizer 会自行推断，但正文里夹杂英文引文、
         // 数字、标点时推断结果不稳定，切出来的句长会忽长忽短。
@@ -93,11 +93,11 @@ public enum ReaderSentenceTokenizer {
 
         var result: [ReaderSentence] = []
 
-        let source = fullText as NSString
+        let source = rawText as NSString
 
-        tokenizer.enumerateTokens(in: fullText.startIndex ..< fullText.endIndex) { tokenRange, _ in
+        tokenizer.enumerateTokens(in: rawText.startIndex ..< rawText.endIndex) { tokenRange, _ in
 
-            let nsRange = NSRange(tokenRange, in: fullText)
+            let nsRange = NSRange(tokenRange, in: rawText)
 
             let raw = source.substring(with: nsRange)
 

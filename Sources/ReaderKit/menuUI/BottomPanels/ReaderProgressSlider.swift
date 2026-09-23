@@ -41,7 +41,7 @@ open class ReaderProgressSlider: UISlider {
 
     /// 气泡底部箭头长度
     open var bubbleArrowLength: CGFloat = 5 {
-        didSet { bubbleView.arrowLength = bubbleArrowLength }
+        didSet { bubbleView.caretLength = bubbleArrowLength }
     }
 
     /// 气泡圆角
@@ -59,7 +59,7 @@ open class ReaderProgressSlider: UISlider {
         view.fillColor = bubbleColor
         view.textColor = bubbleTextColor
         view.font = bubbleFont
-        view.arrowLength = bubbleArrowLength
+        view.caretLength = bubbleArrowLength
         view.cornerRadius = bubbleCornerRadius
         view.isUserInteractionEnabled = false
         view.alpha = 0
@@ -176,7 +176,7 @@ open class ReaderProgressSlider: UISlider {
             didSet { shapeLayer.fillColor = fillColor.cgColor }
         }
 
-        var arrowLength: CGFloat = 5 { didSet { setNeedsLayout() } }
+        var caretLength: CGFloat = 5 { didSet { setNeedsLayout() } }
 
         var cornerRadius: CGFloat = 4 { didSet { setNeedsLayout() } }
 
@@ -210,7 +210,7 @@ open class ReaderProgressSlider: UISlider {
         var intrinsicSize: CGSize {
             let textSize = (text as NSString).size(withAttributes: [.font: font])
             return CGSize(width: ceil(textSize.width) + textInset.width * 2,
-                          height: ceil(textSize.height) + textInset.height * 2 + arrowLength)
+                          height: ceil(textSize.height) + textInset.height * 2 + caretLength)
         }
 
         override func layoutSubviews() {
@@ -218,7 +218,7 @@ open class ReaderProgressSlider: UISlider {
             shapeLayer.frame = bounds
             shapeLayer.path = bubblePath().cgPath
 
-            let textHeight = bounds.height - arrowLength - textInset.height * 2
+            let textHeight = bounds.height - caretLength - textInset.height * 2
             textLayer.frame = CGRect(x: 0,
                                      y: textInset.height,
                                      width: bounds.width,
@@ -228,9 +228,9 @@ open class ReaderProgressSlider: UISlider {
         /// 圆角矩形主体 + 底边中间向下的箭头
         private func bubblePath() -> UIBezierPath {
             let w = bounds.width
-            let bodyHeight = max(0, bounds.height - arrowLength)
+            let bodyHeight = max(0, bounds.height - caretLength)
             let r = min(cornerRadius, min(w, bodyHeight) / 2)
-            let arrowHalfWidth = max(arrowLength, 3)
+            let arrowHalfWidth = max(caretLength, 3)
 
             let path = UIBezierPath()
             // 左上角起，顺时针
@@ -243,7 +243,7 @@ open class ReaderProgressSlider: UISlider {
                         startAngle: 0, endAngle: .pi / 2, clockwise: true)
             // 底边 → 箭头
             path.addLine(to: CGPoint(x: w / 2 + arrowHalfWidth, y: bodyHeight))
-            path.addLine(to: CGPoint(x: w / 2, y: bodyHeight + arrowLength))
+            path.addLine(to: CGPoint(x: w / 2, y: bodyHeight + caretLength))
             path.addLine(to: CGPoint(x: w / 2 - arrowHalfWidth, y: bodyHeight))
             path.addLine(to: CGPoint(x: r, y: bodyHeight))
             path.addArc(withCenter: CGPoint(x: r, y: bodyHeight - r), radius: r,

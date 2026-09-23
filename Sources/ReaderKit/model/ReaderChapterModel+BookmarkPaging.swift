@@ -137,8 +137,8 @@ extension ReaderChapterModel {
     public func inPageOffsetY(forLocation location: Int) -> CGFloat {
         let p = page(location: location).intValue
         guard p >= 0, p < layoutPages.count, let range = layoutPages[p].range else { return 0 }
-        let pageModel = layoutPages[p]
-        let headH = pageModel.headerInsetHeight ?? 0
+        let layoutPage = layoutPages[p]
+        let headH = layoutPage.headerInsetHeight ?? 0
         let localIdx = min(max(location - range.location, 0), range.length)
         
         if let lineTop = rowPeakY(inPage: p, localIndex: localIdx) {
@@ -162,15 +162,15 @@ extension ReaderChapterModel {
         guard let full = typesetContent, full.length > 0,
               pageIndex >= 0, pageIndex < layoutPages.count,
               let range = layoutPages[pageIndex].range else { return 0 }
-        let pageModel = layoutPages[pageIndex]
-        let headH = pageModel.headerInsetHeight ?? 0
+        let layoutPage = layoutPages[pageIndex]
+        let headH = layoutPage.headerInsetHeight ?? 0
         let yInText = offsetY - headH
         if yInText <= 0 { return range.location }
         
-        let contentH = pageModel.contentSize.height
+        let contentH = layoutPage.contentSize.height
         if contentH > 0 {
-            let ctFrame = ReaderCoreText.makeFrame(attrString: pageModel.showContent,
-                                                     rect: CGRect(origin: .zero, size: pageModel.contentSize))
+            let ctFrame = ReaderCoreText.makeFrame(attrString: layoutPage.showContent,
+                                                     rect: CGRect(origin: .zero, size: layoutPage.contentSize))
             let lines = CTFrameGetLines(ctFrame) as! [CTLine]
             if !lines.isEmpty {
                 var origins = [CGPoint](repeating: .zero, count: lines.count)
@@ -213,12 +213,12 @@ extension ReaderChapterModel {
     /// 用整页 CTFrame 的行起点计算,失败返回 nil。
     private func rowPeakY(inPage pageIndex: Int, localIndex: Int) -> CGFloat? {
         guard pageIndex >= 0, pageIndex < layoutPages.count else { return nil }
-        let pageModel = layoutPages[pageIndex]
-        let contentH = pageModel.contentSize.height
+        let layoutPage = layoutPages[pageIndex]
+        let contentH = layoutPage.contentSize.height
         guard contentH > 0 else { return nil }
         
-        let ctFrame = ReaderCoreText.makeFrame(attrString: pageModel.showContent,
-                                                 rect: CGRect(origin: .zero, size: pageModel.contentSize))
+        let ctFrame = ReaderCoreText.makeFrame(attrString: layoutPage.showContent,
+                                                 rect: CGRect(origin: .zero, size: layoutPage.contentSize))
         let lines = CTFrameGetLines(ctFrame) as! [CTLine]
         guard !lines.isEmpty else { return nil }
         

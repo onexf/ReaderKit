@@ -48,7 +48,7 @@ extension ReaderBookModel {
         // 2. 清理落在被删章节上的书签
         if let bookmarks = bookmarkEntries, !bookmarks.isEmpty {
             let filtered = bookmarks.filter { mark in
-                return !removedSet.contains(mark.chapterID.intValue)
+                return !removedSet.contains(mark.chapterKey.intValue)
             }
             if filtered.count != bookmarks.count {
                 bookmarkEntries = filtered

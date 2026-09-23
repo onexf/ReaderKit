@@ -106,9 +106,9 @@ open class ReaderSpeechDock: UIView {
     }
 
     /// 播放态中央图标是否显示为「暂停」。`true` 显示暂停（当前在播），`false` 显示播放。
-    open var isPlaying: Bool = true {
+    open var isSpeaking: Bool = true {
 
-        didSet { toggleView.isPlaying = isPlaying }
+        didSet { toggleView.isSpeaking = isSpeaking }
     }
 
     // MARK: - 子视图
@@ -300,7 +300,7 @@ open class ReaderSpeechDock: UIView {
 
         entryIconView.image = ReaderEnvironment.images.speechDockEntry()
 
-        toggleView.isPlaying = isPlaying
+        toggleView.isSpeaking = isSpeaking
 
         toggleView.progress = progress
     }
@@ -474,7 +474,7 @@ final class ReaderSpeechDockToggle: UIView {
         didSet { reviseProgress() }
     }
 
-    var isPlaying: Bool = true {
+    var isSpeaking: Bool = true {
 
         didSet { reviseGlyph() }
     }
@@ -560,7 +560,7 @@ final class ReaderSpeechDockToggle: UIView {
 
         let path = UIBezierPath()
 
-        if isPlaying {
+        if isSpeaking {
 
             // 暂停：两根竖条
             let totalWidth = barSize.width * 2 + barGap

@@ -371,7 +371,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             if let reader = self?.hostMenu?.vc {
-                if reader.bookModel.readingRecord.chapterModel.id != chapterModel.id {
+                if reader.bookModel.readingRecord.activeChapter.id != chapterModel.id {
                     reader.goToChapter(chapterModel.id)
                 }
             }
@@ -382,7 +382,7 @@ open class ReaderMenuSettingsPanel: ReaderMenuPanel, ReaderMenuTabRailDelegate {
     open func setReadModel(_ bookModel: ReaderBookModel) {
         guard let bottomBar = superview as? ReaderMenuBottomBar else { return }
         
-        if bookModel.readingRecord.chapterModel == nil { return }
+        if bookModel.readingRecord.activeChapter == nil { return }
         
         bottomBar.cataloguePanel.bookModel = bookModel
     }

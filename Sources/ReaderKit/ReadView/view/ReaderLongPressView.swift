@@ -158,10 +158,10 @@ open class ReaderLongPressView: ReaderPageView {
         }else{ // 触摸结束
 
             // 获得选中区域
-            selectedSpan = ReaderCoreText.touchedParagraphRange(point: point, ctFrame: ctFrame, content: pageModel.content?.string)
+            selectedSpan = ReaderCoreText.touchedParagraphRange(point: point, ctFrame: ctFrame, content: layoutPage.content?.string)
 
             // 获得选中选中范围
-            rects = ReaderCoreText.rangeRects(range: selectedSpan!, ctFrame: ctFrame, content: pageModel.content?.string)
+            rects = ReaderCoreText.rangeRects(range: selectedSpan!, ctFrame: ctFrame, content: layoutPage.content?.string)
 
             // 显示光标
             cursor(isShow: true)
@@ -234,7 +234,7 @@ open class ReaderLongPressView: ReaderPageView {
     open func drag(status: ReaderDragStatus, point: CGPoint, windowPoint: CGPoint) {
 
         // 检查是否超出范围
-        let point = CGPoint(x: min(max(point.x, 0), pageModel.contentSize.width), y: min(max(point.y, 0), pageModel.contentSize.height))
+        let point = CGPoint(x: min(max(point.x, 0), layoutPage.contentSize.width), y: min(max(point.y, 0), layoutPage.contentSize.height))
 
         // 触摸开始
         if status == .begin {
@@ -286,7 +286,7 @@ open class ReaderLongPressView: ReaderPageView {
                 reviseChooseRange(location: location)
                 
                 // 获得选中选中范围
-                rects = ReaderCoreText.rangeRects(range: selectedSpan, ctFrame: ctFrame, content: pageModel.content?.string)
+                rects = ReaderCoreText.rangeRects(range: selectedSpan, ctFrame: ctFrame, content: layoutPage.content?.string)
                 
                 // 更新光标位置
                 reviseCursorFrame()
@@ -516,7 +516,7 @@ open class ReaderLongPressView: ReaderPageView {
             
             let temSelectRange = selectedSpan!
             
-            let tempContent = pageModel.content
+            let tempContent = layoutPage.content
             
             DispatchQueue.global().async {
                 

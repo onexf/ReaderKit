@@ -492,7 +492,7 @@ open class ReaderSpeechScreenController: UIViewController {
 
         let placeholder = ReaderEnvironment.images.coverPlaceholder()
 
-        guard let url = book?.coverURL, !url.isEmpty else {
+        guard let url = book?.coverImageURL, !url.isEmpty else {
 
             coverView.image = placeholder
 
@@ -515,7 +515,7 @@ open class ReaderSpeechScreenController: UIViewController {
 
         // `.preparing` 按播放中呈现，口径与胶囊、dock 一致：
         // 用户点了播放、意图已生效，显示成播放中不算假状态
-        toggleControl.isPlaying = activity != .paused && activity != .idle
+        toggleControl.isSpeaking = activity != .paused && activity != .idle
 
         chapterTitleLabel.text = speech?.speakingChapterTitle
 
@@ -1011,7 +1011,7 @@ final class ReaderSpeechScreenToggleButton: UIView {
     var onTap: (() -> Void)?
 
     /// true 显示暂停图标（当前在播），false 显示播放图标。
-    var isPlaying: Bool = false {
+    var isSpeaking: Bool = false {
 
         didSet { reviseGlyph() }
     }
@@ -1074,7 +1074,7 @@ final class ReaderSpeechScreenToggleButton: UIView {
 
         let path = UIBezierPath()
 
-        if isPlaying {
+        if isSpeaking {
 
             let barWidth = Self.barWidth * scale
 

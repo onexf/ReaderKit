@@ -10,22 +10,22 @@ import UIKit
 open class ReaderPageView: UIView {
     
     /// 当前页模型(使用contentSize绘制)
-    open var pageModel: ReaderPageModel! {
+    open var layoutPage: ReaderPageModel! {
         
         didSet{
             
             // 打印内容的段落样式信息
-            if pageModel != nil && pageModel.showContent.length > 0 {
+            if layoutPage != nil && layoutPage.showContent.length > 0 {
                 // log("=== 阅读内容调试信息 (pageModel) ===")
-                // log("内容长度: \(pageModel.showContent.length)")
-                // log("内容前100字符: \(pageModel.showContent.string.prefix(100))")
-                // log("headerKind: \(pageModel.headerKind.rawValue)")
-                // log("headerInsetHeight: \(pageModel.headerInsetHeight)")
-                // log("contentSize: \(pageModel.contentSize)")
-                // log("page: \(pageModel.page?.intValue ?? -1)")
+                // log("内容长度: \(layoutPage.showContent.length)")
+                // log("内容前100字符: \(layoutPage.showContent.string.prefix(100))")
+                // log("headerKind: \(layoutPage.headerKind.rawValue)")
+                // log("headerInsetHeight: \(layoutPage.headerInsetHeight)")
+                // log("contentSize: \(layoutPage.contentSize)")
+                // log("page: \(layoutPage.page?.intValue ?? -1)")
                 
                 // 获取第一个字符的属性
-                let attributes = pageModel.showContent.attributes(at: 0, effectiveRange: nil)
+                let attributes = layoutPage.showContent.attributes(at: 0, effectiveRange: nil)
                 if let paragraphStyle = attributes[.paragraphStyle] as? NSParagraphStyle {
                     // log("段落样式:")
                     // log("  - lineSpacing: \(paragraphStyle.lineSpacing)")
@@ -44,7 +44,7 @@ open class ReaderPageView: UIView {
                 // log("========================")
             }
             
-            sourceAttributedText = pageModel.showContent
+            sourceAttributedText = layoutPage.showContent
             
             // 排版范围按阅读模式取，两者都必须与「这一页在**版面上占多高**」一致：
             //
@@ -60,13 +60,13 @@ open class ReaderPageView: UIView {
             //
             // 用阅读区域排不会丢行：分页（`ReaderTypesetter.pageing`）用的就是这个尺寸，
             // 同一段文字、同一个尺寸，CoreText 纳入的行数必然与分页时判定的可见行一致。
-            // 不用三元表达式：`pageModel.contentSize` 是隐式解包可选（`CGSize!`），
+            // 不用三元表达式：`layoutPage.contentSize` 是隐式解包可选（`CGSize!`），
             // 与 `READER_VIEW_RECT.size`（`CGSize`）放在三元的两支里类型统一不了
             var typesetSize: CGSize = READER_VIEW_RECT.size
             
             if ReaderConfiguration.shared().effectType == .scroll {
                 
-                typesetSize = pageModel.contentSize
+                typesetSize = layoutPage.contentSize
             }
             
             sourceRect = CGRect(origin: CGPoint.zero, size: typesetSize)
@@ -74,7 +74,7 @@ open class ReaderPageView: UIView {
             // 页数据换了就把朗读高亮清掉。
             //
             // 这一行是滚动模式的必需品：ReaderPageCell 会被 UITableView 复用，
-            // 复用时只重设 pageModel，若不清高亮，上一页的高亮矩形会留在新页上
+            // 复用时只重设 layoutPage，若不清高亮，上一页的高亮矩形会留在新页上
             // （表现为高亮出现在没在朗读的段落上）。放在这里而不是 cell 里，
             // 是因为两种阅读模式都经本 setter 换页，一处清理即可覆盖，也不会被漏掉。
             //
@@ -120,7 +120,7 @@ open class ReaderPageView: UIView {
             
             sourceRect = CGRect(origin: CGPoint.zero, size: READER_VIEW_RECT.size)
             
-            // 换页即清朗读高亮，理由同 pageModel setter
+            // 换页即清朗读高亮，理由同 layoutPage setter
             highlightRange = nil
             
             rebuildFrameRef()
