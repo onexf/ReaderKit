@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.31.0
+
+内部重构，**无 API 变更、无行为变更**，接入方只需升版本号。
+
+符号面（改名）在 1.30.0 已无可改项，这一版换另一种手段：**减少重复代码本身**。
+`ReaderScrollController` 的 `preloadingPrior` 与 `preloadingFollowing` 去空白后逐行
+相似度 78.7%，其中相当一部分是两边逐字相同的样板。
+
+### 抽出四段共用逻辑
+
+| 新增私有成员 | 取代的重复 |
+| --- | --- |
+| `beginPreload(_:towards:isAtBoundary:)` | 前置判定 + 记入在途列表。边界谓词由调用方传（`isFirstChapter` / `isLastChapter`） |
+| `endPreload(_:)` | `firstIndex(of:)` + `remove(at:)` 这对动作，原先散在 8 处 |
+| `abortPreloadIfLocked(_:)` | 目录查锁那段 |
+| `reviseNeighborLinks(of:chapterID:catalogueEntries:)` | 用目录相邻项回填 `priorChapterID` / `followingChapterID`，原先 3 处逐字相同 |
+
+`beginPreload` 返回非可选的 `chapterID`，因此方法体里几十处 `chapterID!` 和
+`guard let chapterID = chapterID` 一并消失。这不是放宽约束：`READER_NO_MORE_CHAPTER`
+本身就是 nil，到边界时边界谓词先短路，原来的强解包本来就不可能走到 nil。
+
+### 刻意没抽的部分
+
+`preloadingPrior` 里的 `contentOffset` 补偿、以及两个方向各自的插入索引算法
+（`max(0, currentIndex - 1)` vs `currentIndex + 1` 加越界 guard）**原样保留、平铺在各自方法里**。
+
+往当前章**上方**插 section 会把已有内容往下顶，所以 Prior 必须记录相对偏移、
+`reloadData` 后再恢复；Following 往下方插，不影响当前可见内容，不需要补偿。
+这是两个方向本质不同的地方，参数化成一个「带方向参数的插入函数」只会把这个差异藏进
+`if direction == .prior` 里，读起来更糟，也更容易在后续改动中被一起改坏。
+
+### 一个顺手记下的坑
+
+`reviseNeighborLinks` 里的两处回填**不要改写成三目运算**：
+
+```swift
+model.priorChapterID = chapterIndex > 0 ? catalogueEntries[chapterIndex - 1].id : READER_NO_MORE_CHAPTER
+```
+
+两个分支都是隐式解包可选（`NSNumber!`），类型检查会优先取解包后的 `NSNumber`，
+而 `READER_NO_MORE_CHAPTER` 本身就是 nil —— 编译通过，运行到边界章时当场崩。
+所以那里保留 `if` / `else` 两条赋值。
+
 ## 1.30.0
 
 把 1.29.1 那个 bug 的**成因**从注释约束变成编译期约束。

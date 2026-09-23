@@ -1024,19 +1024,8 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                 chapterModel = ReaderChapterModel.model(storyID: vc.bookModel.storyID, chapterID: chapterID)
                 
                 // 更新章节链接关系（防止使用旧的缓存数据）
-                if let model = chapterModel,
-                   let chapterIndex = vc.bookModel.catalogueEntries.firstIndex(where: { $0.id == chapterID }) {
-                    if chapterIndex > 0 {
-                        model.priorChapterID = vc.bookModel.catalogueEntries[chapterIndex - 1].id
-                    } else {
-                        model.priorChapterID = READER_NO_MORE_CHAPTER
-                    }
-                    if chapterIndex < vc.bookModel.catalogueEntries.count - 1 {
-                        model.followingChapterID = vc.bookModel.catalogueEntries[chapterIndex + 1].id
-                    } else {
-                        model.followingChapterID = READER_NO_MORE_CHAPTER
-                    }
-                    model.save()
+                if let model = chapterModel {
+                    ReaderScrollController.reviseNeighborLinks(of: model, chapterID: chapterID, catalogueEntries: vc.bookModel.catalogueEntries)
                 }
             }
             
@@ -1084,15 +1073,69 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
     
     // MARK: 预加载数据
     
-    /// 预加载上一个章节
-    private func preloadingPrior(_ chapterModel: ReaderChapterModel!) {
-   
-        let chapterID = chapterModel.priorChapterID
-        
-        if (chapterModel == nil) || chapterModel.isFirstChapter || inflightChapterIDs.contains(chapterID!) || sectionChapterIDs.contains(chapterID!) { return }
+    /// 预加载前的共用判定：章节存在、未到边界、未在途、未入列。
+    ///
+    /// 返回非 nil 表示可以继续，且该 ID 已记入在途列表；返回 nil 表示本次不预加载。
+    /// - Parameter isAtBoundary: 方向相关的边界谓词，向上传 `isFirstChapter`，向下传 `isLastChapter`。
+    ///   `READER_NO_MORE_CHAPTER` 本身就是 nil，所以到边界时 `chapterID` 必然也是 nil。
+    private func beginPreload(_ chapterModel: ReaderChapterModel!,
+                              towards chapterID: NSNumber?,
+                              isAtBoundary: Bool) -> NSNumber? {
+        guard chapterModel != nil, !isAtBoundary, let chapterID,
+              !inflightChapterIDs.contains(chapterID),
+              !sectionChapterIDs.contains(chapterID) else { return nil }
         
         // 加入加载列表（主线程）
-        inflightChapterIDs.append(chapterID!)
+        inflightChapterIDs.append(chapterID)
+        return chapterID
+    }
+    
+    /// 摘除在途标记。返回 false 表示它已经不在列表里（别处先摘了），
+    /// 失败回调据此决定还要不要提示用户 —— 与原来「找不到就直接返回」的行为一致。
+    @discardableResult
+    private func endPreload(_ chapterID: NSNumber) -> Bool {
+        guard let loadIndex = inflightChapterIDs.firstIndex(of: chapterID) else { return false }
+        inflightChapterIDs.remove(at: loadIndex)
+        return true
+    }
+    
+    /// 目标章节被锁时摘掉在途标记并返回 true，调用方据此放弃本次预加载。
+    /// 付费墙已移除，`isLocked` 恒为 false；保留是因为目录数据里仍带那几个字段。
+    private func abortPreloadIfLocked(_ chapterID: NSNumber) -> Bool {
+        guard let entry = vc.bookModel.catalogueEntries.first(where: { $0.id == chapterID }),
+              entry.isLocked else { return false }
+        endPreload(chapterID)
+        return true
+    }
+    
+    /// 用目录里的相邻项回填章节的前后指针，防止用到磁盘缓存里的旧链接关系。
+    /// 只碰参数、不碰控制器状态，所以后台线程可以直接调。
+    private static func reviseNeighborLinks(of model: ReaderChapterModel,
+                                            chapterID: NSNumber?,
+                                            catalogueEntries: [ReaderChapterListItemModel]) {
+        guard let chapterIndex = catalogueEntries.firstIndex(where: { $0.id == chapterID }) else { return }
+        
+        // 别写成三目运算：两个分支都是隐式解包可选，类型检查会优先取解包后的类型，
+        // 而 READER_NO_MORE_CHAPTER 本身就是 nil，那样会当场崩。
+        if chapterIndex > 0 {
+            model.priorChapterID = catalogueEntries[chapterIndex - 1].id
+        } else {
+            model.priorChapterID = READER_NO_MORE_CHAPTER
+        }
+        if chapterIndex < catalogueEntries.count - 1 {
+            model.followingChapterID = catalogueEntries[chapterIndex + 1].id
+        } else {
+            model.followingChapterID = READER_NO_MORE_CHAPTER
+        }
+        model.save()
+    }
+    
+    /// 预加载上一个章节
+    private func preloadingPrior(_ chapterModel: ReaderChapterModel!) {
+        
+        guard let chapterID = beginPreload(chapterModel,
+                                           towards: chapterModel.priorChapterID,
+                                           isAtBoundary: chapterModel.isFirstChapter) else { return }
         
         let storyID = chapterModel.storyID
         let bookModel = vc.bookModel!
@@ -1114,21 +1157,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                 if !isExist {
                     tempChapterModel = ReaderFastTextFileParser.parser(bookModel: bookModel, chapterID: chapterID, isUpdateFont: false)
                 }else{
-                    tempChapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID!, isUpdateFont: false)
+                    tempChapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID, isUpdateFont: false)
                     
-                    if let model = tempChapterModel,
-                       let chapterIndex = catalogueEntries.firstIndex(where: { $0.id == chapterID }) {
-                        if chapterIndex > 0 {
-                            model.priorChapterID = catalogueEntries[chapterIndex - 1].id
-                        } else {
-                            model.priorChapterID = READER_NO_MORE_CHAPTER
-                        }
-                        if chapterIndex < catalogueEntries.count - 1 {
-                            model.followingChapterID = catalogueEntries[chapterIndex + 1].id
-                        } else {
-                            model.followingChapterID = READER_NO_MORE_CHAPTER
-                        }
-                        model.save()
+                    if let model = tempChapterModel {
+                        ReaderScrollController.reviseNeighborLinks(of: model, chapterID: chapterID, catalogueEntries: catalogueEntries)
                     }
                 }
             
@@ -1139,10 +1171,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     // 主线程补做字体/分页（依赖 UIWindow safeArea）
                     tempChapterModel?.reviseFont()
                     
-                    self.chapterCache[chapterID!.stringValue] = tempChapterModel
+                    self.chapterCache[chapterID.stringValue] = tempChapterModel
                     
                     guard let currentIndex = self.sectionChapterIDs.firstIndex(of: currentChapterModelId),
-                          let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID!) else {
+                          self.inflightChapterIDs.contains(chapterID) else {
                         return
                     }
                     
@@ -1152,8 +1184,8 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     let relativeOffset = currentOffset - currentFirstCellRect.origin.y
                     
                     let previousIndex = max(0, currentIndex - 1)
-                    self.sectionChapterIDs.insert(chapterID!, at: previousIndex)
-                    self.inflightChapterIDs.remove(at: loadIndex)
+                    self.sectionChapterIDs.insert(chapterID, at: previousIndex)
+                    self.endPreload(chapterID)
                     self.tableView.reloadData()
                     self.tableView.layoutIfNeeded()
                     
@@ -1170,24 +1202,16 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     guard let self = self else { return }
                     
                     // 检查上一章是否锁定（付费墙已移除，恒为 false）
-                    if let previousChapterListModel = self.vc.bookModel.catalogueEntries.first(where: { $0.id == chapterID }) {
-                        if previousChapterListModel.isLocked {
-                            if let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID!) {
-                                self.inflightChapterIDs.remove(at: loadIndex)
-                            }
-                            return
-                        }
-                    }
+                    if self.abortPreloadIfLocked(chapterID) { return }
                     
-                    guard let id = chapterID?.intValue else { return }
-                    let dispatched = self.vc.chapterLoader?.loadChapter(chapterId: id, successBlock: { [weak self] tempChapterModel in
+                    let dispatched = self.vc.chapterLoader?.loadChapter(chapterId: chapterID.intValue, successBlock: { [weak self] tempChapterModel in
                         DispatchQueue.main.async { [weak self] in
                             guard let self = self else { return }
                             
-                            self.chapterCache[chapterID!.stringValue] = tempChapterModel
+                            self.chapterCache[chapterID.stringValue] = tempChapterModel
                             
                             guard let currentIndex = self.sectionChapterIDs.firstIndex(of: currentChapterModelId),
-                                  let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID!) else {
+                                  self.inflightChapterIDs.contains(chapterID) else {
                                 return
                             }
                             
@@ -1197,8 +1221,8 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                             let relativeOffset = currentOffset - currentFirstCellRect.origin.y
                             
                             let previousIndex = max(0, currentIndex - 1)
-                            self.sectionChapterIDs.insert(chapterID!, at: previousIndex)
-                            self.inflightChapterIDs.remove(at: loadIndex)
+                            self.sectionChapterIDs.insert(chapterID, at: previousIndex)
+                            self.endPreload(chapterID)
                             self.tableView.reloadData()
                             self.tableView.layoutIfNeeded()
                             
@@ -1209,20 +1233,14 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                         }
                     }, failureBlock: { [weak self] error in
                         DispatchQueue.main.async { [weak self] in
-                            guard let self = self,
-                                  let chapterID = chapterID,
-                                  let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID) else {
-                                return
-                            }
-                            self.inflightChapterIDs.remove(at: loadIndex)
+                            guard let self = self, self.endPreload(chapterID) else { return }
                             ReaderEnvironment.presentErrorNotice(self.view, error.localizedDescription)
                         }
                     })
                     
                     // If throttled, remove from loading list so it can be retried after cooldown
-                    if dispatched?.willCallBack != true, let chapterID = chapterID,
-                       let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID) {
-                        self.inflightChapterIDs.remove(at: loadIndex)
+                    if dispatched?.willCallBack != true {
+                        self.endPreload(chapterID)
                     }
                 }
             }
@@ -1232,12 +1250,9 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
     /// 预加载下一个章节
     private func preloadingFollowing(_ chapterModel: ReaderChapterModel!) {
         
-        let chapterID = chapterModel.followingChapterID
-        
-        if (chapterModel == nil) || chapterModel.isLastChapter || inflightChapterIDs.contains(chapterID!) || sectionChapterIDs.contains(chapterID!) { return }
-        
-        // 加入加载列表（主线程）
-        inflightChapterIDs.append(chapterID!)
+        guard let chapterID = beginPreload(chapterModel,
+                                           towards: chapterModel.followingChapterID,
+                                           isAtBoundary: chapterModel.isLastChapter) else { return }
         
         let storyID = chapterModel.storyID
         let bookModel = vc.bookModel!
@@ -1259,21 +1274,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                 if !isExist {
                     tempChapterModel = ReaderFastTextFileParser.parser(bookModel: bookModel, chapterID: chapterID, isUpdateFont: false)
                 }else{
-                    tempChapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID!, isUpdateFont: false)
+                    tempChapterModel = ReaderChapterModel.model(storyID: storyID, chapterID: chapterID, isUpdateFont: false)
                     
-                    if let model = tempChapterModel,
-                       let chapterIndex = catalogueEntries.firstIndex(where: { $0.id == chapterID }) {
-                        if chapterIndex > 0 {
-                            model.priorChapterID = catalogueEntries[chapterIndex - 1].id
-                        } else {
-                            model.priorChapterID = READER_NO_MORE_CHAPTER
-                        }
-                        if chapterIndex < catalogueEntries.count - 1 {
-                            model.followingChapterID = catalogueEntries[chapterIndex + 1].id
-                        } else {
-                            model.followingChapterID = READER_NO_MORE_CHAPTER
-                        }
-                        model.save()
+                    if let model = tempChapterModel {
+                        ReaderScrollController.reviseNeighborLinks(of: model, chapterID: chapterID, catalogueEntries: catalogueEntries)
                     }
                 }
                 
@@ -1284,11 +1288,10 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     // 主线程补做字体/分页（依赖 UIWindow safeArea）
                     tempChapterModel?.reviseFont()
                     
-                    self.chapterCache[chapterID!.stringValue] = tempChapterModel
+                    self.chapterCache[chapterID.stringValue] = tempChapterModel
                     
-                    guard let chapterID = chapterID,
-                          let currentIndex = self.sectionChapterIDs.firstIndex(of: currentChapterModelId),
-                          let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID) else {
+                    guard let currentIndex = self.sectionChapterIDs.firstIndex(of: currentChapterModelId),
+                          self.inflightChapterIDs.contains(chapterID) else {
                         return
                     }
                     
@@ -1296,7 +1299,7 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     guard nextIndex <= self.sectionChapterIDs.count else { return }
                     
                     self.sectionChapterIDs.insert(chapterID, at: nextIndex)
-                    self.inflightChapterIDs.remove(at: loadIndex)
+                    self.endPreload(chapterID)
                     self.tableView.reloadData()
                 }
                 
@@ -1306,25 +1309,16 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                     guard let self = self else { return }
                     
                     // 检查下一章是否锁定（付费墙已移除，恒为 false）
-                    if let nextChapterListModel = self.vc.bookModel.catalogueEntries.first(where: { $0.id == chapterID }) {
-                        if nextChapterListModel.isLocked {
-                            if let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID!) {
-                                self.inflightChapterIDs.remove(at: loadIndex)
-                            }
-                            return
-                        }
-                    }
+                    if self.abortPreloadIfLocked(chapterID) { return }
                     
-                    guard let id = chapterID?.intValue else { return }
-                    let dispatched = self.vc.chapterLoader?.loadChapter(chapterId: id, successBlock: { [weak self] tempChapterModel in
+                    let dispatched = self.vc.chapterLoader?.loadChapter(chapterId: chapterID.intValue, successBlock: { [weak self] tempChapterModel in
                         DispatchQueue.main.async { [weak self] in
                             guard let self = self else { return }
                             
-                            self.chapterCache[chapterID!.stringValue] = tempChapterModel
+                            self.chapterCache[chapterID.stringValue] = tempChapterModel
                             
-                            guard let chapterID = chapterID,
-                                  let currentIndex = self.sectionChapterIDs.firstIndex(of: currentChapterModelId),
-                                  let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID) else {
+                            guard let currentIndex = self.sectionChapterIDs.firstIndex(of: currentChapterModelId),
+                                  self.inflightChapterIDs.contains(chapterID) else {
                                 return
                             }
                             
@@ -1332,25 +1326,19 @@ open class ReaderScrollController: ReaderScreenController, UITableViewDelegate, 
                             guard nextIndex <= self.sectionChapterIDs.count else { return }
                             
                             self.sectionChapterIDs.insert(chapterID, at: nextIndex)
-                            self.inflightChapterIDs.remove(at: loadIndex)
+                            self.endPreload(chapterID)
                             self.tableView.reloadData()
                         }
                     }, failureBlock: { [weak self] error in
                         DispatchQueue.main.async { [weak self] in
-                            guard let self = self,
-                                  let chapterID = chapterID,
-                                  let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID) else {
-                                return
-                            }
-                            self.inflightChapterIDs.remove(at: loadIndex)
+                            guard let self = self, self.endPreload(chapterID) else { return }
                             ReaderEnvironment.presentErrorNotice(self.view, error.localizedDescription)
                         }
                     })
                     
                     // If throttled, remove from loading list so it can be retried after cooldown
-                    if dispatched?.willCallBack != true, let chapterID = chapterID,
-                       let loadIndex = self.inflightChapterIDs.firstIndex(of: chapterID) {
-                        self.inflightChapterIDs.remove(at: loadIndex)
+                    if dispatched?.willCallBack != true {
+                        self.endPreload(chapterID)
                     }
                 }
             }
