@@ -507,6 +507,32 @@ public final class ReaderSpeechController {
         speakingSegmentStart = nil
     }
 
+    /// 把出声计时重锚到指定章内坐标。**起播位置发生跳变时必须调。**
+    ///
+    /// 存在理由：锁屏时间轴的已播秒数与正文里的朗读位置是两套量纲，只在「从头连续读」
+    /// 时才天然一致。用户翻几页再点「从这里开始读」，位置跳了、墙钟没跳，
+    /// 通知中心的进度条就停在原处不动（向前翻页则反过来偏大）；向前跨章翻页落在章末、
+    /// 计时却刚归零，偏差最大。
+    ///
+    /// 折算用的语速与 `makeContext()` 算总时长用的是**同一个** `estimatedCharactersPerSecond`，
+    /// 所以重锚当场 `elapsed / duration` 精确等于 `chapterProgress`。两处取不同语速的话
+    /// 重锚本身就会把进度条打偏。
+    ///
+    /// ⚠️ 这与 1.7.1 那次回归**不是一回事**。那次的错是把已播时间整体换成句首折算值，
+    /// 于是整句朗读期间它一动不动，系统看到「声称在播、时间不走」就不再采信我们的 `rate`。
+    /// 这里只在跳变的那一刻重设基准，之后照旧由墙钟往前推 —— 连续性不受影响。
+    /// **不要把本方法挪进逐句推进的路径**（`advanceToNextSentence` / `speechPlayerDidStart`），
+    /// 那就正好复现 1.7.1。
+    private func anchorSpeakingTime(toLocation location: NSInteger) {
+
+        // 在途那一段出声属于旧位置，**丢掉而不是结算** —— 结算进累计值等于把旧位置的
+        // 秒数叠到新锚点上。新的一段由 `speechPlayerDidStart` 重新起表。
+        speakingSegmentStart = nil
+
+        accumulatedSpeakingTime = Double(max(0, location))
+            / Self.estimatedCharactersPerSecond(forLanguage: language)
+    }
+
     /// 从暂停位置继续。
     public func resume() {
 
@@ -550,7 +576,9 @@ public final class ReaderSpeechController {
         // 立即出声。
         guard let sentence = currentSentence else { return }
 
-        start(fromLocation: sentence.range.location)
+        // `anchorsTimeline: false` —— 这是**原地继续**同一句，不是位置跳变。
+        // 走默认的重锚会把已播时间拽回句首折算值，表现为「点继续，进度条先倒退一下」。
+        beginSpeaking(fromLocation: sentence.range.location, anchorsTimeline: false)
     }
 
     /// 本章已累计的**实际出声时长**（秒），不含当前正在出声的这一段。
@@ -648,11 +676,10 @@ public final class ReaderSpeechController {
 
         if let speakingChapterID, speakingChapterID == chapter.id, !sentences.isEmpty { return true }
 
-        // 换章了，出声计时归零。锁屏时间轴的总时长按**本章**字符数外推，
-        // 计时不归零会让已播时间越章累加、很快超过总时长。
-        settleSpeakingSegment()
-
-        accumulatedSpeakingTime = 0
+        // ⚠️ **出声计时不在这里归零。** 这里的语义是「换章了」，而计时锚点跟的是
+        // 「起播位置」—— 同章内翻页后重新起播走的是上面那条短路，根本到不了这里。
+        // 归零曾经写在这里，症状是翻几页再起播、锁屏与通知中心的进度条仍停在原处。
+        // 归零与重锚统一归 `anchorSpeakingTime(toLocation:)`，由 `beginSpeaking` 调。
 
         // **先校验正文。** `typesetContent` 是「标题 + 正文」，正文为空时它仍然非空
         // （只剩标题），只看它会把「有归档但没正文」的空壳章节当成可读 ——
@@ -717,7 +744,11 @@ public final class ReaderSpeechController {
     // MARK: - 朗读推进
 
     /// 真正开始朗读。调用前须确保引擎处于 idle。
-    private func beginSpeaking(fromLocation location: NSInteger) {
+    ///
+    /// - Parameter anchorsTimeline: 是否把锁屏时间轴重锚到 `location`。默认 true ——
+    ///   本方法的常态语义就是「跳到某个位置开口读」。唯一的例外是从暂停继续时**重新提交
+    ///   同一句**（见 `resume()`），那不是跳变，重锚会让已播时间当场往回跳一下。
+    private func beginSpeaking(fromLocation location: NSInteger, anchorsTimeline: Bool = true) {
 
         guard let index = ReaderSentenceTokenizer.sentenceIndex(forLocation: location, in: sentences) else {
 
@@ -740,6 +771,17 @@ public final class ReaderSpeechController {
         renderRetriedIndex = nil
 
         currentIndex = index
+
+        // 起播位置可能与上一刻的朗读位置无关（翻页后「从这里开始读」、跨章、目录跳章），
+        // 所以时间轴要在这里重锚。必须在 `submitCurrentSentence()` 之前 ——
+        // 那一步会把 `activity` 推成 `.preparing` 并连带写一次锁屏信息。
+        //
+        // 锚点取**句首**而不是入参 `location`：实际出声就是从句首开始的（入参通常落在句子
+        // 中间），而 `makeContext()` 算进度同样取句首，两处必须同源。
+        if anchorsTimeline {
+
+            anchorSpeakingTime(toLocation: sentences[index].range.location)
+        }
 
         // 音频会话与锁屏**不在这里激活**，挪到真正要出声的时刻（`playFragment`）。
         //
