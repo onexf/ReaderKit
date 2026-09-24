@@ -32,21 +32,32 @@ open class ReaderMenuCataloguePanel: UIView, UITableViewDelegate, UITableViewDat
     /// 列表
     private var tableView: UITableView!
     
+    /// 通知观察者 token。
+    ///
+    /// block 版观察者**不归 `removeObserver(self)` 管**，必须按 token 摘 ——
+    /// 漏摘不报错，观察者会一直留在通知中心里。
+    private var notificationTokens: [NSObjectProtocol] = []
+    
     public override init(frame: CGRect) {
         super.init(frame: frame)
         configureViews()
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(handleCatalogueRefresh),
-                                               name: .readerChapterListDidUpdate,
-                                               object: nil)
+        // queue 传 nil：保持 selector 版「在发帖线程同步投递」的时机。传 .main 会改成
+        // 异步派发，刷新要晚一个 runloop。
+        notificationTokens.append(
+            NotificationCenter.default.addObserver(forName: .readerChapterListDidUpdate,
+                                                  object: nil,
+                                                  queue: nil) { [weak self] _ in
+                self?.handleCatalogueRefresh()
+            }
+        )
     }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
+        notificationTokens.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     /// 后台目录补全有新章节合并时刷新列表（仅刷新数据，不打断用户当前浏览位置）。
-    @objc private func handleCatalogueRefresh() {
+    private func handleCatalogueRefresh() {
         guard bookModel != nil else { return }
         tableView.reloadData()
     }

@@ -168,13 +168,13 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     private func initPressSwipeRecognizer() {
         
         // 单击手势
-        menuTapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handleMenuTap))
+        menuTapRecognizer = ReaderGesture.tap { [weak self] _ in self?.handleMenuTap() }
         menuTapRecognizer.numberOfTapsRequired = 1
         menuTapRecognizer.delegate = self
         vc.contentView.addGestureRecognizer(menuTapRecognizer)
         
         // 收起菜单的滑动手势
-        dismissPan = UIPanGestureRecognizer(target: self, action: #selector(handleMenuDismissDrag))
+        dismissPan = ReaderGesture.pan { [weak self] _ in self?.handleMenuDismissDrag() }
         dismissPan.delegate = self
         // 只负责"发现有人在这块区域拖动",不吞触摸 —— 侧滑返回、滚动模式的正文滚动
         // 都还要照常收到这一串触摸。
@@ -183,7 +183,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     }
     
     // 触发单击手势
-    @objc private func handleMenuTap() {
+    private func handleMenuTap() {
         
         // 如果内容还未加载完成，不显示菜单
         guard vc.bookModel != nil else {
@@ -216,7 +216,7 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
     /// 只在**开始**拖动的那一下收菜单，不跟手 —— 这是「先收起菜单」而不是「跟着手指拉」。
     /// 收完菜单本次拖动就不再有别的效果：左右翻页的 pan 在菜单呼出时已经被
     /// `suspendPageTurn(true)` 关掉，中途重新打开也不会接管已经开始的这串触摸。
-    @objc private func handleMenuDismissDrag() {
+    private func handleMenuDismissDrag() {
         
         guard dismissPan.state == .began, isMenuVisible else { return }
         
@@ -323,15 +323,10 @@ open class ReaderMenu: NSObject, UIGestureRecognizerDelegate {
         // 遮罩撑满整个contentView
         catalogueBackdrop.frame = CGRect(x: 0, y: 0, width: READER_CONTENT_VIEW_WIDTH, height: READER_CONTENT_VIEW_HEIGHT)
         
-        // 添加点击手势关闭目录
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissCatalogueFromBackdrop))
-        catalogueBackdrop.addGestureRecognizer(tapGesture)
-    }
-    
-    @objc private func dismissCatalogueFromBackdrop() {
-        // log("🔥 handleCatalogBackgroundTap called")
-        // 关闭底部目录
-        concealBaseCatalog()
+        // 点遮罩关闭底部目录
+        catalogueBackdrop.addGestureRecognizer(
+            ReaderGesture.tap { [weak self] _ in self?.concealBaseCatalog() }
+        )
     }
     
     /// 显示/隐藏目录背景遮罩

@@ -135,37 +135,49 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     private let placeholderImageSize = CGSize(width: 199, height: 129)
     private let placeholderImageGap: CGFloat = 20
     
+    /// 通知观察者 token。
+    ///
+    /// block 版观察者**不归 `removeObserver(self)` 管**，必须按 token 摘 ——
+    /// 漏摘不报错，观察者会一直留在通知中心里。
+    private var notificationTokens: [NSObjectProtocol] = []
+    
     public override init(frame: CGRect) {
         
         super.init(frame: frame)
         
         addSubviews()
         
+        // queue 传 nil：保持 selector 版「在发帖线程同步投递」的时机。传 .main 会改成
+        // 异步派发，刷新要晚一个 runloop。
+        let center = NotificationCenter.default
+        
         // 目录补全 / 对账更新后刷新书签(分组的章节序、锁定态、被删章节移除都依赖最新章节列表)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(handleCatalogueRefresh),
-                                               name: .readerChapterListDidUpdate,
-                                               object: nil)
+        notificationTokens.append(
+            center.addObserver(forName: .readerChapterListDidUpdate, object: nil, queue: nil) { [weak self] _ in
+                self?.handleCatalogueRefresh()
+            }
+        )
         
         // 服务端书签列表拉取合并完成后刷新(重装/换设备后从服务端拉回的书签需在列表实时展示)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(handleBookmarkMerge(_:)),
-                                               name: .readerBookmarksMerged,
-                                               object: nil)
+        notificationTokens.append(
+            center.addObserver(forName: .readerBookmarksMerged, object: nil, queue: nil) { [weak self] note in
+                self?.handleBookmarkMerge(note)
+            }
+        )
     }
     
     deinit {
-        NotificationCenter.default.removeObserver(self)
+        notificationTokens.forEach { NotificationCenter.default.removeObserver($0) }
     }
     
     /// 章节列表更新后刷新书签列表(仅在已有数据时)
-    @objc private func handleCatalogueRefresh() {
+    private func handleCatalogueRefresh() {
         guard bookModel != nil else { return }
         reloadMarks()
     }
     
     /// 服务端书签合并完成后刷新当前书的书签列表(object 为 storyID,只刷新匹配的书)
-    @objc private func handleBookmarkMerge(_ note: Notification) {
+    private func handleBookmarkMerge(_ note: Notification) {
         guard let storyID = note.object as? String, storyID == bookModel?.storyID else { return }
         reloadMarks()
     }
@@ -185,7 +197,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
         addSubview(tableView)
         
         // 长按书签弹出删除 sheet
-        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleRowLongPress(_:)))
+        let longPress = ReaderGesture.longPress { [weak self] gesture in self?.handleRowLongPress(gesture) }
         longPress.minimumPressDuration = 0.4
         tableView.addGestureRecognizer(longPress)
         
@@ -213,7 +225,7 @@ open class ReaderBookmarkListView: UIView, UITableViewDelegate, UITableViewDataS
     }
     
     /// 长按书签:弹出删除 sheet(Remove 删当前 / Clear All 清全部)
-    @objc private func handleRowLongPress(_ gesture: UILongPressGestureRecognizer) {
+    private func handleRowLongPress(_ gesture: UILongPressGestureRecognizer) {
         
         guard gesture.state == .began, bookModel != nil else { return }
         

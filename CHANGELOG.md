@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.33.1
+把 `@objc` 从 25 处减到 2 处：手势走闭包，通知走 block 版观察者。
+无行为变化，纯 Swift 接入方无需改任何代码。
+
+### 手势：`ReaderGesture`
+
+新增 `Support/ReaderGesture.swift`，提供 `tap` / `longPress` / `pan` 三个闭包工厂，
+外加 `observe(_:with:)` 往**别人的**手势上追加回调（用于 `UIPageViewController`
+内部 scrollView 的 pan）。14 个手势接入点改完，回调逻辑回到注册现场，
+`@objc private func toggleTapped() { onTap?() }` 这类纯仪式的方法全部消失。
+
+⚠️ **两个方向相反的失败模式，都不报错，改这块前必须同时记住：**
+
+| 漏了什么 | 后果 |
+| --- | --- |
+| 蹦床没被手势持住 | target-action **不强持 target**，蹦床出了作用域当场析构，手势从此不回调。所以 `hold` 用关联对象把它挂在手势上，这步不能省 |
+| 闭包没写 `[weak self]` | 视图持手势、手势持闭包、闭包持视图 = 环。原先 `target: self` 不会环正是因为 target-action 不强持，换闭包就没这层天然保护了 |
+
+顺带说明：`#selector` 在 Swift 里本来就是编译期检查的，这次的收益**不在防拼错**，
+而在回调的位置、ObjC 导出面的收缩，以及 `open` 成员不再被迫走动态派发。
+
+### 通知：block 版 + token 摘除
+
+8 处 selector 观察者改成 `addObserver(forName:object:queue:using:)`。
+
+⚠️ **`queue` 一律传 nil。** 传 nil 是「在发帖线程同步投递」，与 selector 版同一时机；
+传 `.main` 会变成异步派发、晚一个 runloop。这在 `ReaderSpeechAudioSession` 上尤其要紧：
+中断处置若晚于系统真正中断我们的那一刻，本类的记账与会话实际状态就对不上。
+
+⚠️ **block 版观察者不归 `removeObserver(self)` 管**，必须按 token 摘。漏摘不报错，
+观察者会一直留在通知中心里。六个类各自存 `notificationTokens` 并在 `deinit` 排空。
+
+本版动了音频会话那三个系统通知（中断 / 路由变更 / 服务重置）的**机制**，行为应当等价。
+1.32.1 的教训是那段状态机横跨 `AVPlayer`、`AVAudioSession`、系统 TTS 与远程命令，
+所以升级后建议重点走三条路径：来电打断后能否自动续播、拔耳机与切蓝牙、
+退出阅读器再进是否重复注册。
+
+### 剩下的 2 处，以及为什么去不掉
+
+- `ReaderLongPressView.handleCopyTap` —— `UIMenuItem(title:action:)` 与
+  `canPerformAction(_:withSender:)` 两边的货币都是 `Selector`，闭包版是 iOS 16 的
+  `UIEditMenuInteraction`，本库最低 15.1。等提最低版本才能动
+- `ReaderGesture` 内部的蹦床 —— 全库手势的 selector 都收敛到这一个。要连它一起去掉，
+  得给三种 recognizer 各写一个持闭包的子类，那是 **3 个 `@objc` 换 1 个**，方向反了
+
+### 接入侧唯一的表面变化
+
+`ReaderSheetController.handlePageTap(tap:)` 不再是 `@objc`，但**仍然是 `open`** ——
+闭包里调的就是这一层，Swift 子类覆写照常生效。只有从 ObjC 侧调它才会受影响。
+
 ## 1.33.0
 按设计稿修菜单底栏两处像素差，并随本版发布之前积压的**源码目录重组**。
 无行为与接口变化，`import ReaderKit` 的一方无需改任何代码。

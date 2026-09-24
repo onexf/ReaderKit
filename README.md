@@ -47,7 +47,7 @@ Swift 6 严格并发（`SWIFT_STRICT_CONCURRENCY = complete`）下可直接
 | `Theme/` | 六套主题、色板与 hex 构造 |
 | `Persistence/` | 磁盘归档与 `UserDefaults` |
 | `Primitives/` | 公共常量、间距与字号度量、屏幕度量、公共枚举 |
-| `Support/` | 共享基类（`ReaderScreenController` / `ReaderTableView`）与 `String` 扩展 |
+| `Support/` | 共享基类（`ReaderScreenController` / `ReaderTableView`）、手势闭包入口、`String` 扩展 |
 
 SPM 与 CocoaPods 两边都按 `**/*.swift` 递归收全整棵树，所以**挪目录不影响接入方**，
 也不需要改 `Package.swift` 与 podspec —— 唯一例外是 `Contracts/README.md`
@@ -224,6 +224,11 @@ ReaderEnvironment.fonts = fonts
   `READER_COLOR_*` 一类全大写全局量，以及名为 `ReaderSheetController`、实为左右翻页
   容器（`UIPageViewController` 子类）的类。它们都是 `public` / `open`，改名会破坏
   接入方的源码兼容，要留到发大版本时一并做。
+- `@objc` 只剩 2 处，都没有闭包替代品：`UIMenuController` 的复制菜单
+  （`UIMenuItem(action:)` 与 `canPerformAction` 两边的货币都是 `Selector`，闭包版是
+  iOS 16 的 `UIEditMenuInteraction`），以及 `ReaderGesture` 内部那个蹦床 ——
+  全库手势的 selector 都收敛到了它。手势走 `ReaderGesture`，通知一律走
+  `addObserver(forName:object:queue:using:)` 并按 token 摘除。
 
 ## 许可与来源
 

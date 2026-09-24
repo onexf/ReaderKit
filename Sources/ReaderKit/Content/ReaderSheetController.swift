@@ -61,7 +61,7 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         
         tapGestureRecognizerEnabled = false
         
-        pageTapRecognizer = UITapGestureRecognizer(target: self, action: #selector(handlePageTap(tap:)))
+        pageTapRecognizer = ReaderGesture.tap { [weak self] tap in self?.handlePageTap(tap: tap) }
 
         pageTapRecognizer.delegate = self
 
@@ -152,11 +152,11 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         ensurePrivateScrollView()
         guard let pan = hostedScrollView?.panGestureRecognizer else { return }
         
-        pan.addTarget(self, action: #selector(handlePageDrag(_:)))
+        ReaderGesture.observe(pan) { [weak self] pan in self?.handlePageDrag(pan) }
         isObservingPageDrag = true
     }
     
-    @objc private func handlePageDrag(_ pan: UIPanGestureRecognizer) {
+    private func handlePageDrag(_ pan: UIPanGestureRecognizer) {
         
         guard pan.state == .ended, let onPageDragEnded else { return }
         
@@ -237,8 +237,12 @@ open class ReaderSheetController: UIPageViewController, UIGestureRecognizerDeleg
         }
     }
     
-    // tap事件
-    @objc open func handlePageTap(tap: UIGestureRecognizer) {
+    /// 点击翻页。
+    ///
+    /// 手势已改走闭包（`ReaderGesture.tap`），这里不再需要 `@objc` ——
+    /// 但**仍然是 `open`**：子类覆盖点击翻页的判定要靠它，闭包里调的也是这一层，
+    /// 所以覆写照样生效。
+    open func handlePageTap(tap: UIGestureRecognizer) {
         
         // Prevent rapid taps from triggering multiple simultaneous page transitions
         guard !tapTurnInFlight else { return }

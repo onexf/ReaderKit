@@ -99,7 +99,9 @@ open class ReaderLongPressView: ReaderPageView {
         //   - 现阶段需求不依赖文字选中复制，因此关闭对体验无损
         //
         // ⚠️ 书签 / 划线 / 笔记 等功能开发时需要恢复：
-        //   1. 取消下面 4 行手势注册的注释，恢复 longGes / tapGes 注册
+        //   1. 取消下面几行手势注册的注释，恢复 longGes / tapGes 注册
+        //      （闭包记得写 [weak self]，理由见 `ReaderGesture`；deinit 不需要摘 target，
+        //       闭包随手势一起释放）
         //   2. 同时重写放大镜实现，不要再用 。建议方案：
         //      - 普通 UIView，addSubview 到 keyWindow
         //      - 内容用 UIView.drawHierarchy(in:afterScreenUpdates:) 截屏 + UIImageView 显示
@@ -107,10 +109,10 @@ open class ReaderLongPressView: ReaderPageView {
         //   3. 验证场景：iOS 15.1 / 17 / 18，iPhone + iPad 多窗口，反复长按 + 翻页
         //   4. 同步把 .kiro/learnings/bugs/ 里这次的 learning 链接到书签 spec
         //
-        // longGes = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPressAction(long:)))
+        // longGes = ReaderGesture.longPress { [weak self] long in self?.handleLongPressAction(long: long) }
         // addGestureRecognizer(longGes!)
         //
-        // tapGes = UITapGestureRecognizer(target: self, action: #selector(handleSelectionTap(tap:)))
+        // tapGes = ReaderGesture.tap { [weak self] tap in self?.handleSelectionTap(tap: tap) }
         // tapGes!.isEnabled = false
         // addGestureRecognizer(tapGes!)
     }
@@ -127,14 +129,14 @@ open class ReaderLongPressView: ReaderPageView {
     // MARK: 手势事件
     
     /// 单击事件
-    @objc private func handleSelectionTap(tap: UITapGestureRecognizer) {
+    private func handleSelectionTap(tap: UITapGestureRecognizer) {
 
         // 重置页面数据
         reset()
     }
     
     /// 长按事件
-    @objc private func handleLongPressAction(long: UILongPressGestureRecognizer) {
+    private func handleLongPressAction(long: UILongPressGestureRecognizer) {
 
         // 触摸位置
         let point = long.location(in: self)
@@ -510,6 +512,10 @@ open class ReaderLongPressView: ReaderPageView {
     }
     
     /// 复制事件
+    ///
+    /// ⚠️ **`@objc` 去不掉。** `UIMenuItem(title:action:)` 和
+    /// `canPerformAction(_:withSender:)` 两边的货币都是 `Selector`，没有闭包版；
+    /// iOS 16 的 `UIEditMenuInteraction` 才有，而本库最低支持 15.1。
     @objc private func handleCopyTap() {
         
         if selectedSpan != nil {
@@ -549,16 +555,6 @@ open class ReaderLongPressView: ReaderPageView {
         ctx.addPath(path)
         
         ctx.fillPath()
-    }
-    
-    /// 释放
-    deinit {
-        
-        tapGes?.removeTarget(self, action: #selector(handleSelectionTap(tap:)))
-        tapGes = nil
-        
-        longGes?.removeTarget(self, action: #selector(handleLongPressAction(long:)))
-        longGes = nil
     }
     
     public required init?(coder aDecoder: NSCoder) {

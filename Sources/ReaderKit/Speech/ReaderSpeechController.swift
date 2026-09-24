@@ -248,6 +248,12 @@ public final class ReaderSpeechController {
     /// 播放器的回调不带片段（它只认音频文件），需要在这里记住「现在播的是哪一句」。
     private var currentFragment: ReaderSpeechFragment?
 
+    /// 通知观察者 token。
+    ///
+    /// block 版观察者**不归 `removeObserver(self)` 管**，必须按 token 摘 ——
+    /// 漏摘不报错，观察者会一直留在通知中心里。
+    private var notificationTokens: [NSObjectProtocol] = []
+
     // MARK: - 构造
 
     /// - Parameters:
@@ -275,7 +281,7 @@ public final class ReaderSpeechController {
 
     deinit {
 
-        NotificationCenter.default.removeObserver(self)
+        notificationTokens.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     // MARK: - 前后台
@@ -293,10 +299,16 @@ public final class ReaderSpeechController {
         // 会停在两页之间 —— 真机上表现为正文整体横向偏移半屏、被截断，
         // 页码与时间电量挤在一起。用户手动翻一页触发一次正常布局后就恢复正常，
         // 这也说明分页数据本身是对的，坏的只是那一次的容器状态。
-        NotificationCenter.default.addObserver(self,
-                                              selector: #selector(handleDidBecomeActive),
-                                              name: UIApplication.didBecomeActiveNotification,
-                                              object: nil)
+        //
+        // queue 传 nil：保持 selector 版「在发帖线程同步投递」的时机。`didBecomeActive`
+        // 本来就在主线程发，传 .main 反而会改成异步派发、比现在晚一个 runloop。
+        notificationTokens.append(
+            NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
+                                                   object: nil,
+                                                   queue: nil) { [weak self] _ in
+                self?.handleDidBecomeActive()
+            }
+        )
     }
 
     /// 回到前台并激活：把正文对齐到当前朗读位置。
@@ -304,7 +316,7 @@ public final class ReaderSpeechController {
     /// 后台听书期间正文视图不跟着走（没必要，也做不了动画），所以回来时可能已经
     /// 隔了好几页甚至好几章。不对齐的话用户看到的是自己离开时那一页，
     /// 与耳朵里听到的内容对不上。
-    @objc private func handleDidBecomeActive() {
+    private func handleDidBecomeActive() {
 
         guard activity != .idle else { return }
 

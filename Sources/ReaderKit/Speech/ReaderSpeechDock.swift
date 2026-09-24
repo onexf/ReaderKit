@@ -149,7 +149,7 @@ open class ReaderSpeechDock: UIView {
 
         view.isUserInteractionEnabled = true
 
-        view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(dismissByArtworkTap)))
+        view.addGestureRecognizer(ReaderGesture.tap { [weak self] _ in self?.onCoverAction?() })
 
         return view
     }()
@@ -447,10 +447,6 @@ open class ReaderSpeechDock: UIView {
         closeView.adoptTintColor(colors.textSpeechDock)
     }
 
-    // MARK: - 动作
-
-
-    @objc private func dismissByArtworkTap() { onCoverAction?() }
 }
 
 // MARK: - 进度环 + 中央图标
@@ -524,7 +520,7 @@ final class ReaderSpeechDockToggle: UIView {
 
         addSubview(iconView)
 
-        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleTapped)))
+        addGestureRecognizer(ReaderGesture.tap { [weak self] _ in self?.onTap?() })
 
         adoptTintColor(tint)
     }
@@ -648,8 +644,6 @@ final class ReaderSpeechDockToggle: UIView {
 
         iconView.tintColor = color
     }
-
-    @objc private func toggleTapped() { onTap?() }
 }
 
 // MARK: - 关闭按钮
@@ -687,7 +681,7 @@ final class ReaderSpeechDockCloseButton: UIView {
 
         addSubview(iconView)
 
-        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(closeTapped)))
+        addGestureRecognizer(ReaderGesture.tap { [weak self] _ in self?.onTap?() })
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -741,6 +735,4 @@ final class ReaderSpeechDockCloseButton: UIView {
 
         iconView.tintColor = color
     }
-
-    @objc private func closeTapped() { onTap?() }
 }

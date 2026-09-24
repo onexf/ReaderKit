@@ -80,24 +80,35 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
     /// 有一次「定位到当前章」还没做成 —— 尺寸就绪后补做。见 `scrollEntry()`。
     private var needsScrollToCurrentChapter = false
     
+    /// 通知观察者 token。
+    ///
+    /// block 版观察者**不归 `removeObserver(self)` 管**，必须按 token 摘 ——
+    /// 漏摘不报错，观察者会一直留在通知中心里。
+    private var notificationTokens: [NSObjectProtocol] = []
+    
     public override init(frame: CGRect) {
         
         super.init(frame: frame)
         
         addSubviews()
         
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(handleCatalogueRefresh),
-                                               name: .readerChapterListDidUpdate,
-                                               object: nil)
+        // queue 传 nil：保持 selector 版「在发帖线程同步投递」的时机。传 .main 会改成
+        // 异步派发，刷新要晚一个 runloop。
+        notificationTokens.append(
+            NotificationCenter.default.addObserver(forName: .readerChapterListDidUpdate,
+                                                  object: nil,
+                                                  queue: nil) { [weak self] _ in
+                self?.handleCatalogueRefresh()
+            }
+        )
     }
     
     deinit {
-        NotificationCenter.default.removeObserver(self)
+        notificationTokens.forEach { NotificationCenter.default.removeObserver($0) }
     }
     
     /// 后台目录补全有新章节合并时刷新列表（仅刷新数据，不打断当前浏览位置）。
-    @objc private func handleCatalogueRefresh() {
+    private func handleCatalogueRefresh() {
         guard bookModel != nil else { return }
         reviseNumberColumnWidth()
         tableView.reloadData()
@@ -153,14 +164,12 @@ open class ReaderCatalogueView: UIView, UITableViewDelegate, UITableViewDataSour
         // 整块可点：转圈那一小团太小，点不中
         failureLabel.isUserInteractionEnabled = true
         failureLabel.addGestureRecognizer(
-            UITapGestureRecognizer(target: self, action: #selector(touchRetry))
+            ReaderGesture.tap { [weak self] _ in
+                guard let self else { return }
+                self.delegate?.catalogueViewDidRequestRetry(self)
+            }
         )
         loadingFooter.addSubview(failureLabel)
-    }
-    
-    @objc private func touchRetry() {
-        
-        delegate?.catalogueViewDidRequestRetry(self)
     }
     
     /// 装（或重装）加载中的指示视图。

@@ -42,6 +42,12 @@ final class ReaderSpeechAudioSession {
     /// 朗读该不该暂停始终是引擎的判断。
     var isManagedExternally: Bool = false
 
+    /// 通知观察者 token。
+    ///
+    /// block 版观察者**不归 `removeObserver(self)` 管**，必须按 token 摘 ——
+    /// 漏摘不报错，观察者会一直留在通知中心里。
+    private var notificationTokens: [NSObjectProtocol] = []
+
     // MARK: - 生命周期
 
     init() {
@@ -49,9 +55,7 @@ final class ReaderSpeechAudioSession {
     }
 
     deinit {
-        // 通知中心的自动摘除只在 iOS 9+ 对 block-based 之外的观察者生效，
-        // 这里显式摘一次，语义更明确
-        NotificationCenter.default.removeObserver(self)
+        notificationTokens.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     // MARK: - 激活与反激活
@@ -142,28 +146,44 @@ final class ReaderSpeechAudioSession {
 
     // MARK: - 系统通知
 
+    /// ⚠️ **`queue` 必须传 nil，不要图省事传 `.main`。**
+    ///
+    /// 中断与路由变更由系统在自己选的线程上发，传 nil 是「在发帖线程同步投递」——
+    /// 和原先 selector 版完全同一时机。传 `.main` 会变成异步派发，于是
+    /// `handleInterruption` 里对 `AVAudioSession` 的处置会晚于系统真正中断我们的那一刻，
+    /// 本类的记账与会话实际状态就对不上了。这条路径的状态机横跨 `AVPlayer`、
+    /// 系统 TTS 与远程命令（见 CHANGELOG 1.32.1），时序错位很难从现象反推回来。
     private func observeSystemNotifications() {
 
         let center = NotificationCenter.default
 
-        center.addObserver(self,
-                           selector: #selector(handleInterruption(_:)),
-                           name: AVAudioSession.interruptionNotification,
-                           object: nil)
+        notificationTokens.append(
+            center.addObserver(forName: AVAudioSession.interruptionNotification,
+                               object: nil,
+                               queue: nil) { [weak self] notification in
+                self?.handleInterruption(notification)
+            }
+        )
 
-        center.addObserver(self,
-                           selector: #selector(handleRouteAlter(_:)),
-                           name: AVAudioSession.routeChangeNotification,
-                           object: nil)
+        notificationTokens.append(
+            center.addObserver(forName: AVAudioSession.routeChangeNotification,
+                               object: nil,
+                               queue: nil) { [weak self] notification in
+                self?.handleRouteAlter(notification)
+            }
+        )
 
-        center.addObserver(self,
-                           selector: #selector(handleMediaServicesReset),
-                           name: AVAudioSession.mediaServicesWereResetNotification,
-                           object: nil)
+        notificationTokens.append(
+            center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification,
+                               object: nil,
+                               queue: nil) { [weak self] _ in
+                self?.handleMediaServicesReset()
+            }
+        )
     }
 
     /// 中断处理（来电、闹钟、其它 App 抢占音频）。
-    @objc private func handleInterruption(_ notification: Notification) {
+    private func handleInterruption(_ notification: Notification) {
 
         guard let info = notification.userInfo,
               let rawType = info[AVAudioSessionInterruptionTypeKey] as? UInt,
@@ -213,7 +233,7 @@ final class ReaderSpeechAudioSession {
     }
 
     /// 路由变化处理。
-    @objc private func handleRouteAlter(_ notification: Notification) {
+    private func handleRouteAlter(_ notification: Notification) {
 
         guard let info = notification.userInfo,
               let rawReason = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
@@ -233,7 +253,7 @@ final class ReaderSpeechAudioSession {
     ///
     /// 这是系统级的音频栈重启，此前建立的会话与合成器状态都不再可信，
     /// 稳妥做法是整体停止而不是尝试续播。
-    @objc private func handleMediaServicesReset() {
+    private func handleMediaServicesReset() {
 
         performOnMain { [weak self] in
 
