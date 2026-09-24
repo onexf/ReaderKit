@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.33.0
+按设计稿修菜单底栏两处像素差，并随本版发布之前积压的**源码目录重组**。
+无行为与接口变化，`import ReaderKit` 的一方无需改任何代码。
+
+### 源码目录重组（62 个文件纯移动，无内容改动）
+`Sources/ReaderKit/` 由原先按「类型」分的 `menuUI/ model/ controller/ view/ other/…`
+改为按**关注点**分的 `Contracts/ Reader/ Content/ Typesetting/ Models/ Menu/ Drawer/
+Speech/ Persistence/ Primitives/ Theme/ Support/`，只保留一层（`Menu/Panels/` 是唯一二层）。
+目录职责表见 README「目录结构」。
+Package.swift 走 `path: "Sources/ReaderKit"`、podspec 走 `**/*.swift`，两边都不需要跟着改。
+
+### 呼出菜单顶部圆角 12 → 16
+`READER_MENU_BOTTOM_VIEW_CORNER_RADIUS`。设计稿菜单帧给的是 16，之前取了 12。
+⚠️ 设计稿自身不一致：反馈弹层那一帧标的是 12。以菜单帧为准 —— 这个常量只作用于呼出菜单。
+### 底栏 tab 文字 10 → 9
+`ReaderMenuTabRail`。设计稿是 Lexend Deca Light 9，之前取了 10，"Directory" 因此宽出约 4pt。
+`titleHeight` **刻意保持 14**：9pt 行高约 11.7，收窄它会连带改 `itemHeight`(64) →
+`READER_MENU_BOTTOM_TAB_BAR_HEIGHT`(84) → 菜单收起态与展开态两个高度，改动面远大于收益。
+所以 tab 栏总高与图标位置一点没动。
+
 ## 1.32.2
 
 修**朗读位置跳变后，锁屏 / 通知中心 / 控制中心的进度与正文里的朗读位置对不上**。

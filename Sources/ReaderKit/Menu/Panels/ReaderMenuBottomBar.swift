@@ -35,8 +35,8 @@ public let READER_MENU_SETTING_PANEL_HEIGHT: CGFloat = 232
 /// （tab 栏 z 序在面板之上），观感就是面板从 tab 栏底下钻出来再爬上去。
 public let READER_MENU_FUNC_VIEW_CONTENT_HEIGHT: CGFloat = READER_MENU_SETTING_PANEL_HEIGHT + READER_MENU_BOTTOM_TAB_BAR_HEIGHT
 
-/// 呼出菜单顶部圆角（设计稿 12，仅上方两角）
-public let READER_MENU_BOTTOM_VIEW_CORNER_RADIUS: CGFloat = 12
+/// 呼出菜单顶部圆角（设计稿 16，仅上方两角）
+public let READER_MENU_BOTTOM_VIEW_CORNER_RADIUS: CGFloat = 16
 
 /// bottomView 基础高度（不包含字体调整区域）
 public let READER_MENU_BOTTOM_VIEW_BASE_HEIGHT: CGFloat = ReaderScreenMetrics.safeAreaBottom + READER_MENU_BOTTOM_TAB_BAR_HEIGHT

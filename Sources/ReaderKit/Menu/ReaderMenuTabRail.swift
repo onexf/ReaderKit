@@ -37,7 +37,11 @@ open class ReaderMenuTabRail: UIView {
     /// 图标与文字间距
     private let iconTitleSpacing: CGFloat = 2
 
-    /// 文字占位高度（与 uiLight(10) 行高对齐）
+    /// 文字占位高度。
+    ///
+    /// 字号是 9（设计稿），行高约 11.7，这里仍留 14 —— 文字在槽里居中，多留的两点看不出来，
+    /// 而收窄它会连带改 `itemHeight`(64) → `READER_MENU_BOTTOM_TAB_BAR_HEIGHT`(84) →
+    /// 菜单收起态与展开态的高度，改动面远大于收益。
     private let titleHeight: CGFloat = 14
 
     open weak var delegate: ReaderMenuTabRailDelegate?
@@ -116,7 +120,7 @@ open class ReaderMenuTabRail: UIView {
             button.setImage(activeIcon, for: [.selected, .highlighted])
         }
         button.setTitle(title, for: .normal)
-        button.titleLabel?.font = ReaderEnvironment.fonts.uiLight(10)
+        button.titleLabel?.font = ReaderEnvironment.fonts.uiLight(9)
         button.setTitleColor(laneTitleColor(ReaderConfiguration.shared().currentThemeColors), for: .normal)
         button.imageView?.contentMode = .scaleAspectFit
         configureBtnLayout(button)

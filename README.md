@@ -30,6 +30,29 @@ Swift 6 严格并发（`SWIFT_STRICT_CONCURRENCY = complete`）下可直接
 `import ReaderKit`，无需 `@preconcurrency`——库内可变全局已标注
 `nonisolated(unsafe)`，契约是「展示阅读器前配置一次注入点，之后只读」。
 
+## 目录结构
+
+`Sources/ReaderKit/` 按**关注点**分目录，只有一层（`Menu/Panels/` 是唯一的二层）。
+
+| 目录 | 内容 |
+|---|---|
+| `Contracts/` | 注入点协议与 `ReaderEnvironment`，每个文件顶部写了设计取舍与「不注入会怎样」 |
+| `Reader/` | 阅读器主控：`ReaderViewController`、阅读配置、章节重试节流 |
+| `Content/` | 正文承载：翻页容器与滚动、页视图、长按选词、页眉页脚、书籍封面页 |
+| `Typesetting/` | 排版分页：文本解析、分页计算、CoreText 底层 |
+| `Models/` | 归档模型（书 / 章 / 页 / 书签 / 阅读记录） |
+| `Menu/` | 呼出菜单骨架与顶栏，`Panels/` 是底部各面板（设置 / 进度 / 目录） |
+| `Drawer/` | 侧边抽屉：目录与书签列表 |
+| `Speech/` | 朗读：合成、音频缓存与播放、锁屏信息、朗读控件与整屏播放页 |
+| `Theme/` | 六套主题、色板与 hex 构造 |
+| `Persistence/` | 磁盘归档与 `UserDefaults` |
+| `Primitives/` | 公共常量、间距与字号度量、屏幕度量、公共枚举 |
+| `Support/` | 共享基类（`ReaderScreenController` / `ReaderTableView`）与 `String` 扩展 |
+
+SPM 与 CocoaPods 两边都按 `**/*.swift` 递归收全整棵树，所以**挪目录不影响接入方**，
+也不需要改 `Package.swift` 与 podspec —— 唯一例外是 `Contracts/README.md`
+在 `Package.swift` 的 `exclude` 里点了名，那个文件换位置要同步改。
+
 ## 最小接入
 
 阅读器入口处配置环境与注入点：
@@ -197,6 +220,10 @@ ReaderEnvironment.fonts = fonts
   新增归档类型必须在表里登记，漏登记不报错。
 - 埋点处于整体下线状态（代码注释保留）。恢复时应经协议由接入方实现，
   引擎不直连任何埋点 SDK。
+- 目录结构已按关注点重排，但**公开符号还留着上游痕迹**：`READER_SPACE_*` /
+  `READER_COLOR_*` 一类全大写全局量，以及名为 `ReaderSheetController`、实为左右翻页
+  容器（`UIPageViewController` 子类）的类。它们都是 `public` / `open`，改名会破坏
+  接入方的源码兼容，要留到发大版本时一并做。
 
 ## 许可与来源
 
